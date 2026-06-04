@@ -1,8 +1,7 @@
 {
   "version": 2,
   "routes": [
-    { "src": "/admin", "dest": "/admin.html" },
-    { "src": "/api/(.*)", "dest": "/api/$1" }
+    { "src": "/admin", "dest": "/admin.html" }
   ],
   "crons": [
     {
