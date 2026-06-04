@@ -899,9 +899,10 @@ module.exports = async (req, res) => {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // req.query.route is an array of path segments, e.g. ['auth', 'login']
-  // or undefined for /api/ with no segments
-  const route = req.query.route || [];
+  // req.query.path is the full path after /api/, e.g. 'auth/login'
+  // passed via vercel.json: { "src": "/api/(.*)", "dest": "/api/index?path=$1" }
+  const pathStr = (req.query.path || '').replace(/^\/+/, '');
+  const route = pathStr ? pathStr.split('/') : [];
 
   const seg0 = route[0]; // e.g. 'auth', 'contacts', 'sms', 'calls', 'webhooks', 'sequences', 'dashboard'
   const seg1 = route[1]; // e.g. 'login', 'verify', ':id', 'import', 'send', etc.
