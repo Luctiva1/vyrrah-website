@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vyrrah Dialer — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --red: #e63946;
+      --red-dark: #c1121f;
+      --sidebar-bg: #1a1a2e;
+      --sidebar-hover: #16213e;
+      --sidebar-active: #e63946;
+      --text: #1a1a2e;
+      --text-light: #6b7280;
+      --border: #e5e7eb;
+      --bg: #f9fafb;
+      --white: #ffffff;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --blue: #3b82f6;
+      --card-shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); }
+
+    /* ── LOGIN ── */
+    #login-screen {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; background: var(--sidebar-bg);
+    }
+    .login-card {
+      background: var(--white); border-radius: 12px; padding: 40px;
+      width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    }
+    .login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+    .login-logo .logo-mark {
+      width: 40px; height: 40px; background: var(--red); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 800; font-size: 18px;
+    }
+    .login-logo h1 { font-size: 20px; font-weight: 700; color: var(--text); }
+    .login-logo span { font-size: 12px; color: var(--text-light); display: block; margin-top: 1px; }
+    .login-card h2 { font-size: 22px; margin-bottom: 6px; }
+    .login-card p { color: var(--text-light); font-size: 14px; margin-bottom: 28px; }
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+    .form-group input {
+      width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 14px; outline: none; transition: border .2s;
+    }
+    .form-group input:focus { border-color: var(--red); }
+    .btn-primary {
+      width: 100%; padding: 12px; background: var(--red); color: white;
+      border: none; border-radius: 8px; font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: background .2s;
+    }
+    .btn-primary:hover { background: var(--red-dark); }
+    .login-error { color: var(--red); font-size: 13px; margin-top: 12px; text-align: center; display: none; }
+
+    /* ── APP SHELL ── */
+    #app { display: none; height: 100vh; overflow: hidden; flex-direction: row; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 220px; min-width: 220px; background: var(--sidebar-bg);
+      display: flex; flex-direction: column; height: 100vh; overflow-y: auto;
+    }
+    .sidebar-brand {
+      padding: 20px 20px 16px; border-bottom: 1px solid rgba(255,255,255,.07);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-brand .logo-mark {
+      width: 32px; height: 32px; background: var(--red); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 800; font-size: 14px; flex-shrink: 0;
+    }
+    .sidebar-brand span { color: white; font-weight: 700; font-size: 15px; }
+    .sidebar-brand small { color: rgba(255,255,255,.4); font-size: 11px; display: block; }
+
+    .sidebar-nav { padding: 12px 10px; flex: 1; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      color: rgba(255,255,255,.55); border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 500; transition: all .15s; margin-bottom: 2px;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
+    .nav-item.active { background: var(--red); color: white; }
+    .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .nav-badge {
+      margin-left: auto; background: var(--red); color: white;
+      border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700;
+    }
+    .nav-item.active .nav-badge { background: rgba(255,255,255,.3); }
+
+    .sidebar-footer {
+      padding: 14px 10px; border-top: 1px solid rgba(255,255,255,.07);
+    }
+    .sidebar-footer button {
+      display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+      color: rgba(255,255,255,.4); background: none; border: none; cursor: pointer;
+      font-size: 13px; border-radius: 6px; width: 100%; transition: color .2s;
+    }
+    .sidebar-footer button:hover { color: rgba(255,255,255,.7); }
+
+    /* ── CONTENT ── */
+    .content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+    .page { display: none; padding: 28px 32px; flex: 1; }
+    .page.active { display: block; }
+
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .page-header h2 { font-size: 22px; font-weight: 700; }
+    .page-header p { color: var(--text-light); font-size: 14px; margin-top: 2px; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--white); border-radius: 10px; border: 1px solid var(--border);
+      box-shadow: var(--card-shadow);
+    }
+    .card-body { padding: 20px; }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card {
+      background: var(--white); border-radius: 10px; padding: 18px 20px;
+      border: 1px solid var(--border); box-shadow: var(--card-shadow);
+    }
+    .stat-card .stat-label { font-size: 12px; color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+    .stat-card .stat-value { font-size: 30px; font-weight: 800; margin-top: 6px; color: var(--text); }
+    .stat-card .stat-sub { font-size: 12px; color: var(--text-light); margin-top: 3px; }
+    .stat-card.red .stat-value { color: var(--red); }
+    .stat-card.green .stat-value { color: var(--green); }
+    .stat-card.blue .stat-value { color: var(--blue); }
+
+    /* ── BUTTONS ── */
+    .btn {
+      padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: 1.5px solid transparent; transition: all .15s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-danger { background: var(--red); color: white; border-color: var(--red); }
+    .btn-danger:hover { background: var(--red-dark); border-color: var(--red-dark); }
+    .btn-outline { background: transparent; color: var(--text); border-color: var(--border); }
+    .btn-outline:hover { border-color: #9ca3af; background: var(--bg); }
+    .btn-green { background: var(--green); color: white; border-color: var(--green); }
+    .btn-blue { background: var(--blue); color: white; border-color: var(--blue); }
+    .btn-yellow { background: var(--yellow); color: white; border-color: var(--yellow); }
+    .btn-ghost { background: transparent; color: var(--text-light); border-color: transparent; }
+    .btn-ghost:hover { color: var(--text); background: var(--border); }
+    .btn:disabled { opacity: .5; cursor: default; }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { padding: 11px 14px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-light); background: var(--bg); border-bottom: 1px solid var(--border); }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    tbody tr:hover { background: #fafafa; cursor: pointer; }
+    tbody td { padding: 11px 14px; }
+
+    /* ── STATUS BADGES ── */
+    .badge {
+      display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 12px;
+      font-size: 11px; font-weight: 600; text-transform: capitalize;
+    }
+    .badge-new { background: #eff6ff; color: #1d4ed8; }
+    .badge-contacted { background: #fef3c7; color: #92400e; }
+    .badge-replied { background: #d1fae5; color: #065f46; }
+    .badge-booked { background: #e9d5ff; color: #6d28d9; }
+    .badge-not_interested { background: #fee2e2; color: #991b1b; }
+    .badge-follow_up { background: #fef9c3; color: #713f12; }
+
+    /* ── SEARCH BAR ── */
+    .search-bar {
+      display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .search-bar input, .search-bar select {
+      padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 7px;
+      font-size: 13px; outline: none; transition: border .2s;
+    }
+    .search-bar input:focus, .search-bar select:focus { border-color: var(--red); }
+    .search-bar input { flex: 1; min-width: 200px; }
+
+    /* ── PAGINATION ── */
+    .pagination { display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
+    .pagination button { padding: 5px 12px; border: 1.5px solid var(--border); border-radius: 6px; background: white; font-size: 13px; cursor: pointer; }
+    .pagination button:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+    .pagination button:disabled { opacity: .4; cursor: default; }
+    .pagination span { font-size: 13px; color: var(--text-light); }
+
+    /* ── DIALER ── */
+    .dialer-layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+    .dialer-card { background: var(--white); border-radius: 12px; border: 1px solid var(--border); padding: 28px; box-shadow: var(--card-shadow); }
+    .dialer-lead-name { font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+    .dialer-lead-meta { color: var(--text-light); font-size: 14px; margin-bottom: 20px; }
+    .dialer-lead-meta span { margin-right: 14px; }
+    .dialer-phone { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 24px; letter-spacing: .5px; }
+
+    .call-btn {
+      width: 90px; height: 90px; border-radius: 50%; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; margin: 0 auto 24px; transition: all .15s; box-shadow: 0 4px 20px rgba(230,57,70,.3);
+    }
+    .call-btn.idle { background: var(--green); }
+    .call-btn.idle:hover { background: #059669; transform: scale(1.05); }
+    .call-btn.active { background: var(--red); animation: pulse 1.5s infinite; }
+    .call-btn.disabled { background: #d1d5db; cursor: default; box-shadow: none; }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 4px 20px rgba(230,57,70,.4); }
+      50% { box-shadow: 0 4px 40px rgba(230,57,70,.7); }
+    }
+
+    .outcome-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px; }
+    .outcome-btn {
+      padding: 9px 6px; border-radius: 7px; border: 1.5px solid var(--border);
+      font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s;
+      background: white; text-align: center;
+    }
+    .outcome-btn:hover { border-color: var(--red); color: var(--red); }
+    .outcome-btn.selected { background: var(--red); color: white; border-color: var(--red); }
+    .outcome-btn:disabled { opacity: .4; cursor: default; }
+
+    .notes-area {
+      width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 13px; resize: vertical; min-height: 80px; outline: none; font-family: inherit;
+    }
+    .notes-area:focus { border-color: var(--red); }
+
+    .dialer-actions { display: flex; gap: 10px; margin-top: 14px; }
+
+    /* ── CALL HISTORY ── */
+    .call-history { overflow-y: auto; max-height: 500px; }
+    .call-history-item {
+      padding: 12px; border-bottom: 1px solid var(--border); font-size: 13px; cursor: pointer;
+    }
+    .call-history-item:hover { background: var(--bg); }
+    .call-history-item .ch-name { font-weight: 600; margin-bottom: 2px; }
+    .call-history-item .ch-meta { color: var(--text-light); font-size: 12px; }
+
+    /* ── SMS CONVERSATIONS ── */
+    .conv-layout { display: grid; grid-template-columns: 280px 1fr; height: calc(100vh - 140px); gap: 0; }
+    .conv-list { border-right: 1px solid var(--border); overflow-y: auto; background: var(--white); }
+    .conv-item {
+      padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+      display: flex; align-items: center; gap: 12px; transition: background .1s;
+    }
+    .conv-item:hover { background: var(--bg); }
+    .conv-item.active { background: #fff5f5; border-left: 3px solid var(--red); }
+    .conv-avatar {
+      width: 38px; height: 38px; border-radius: 50%; background: var(--red); display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 700; font-size: 14px; flex-shrink: 0;
+    }
+    .conv-item-info { flex: 1; min-width: 0; }
+    .conv-item-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-item-preview { font-size: 12px; color: var(--text-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-unread {
+      background: var(--red); color: white; width: 18px; height: 18px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0;
+    }
+
+    .conv-thread { display: flex; flex-direction: column; background: var(--bg); }
+    .conv-thread-header {
+      padding: 14px 18px; background: var(--white); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .conv-thread-header h3 { font-size: 15px; font-weight: 700; }
+    .conv-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .msg-bubble {
+      max-width: 68%; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.45;
+      position: relative;
+    }
+    .msg-bubble.out { background: var(--red); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .msg-bubble.in { background: var(--white); color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid var(--border); }
+    .msg-time { font-size: 10px; opacity: .6; margin-top: 4px; }
+
+    .conv-input-area {
+      padding: 14px 18px; background: var(--white); border-top: 1px solid var(--border);
+      display: flex; gap: 10px; align-items: flex-end;
+    }
+    .conv-input-area textarea {
+      flex: 1; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 13px; resize: none; max-height: 120px; outline: none; font-family: inherit;
+    }
+    .conv-input-area textarea:focus { border-color: var(--red); }
+    .conv-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-light); font-size: 14px; }
+
+    /* ── SEQUENCES ── */
+    .seq-grid { display: grid; gap: 16px; }
+
+    /* ── SETTINGS ── */
+    .settings-section { margin-bottom: 28px; }
+    .settings-section h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f3f4f6; }
+    .settings-row label { font-size: 13px; font-weight: 500; }
+    .settings-row .settings-val { font-size: 13px; color: var(--text-light); font-family: monospace; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000;
+      display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--white); border-radius: 12px; width: 100%; max-width: 520px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto;
+    }
+    .modal-header {
+      padding: 18px 22px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .modal-header h3 { font-size: 16px; font-weight: 700; }
+    .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-light); line-height: 1; }
+    .modal-body { padding: 22px; }
+    .modal-footer { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: var(--text); }
+    .field input, .field select, .field textarea {
+      width: 100%; padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 7px;
+      font-size: 13px; outline: none; transition: border .2s; font-family: inherit;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--red); }
+
+    /* ── LEAD PROFILE MODAL ── */
+    .profile-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .profile-tab { padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text-light); }
+    .profile-tab.active { border-bottom-color: var(--red); color: var(--red); }
+    .profile-tab-content { display: none; }
+    .profile-tab-content.active { display: block; }
+    .activity-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .activity-item .ai-type { font-weight: 600; text-transform: capitalize; margin-bottom: 2px; }
+    .activity-item .ai-meta { color: var(--text-light); font-size: 12px; }
+
+    /* ── LOADING ── */
+    .loading { text-align: center; padding: 40px; color: var(--text-light); font-size: 14px; }
+    .spinner {
+      width: 24px; height: 24px; border: 3px solid var(--border);
+      border-top-color: var(--red); border-radius: 50%; animation: spin .6s linear infinite;
+      display: inline-block; vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── TOAST ── */
+    #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .toast {
+      background: #1a1a2e; color: white; padding: 12px 18px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,.2);
+      animation: slideIn .25s ease; max-width: 320px;
+    }
+    .toast.success { border-left: 4px solid var(--green); }
+    .toast.error { border-left: 4px solid var(--red); }
+    .toast.info { border-left: 4px solid var(--blue); }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--text-light); }
+    .empty-state svg { opacity: .3; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+
+    .tag { display: inline-flex; padding: 2px 8px; background: #f3f4f6; border-radius: 10px; font-size: 11px; color: var(--text-light); }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-mark">V</div>
+      <div>
+        <h1>Vyrrah Labs</h1>
+        <span>Outreach Dialer</span>
+      </div>
+    </div>
+    <h2>Sign in</h2>
+    <p>Enter your admin credentials to continue.</p>
+    <form id="login-form">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="login-username" placeholder="admin" autocomplete="username" required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <button class="btn-primary" type="submit" id="login-btn">Sign in</button>
+      <div class="login-error" id="login-error">Invalid username or password.</div>
+    </form>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="logo-mark">V</div>
+      <div>
+        <span>Vyrrah</span>
+        <small>Outreach Dialer</small>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-page="dashboard">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
+      <button class="nav-item" data-page="contacts">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Contacts
+      </button>
+      <button class="nav-item" data-page="dialer">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 11 19.79 19.79 0 01.18 2.38 2 2 0 012.18 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.09a16 16 0 006 6l.56-.56a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92v2z"/></svg>
+        Dialer
+      </button>
+      <button class="nav-item" data-page="conversations">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Conversations
+        <span class="nav-badge" id="inbox-badge" style="display:none">0</span>
+      </button>
+      <button class="nav-item" data-page="sequences">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Sequences
+      </button>
+      <button class="nav-item" data-page="settings">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M20 12h2M2 12h2M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41"/></svg>
+        Settings
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <button id="logout-btn">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        Sign out
+      </button>
+    </div>
+  </aside>
+
+  <!-- CONTENT -->
+  <main class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div><h2>Dashboard</h2><p>Today's outreach overview</p></div>
+        <button class="btn btn-outline btn-sm" id="refresh-dashboard">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          Refresh
+        </button>
+      </div>
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-label">Calls Today</div><div class="stat-value" id="stat-calls">—</div></div>
+        <div class="stat-card green"><div class="stat-label">SMS Sent</div><div class="stat-value" id="stat-sms">—</div></div>
+        <div class="stat-card blue"><div class="stat-label">Answer Rate</div><div class="stat-value" id="stat-ans">—</div><div class="stat-sub" id="stat-ans-sub"></div></div>
+        <div class="stat-card"><div class="stat-label">Total Leads</div><div class="stat-value" id="stat-leads">—</div></div>
+        <div class="stat-card"><div class="stat-label">Replied</div><div class="stat-value" id="stat-replied">—</div></div>
+        <div class="stat-card green"><div class="stat-label">Booked</div><div class="stat-value" id="stat-booked">—</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div class="card">
+          <div class="card-body">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;">Recent Calls</h3>
+            <div id="recent-calls-list"><div class="loading"><span class="spinner"></span> Loading...</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;">Recent SMS</h3>
+            <div id="recent-sms-list"><div class="loading"><span class="spinner"></span> Loading...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTACTS -->
+    <div class="page" id="page-contacts">
+      <div class="page-header">
+        <div><h2>Contacts</h2><p id="contacts-count">Loading...</p></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline btn-sm" id="import-csv-btn">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Import CSV
+          </button>
+          <button class="btn btn-danger btn-sm" id="add-contact-btn">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Contact
+          </button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body" style="padding-bottom:0;">
+          <div class="search-bar">
+            <input type="text" id="contacts-search" placeholder="Search name, company, phone...">
+            <select id="contacts-status-filter">
+              <option value="">All Statuses</option>
+              <option value="new">New</option>
+              <option value="contacted">Contacted</option>
+              <option value="replied">Replied</option>
+              <option value="booked">Booked</option>
+              <option value="not_interested">Not Interested</option>
+              <option value="follow_up">Follow Up</option>
+            </select>
+            <select id="contacts-niche-filter">
+              <option value="">All Niches</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="contacts-table">
+            <thead>
+              <tr>
+                <th>Name</th><th>Company</th><th>Phone</th><th>Niche</th><th>Status</th><th>Campaign</th><th>Added</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="contacts-tbody">
+              <tr><td colspan="8"><div class="loading"><span class="spinner"></span> Loading...</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination" id="contacts-pagination"></div>
+      </div>
+    </div>
+
+    <!-- DIALER -->
+    <div class="page" id="page-dialer">
+      <div class="page-header">
+        <div><h2>Power Dialer</h2><p>Work through your call queue</p></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span style="font-size:13px;color:var(--text-light);" id="dialer-queue-info">Load contacts to start</span>
+          <button class="btn btn-outline btn-sm" id="load-dialer-queue">Load Queue</button>
+        </div>
+      </div>
+      <div class="dialer-layout">
+        <div>
+          <div class="dialer-card" id="dialer-main">
+            <div id="dialer-empty" style="text-align:center;padding:40px;color:var(--text-light);">
+              <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="opacity:.3;display:block;margin:0 auto 12px;"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 11 19.79 19.79 0 01.18 2.38 2 2 0 012.18 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.09a16 16 0 006 6l.56-.56a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92v2z" stroke-width="1.5"/></svg>
+              <p>Click "Load Queue" to start dialing</p>
+            </div>
+            <div id="dialer-lead-panel" style="display:none;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;">
+                <div>
+                  <div class="dialer-lead-name" id="d-name">—</div>
+                  <div class="dialer-lead-meta">
+                    <span id="d-company">—</span>
+                    <span id="d-niche" class="tag"></span>
+                  </div>
+                  <div class="dialer-phone" id="d-phone">—</div>
+                </div>
+                <div id="d-status-badge"></div>
+              </div>
+
+              <div style="text-align:center;margin-bottom:24px;">
+                <button class="call-btn idle" id="call-btn">📞</button>
+                <div id="call-timer" style="font-size:13px;color:var(--text-light);margin-top:-12px;margin-bottom:8px;"></div>
+              </div>
+
+              <div class="outcome-btns" id="outcome-btns">
+                <button class="outcome-btn" data-outcome="answered" disabled>✅ Answered</button>
+                <button class="outcome-btn" data-outcome="voicemail" disabled>📬 Voicemail</button>
+                <button class="outcome-btn" data-outcome="no_answer" disabled>📵 No Answer</button>
+                <button class="outcome-btn" data-outcome="callback" disabled>🔁 Callback</button>
+                <button class="outcome-btn" data-outcome="interested" disabled>🌟 Interested</button>
+                <button class="outcome-btn" data-outcome="not_interested" disabled>❌ Not Int.</button>
+              </div>
+
+              <textarea class="notes-area" id="dialer-notes" placeholder="Call notes..."></textarea>
+
+              <div class="dialer-actions">
+                <button class="btn btn-outline" id="save-outcome-btn" disabled>Save & Next</button>
+                <button class="btn btn-ghost btn-sm" id="skip-lead-btn">Skip</button>
+                <button class="btn btn-blue btn-sm" id="send-sms-from-dialer">Send SMS</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Call History Sidebar -->
+        <div class="card">
+          <div class="card-body" style="padding:14px;border-bottom:1px solid var(--border);">
+            <h3 style="font-size:13px;font-weight:700;">Call History</h3>
+          </div>
+          <div class="call-history" id="call-history-list">
+            <div class="loading" style="padding:20px;"><span class="spinner"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONVERSATIONS -->
+    <div class="page" id="page-conversations">
+      <div class="page-header" style="margin-bottom:16px;">
+        <div><h2>Conversations</h2><p>SMS inbox</p></div>
+        <button class="btn btn-danger btn-sm" id="new-sms-btn">New SMS</button>
+      </div>
+      <div class="card" style="overflow:hidden;">
+        <div class="conv-layout">
+          <div class="conv-list" id="conv-list">
+            <div class="loading" style="padding:20px;"><span class="spinner"></span> Loading...</div>
+          </div>
+          <div class="conv-thread" id="conv-thread">
+            <div class="conv-empty">Select a conversation</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEQUENCES -->
+    <div class="page" id="page-sequences">
+      <div class="page-header">
+        <div><h2>Sequences</h2><p>Automated SMS follow-up</p></div>
+        <button class="btn btn-danger btn-sm" id="new-sequence-btn">Enroll Lead</button>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Lead</th><th>Campaign</th><th>Step</th><th>Scheduled</th><th>Status</th><th>Sent</th></tr>
+            </thead>
+            <tbody id="sequences-tbody">
+              <tr><td colspan="6"><div class="loading"><span class="spinner"></span> Loading...</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="page-header"><div><h2>Settings</h2><p>Twilio & opt-out management</p></div></div>
+      <div style="max-width:600px;">
+        <div class="card card-body settings-section">
+          <h3>Twilio Configuration</h3>
+          <div class="settings-row">
+            <label>Phone Number</label>
+            <span class="settings-val" id="settings-twilio-number">Loading...</span>
+          </div>
+          <div class="settings-row">
+            <label>Account SID</label>
+            <span class="settings-val" id="settings-account-sid">Loaded from environment</span>
+          </div>
+          <div class="settings-row">
+            <label>SMS Webhook</label>
+            <span class="settings-val" id="settings-sms-webhook"></span>
+          </div>
+          <div class="settings-row">
+            <label>Voice Webhook</label>
+            <span class="settings-val" id="settings-voice-webhook"></span>
+          </div>
+        </div>
+
+        <div class="card card-body settings-section" style="margin-top:16px;">
+          <h3>Opt-out List <span class="tag" id="optout-count">0</span></h3>
+          <div id="optout-list" style="margin-top:8px;"></div>
+          <button class="btn btn-outline btn-sm" style="margin-top:12px;" id="load-optouts">Load opt-outs</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<!-- MODAL: Add Contact -->
+<div class="modal-overlay" id="modal-add-contact">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add Contact</h3>
+      <button class="modal-close" data-close="modal-add-contact">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="field"><label>First Name *</label><input type="text" id="c-first_name"></div>
+        <div class="field"><label>Last Name</label><input type="text" id="c-last_name"></div>
+      </div>
+      <div class="field"><label>Company</label><input type="text" id="c-company"></div>
+      <div class="form-row">
+        <div class="field"><label>Phone *</label><input type="tel" id="c-phone" placeholder="+61400000000"></div>
+        <div class="field"><label>Email</label><input type="email" id="c-email"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Niche</label><input type="text" id="c-niche" placeholder="e.g. Real Estate"></div>
+        <div class="field"><label>Campaign</label><input type="text" id="c-campaign"></div>
+      </div>
+      <div class="form-row">
+        <div class="field"><label>Country</label>
+          <select id="c-country">
+            <option value="AU">Australia</option>
+            <option value="US">United States</option>
+            <option value="GB">United Kingdom</option>
+            <option value="NZ">New Zealand</option>
+            <option value="CA">Canada</option>
+          </select>
+        </div>
+        <div class="field"><label>Status</label>
+          <select id="c-status">
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="follow_up">Follow Up</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" data-close="modal-add-contact">Cancel</button>
+      <button class="btn btn-danger" id="save-contact-btn">Add Contact</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Import CSV -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Import Contacts (CSV)</h3>
+      <button class="modal-close" data-close="modal-import">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">
+        Upload a CSV file. Expected columns: <code>first_name, last_name, company, phone, email, country, niche, campaign</code>
+      </p>
+      <input type="file" id="csv-file-input" accept=".csv" style="font-size:13px;">
+      <div id="import-preview" style="margin-top:14px;font-size:13px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" data-close="modal-import">Cancel</button>
+      <button class="btn btn-danger" id="import-confirm-btn" disabled>Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Lead Profile -->
+<div class="modal-overlay" id="modal-lead-profile">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <h3 id="profile-modal-title">Lead Profile</h3>
+      <button class="modal-close" data-close="modal-lead-profile">&times;</button>
+    </div>
+    <div class="modal-body" id="profile-modal-body">
+      <div class="loading"><span class="spinner"></span> Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Send SMS -->
+<div class="modal-overlay" id="modal-send-sms">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Send SMS</h3>
+      <button class="modal-close" data-close="modal-send-sms">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>To (phone number)</label><input type="tel" id="sms-to" placeholder="+61400000000"></div>
+      <div class="field">
+        <label>Template</label>
+        <select id="sms-template-select">
+          <option value="">— Select a template —</option>
+          <option value="intro">Introduction</option>
+          <option value="followup1">Follow-up 1</option>
+          <option value="followup2">Follow-up 2</option>
+          <option value="booking">Booking ask</option>
+        </select>
+      </div>
+      <div class="field"><label>Message</label><textarea id="sms-body" rows="4" placeholder="Type your message..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" data-close="modal-send-sms">Cancel</button>
+      <button class="btn btn-danger" id="send-sms-btn">Send SMS</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Enroll Sequence -->
+<div class="modal-overlay" id="modal-sequence">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Enroll in Sequence</h3>
+      <button class="modal-close" data-close="modal-sequence">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Lead</label><input type="text" id="seq-lead-search" placeholder="Search lead name or phone..."></div>
+      <div id="seq-lead-result" style="font-size:13px;color:var(--text-light);margin-bottom:10px;"></div>
+      <input type="hidden" id="seq-lead-id">
+      <div class="field"><label>Campaign Name</label><input type="text" id="seq-campaign" placeholder="e.g. Q3 SaaS Outreach"></div>
+      <div class="field">
+        <label>Step 1 Message (sent immediately)</label>
+        <textarea id="seq-step1" rows="3" placeholder="Hi {first_name}, I'm Godwin from Vyrrah Labs..."></textarea>
+        <div style="font-size:11px;color:var(--text-light);margin-top:4px;">Variables: {first_name} {last_name} {company}</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" data-close="modal-sequence">Cancel</button>
+      <button class="btn btn-danger" id="enroll-sequence-btn">Enroll</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── UTILITIES ──
+const API = (path, opts = {}) => {
+  const token = localStorage.getItem('vyrrah_token');
+  return fetch(path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+      ...(opts.headers || {})
+    }
+  }).then(async r => {
+    if (r.status === 401) { logout(); return; }
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Request failed');
+    return data;
+  });
+};
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString('en-AU', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+function fmtDuration(s) {
+  if (!s) return '—';
+  const m = Math.floor(s / 60), sec = s % 60;
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+function statusBadge(status) {
+  return `<span class="badge badge-${status}">${status.replace('_', ' ')}</span>`;
+}
+
+function initials(first, last) {
+  return ((first || '')[0] || '') + ((last || '')[0] || '');
+}
+
+// ── AUTH ──
+document.getElementById('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  btn.textContent = 'Signing in...';
+  btn.disabled = true;
+  errEl.style.display = 'none';
+  try {
+    const data = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('login-username').value,
+        password: document.getElementById('login-password').value
+      })
+    }).then(async r => {
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Invalid credentials');
+      return d;
+    });
+    localStorage.setItem('vyrrah_token', data.token);
+    showApp();
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  }
+  btn.textContent = 'Sign in';
+  btn.disabled = false;
+});
+
+function logout() {
+  localStorage.removeItem('vyrrah_token');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+document.getElementById('logout-btn').addEventListener('click', logout);
+
+async function checkAuth() {
+  const token = localStorage.getItem('vyrrah_token');
+  if (!token) return false;
+  try {
+    const d = await fetch('/api/auth/verify', { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json());
+    return d.valid;
+  } catch { return false; }
+}
+
+async function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  navigateTo('dashboard');
+  loadDashboard();
+  loadCallHistory();
+}
+
+// ── NAVIGATION ──
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => navigateTo(btn.dataset.page));
+});
+
+function navigateTo(page) {
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.page === page));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
+  if (page === 'dashboard') loadDashboard();
+  if (page === 'contacts') loadContacts();
+  if (page === 'dialer') loadCallHistory();
+  if (page === 'conversations') loadConversations();
+  if (page === 'sequences') loadSequences();
+  if (page === 'settings') loadSettings();
+}
+
+// ── MODALS ──
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.close));
+});
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(overlay.id); });
+});
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── DASHBOARD ──
+async function loadDashboard() {
+  try {
+    const data = await API('/api/dashboard/stats');
+    document.getElementById('stat-calls').textContent = data.today.calls;
+    document.getElementById('stat-sms').textContent = data.today.sms_sent;
+    document.getElementById('stat-ans').textContent = data.today.answer_rate + '%';
+    document.getElementById('stat-ans-sub').textContent = `${data.today.answered} answered`;
+    document.getElementById('stat-leads').textContent = data.leads.total;
+    document.getElementById('stat-replied').textContent = data.leads.replied;
+    document.getElementById('stat-booked').textContent = data.leads.booked;
+
+    document.getElementById('recent-calls-list').innerHTML = data.recent_calls.length
+      ? data.recent_calls.map(c => `
+        <div class="activity-item">
+          <div class="ai-type">${c.direction} call · ${c.outcome || 'in-progress'}</div>
+          <div class="ai-meta">${c.phone} · ${fmtDate(c.created_at)} · ${fmtDuration(c.duration_seconds)}</div>
+        </div>`).join('')
+      : '<div class="empty-state"><p>No calls yet today</p></div>';
+
+    document.getElementById('recent-sms-list').innerHTML = data.recent_sms.length
+      ? data.recent_sms.map(m => `
+        <div class="activity-item">
+          <div class="ai-type">${m.direction} SMS</div>
+          <div class="ai-meta">${m.phone} · ${fmtDate(m.created_at)}</div>
+          <div style="font-size:12px;margin-top:3px;color:var(--text);">${m.body.substring(0, 80)}${m.body.length > 80 ? '...' : ''}</div>
+        </div>`).join('')
+      : '<div class="empty-state"><p>No messages yet today</p></div>';
+  } catch (err) {
+    toast('Failed to load stats: ' + err.message, 'error');
+  }
+}
+document.getElementById('refresh-dashboard').addEventListener('click', loadDashboard);
+
+// ── CONTACTS ──
+let contactsPage = 1;
+let contactsTotal = 0;
+const CONTACTS_LIMIT = 50;
+
+async function loadContacts() {
+  const search = document.getElementById('contacts-search').value;
+  const status = document.getElementById('contacts-status-filter').value;
+  const niche = document.getElementById('contacts-niche-filter').value;
+  const tbody = document.getElementById('contacts-tbody');
+  tbody.innerHTML = '<tr><td colspan="8"><div class="loading"><span class="spinner"></span> Loading...</div></td></tr>';
+
+  try {
+    const params = new URLSearchParams({ page: contactsPage, limit: CONTACTS_LIMIT });
+    if (search) params.set('search', search);
+    if (status) params.set('status', status);
+    if (niche) params.set('niche', niche);
+    const data = await API('/api/contacts?' + params);
+    contactsTotal = data.total;
+    document.getElementById('contacts-count').textContent = `${data.total} total leads`;
+
+    if (!data.leads.length) {
+      tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><p>No contacts found</p></div></td></tr>';
+    } else {
+      tbody.innerHTML = data.leads.map(l => `
+        <tr data-id="${l.id}">
+          <td><strong>${l.first_name} ${l.last_name || ''}</strong></td>
+          <td>${l.company || '—'}</td>
+          <td>${l.phone}</td>
+          <td>${l.niche ? `<span class="tag">${l.niche}</span>` : '—'}</td>
+          <td>${statusBadge(l.status)}</td>
+          <td>${l.campaign || '—'}</td>
+          <td>${fmtDate(l.created_at)}</td>
+          <td>
+            <button class="btn btn-sm btn-outline dial-contact" data-phone="${l.phone}" data-id="${l.id}">📞</button>
+          </td>
+        </tr>`).join('');
+
+      tbody.querySelectorAll('tr').forEach(tr => {
+        tr.addEventListener('click', e => {
+          if (e.target.closest('button')) return;
+          openLeadProfile(tr.dataset.id);
+        });
+      });
+      tbody.querySelectorAll('.dial-contact').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          startDialFromContacts(btn.dataset.id, btn.dataset.phone);
+        });
+      });
+
+      // Build niche filter options
+      const niches = [...new Set(data.leads.map(l => l.niche).filter(Boolean))];
+      const nicheSelect = document.getElementById('contacts-niche-filter');
+      const existing = [...nicheSelect.options].map(o => o.value);
+      niches.forEach(n => {
+        if (!existing.includes(n)) {
+          const opt = document.createElement('option');
+          opt.value = n; opt.textContent = n;
+          nicheSelect.appendChild(opt);
+        }
+      });
+    }
+
+    renderPagination(data.total, contactsPage, CONTACTS_LIMIT, 'contacts');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><p>Error: ${err.message}</p></div></td></tr>`;
+  }
+}
+
+function renderPagination(total, page, limit, prefix) {
+  const pages = Math.ceil(total / limit);
+  const el = document.getElementById(prefix + '-pagination');
+  el.innerHTML = `
+    <button id="${prefix}-prev" ${page <= 1 ? 'disabled' : ''}>← Prev</button>
+    <span>Page ${page} of ${pages || 1}</span>
+    <button id="${prefix}-next" ${page >= pages ? 'disabled' : ''}>Next →</button>
+  `;
+  document.getElementById(prefix + '-prev')?.addEventListener('click', () => { contactsPage--; loadContacts(); });
+  document.getElementById(prefix + '-next')?.addEventListener('click', () => { contactsPage++; loadContacts(); });
+}
+
+let searchTimeout;
+document.getElementById('contacts-search').addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => { contactsPage = 1; loadContacts(); }, 350);
+});
+document.getElementById('contacts-status-filter').addEventListener('change', () => { contactsPage = 1; loadContacts(); });
+document.getElementById('contacts-niche-filter').addEventListener('change', () => { contactsPage = 1; loadContacts(); });
+
+// Add Contact
+document.getElementById('add-contact-btn').addEventListener('click', () => openModal('modal-add-contact'));
+document.getElementById('save-contact-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-contact-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    await API('/api/contacts', {
+      method: 'POST',
+      body: JSON.stringify({
+        first_name: document.getElementById('c-first_name').value,
+        last_name: document.getElementById('c-last_name').value,
+        company: document.getElementById('c-company').value,
+        phone: document.getElementById('c-phone').value,
+        email: document.getElementById('c-email').value,
+        niche: document.getElementById('c-niche').value,
+        campaign: document.getElementById('c-campaign').value,
+        country: document.getElementById('c-country').value,
+        status: document.getElementById('c-status').value
+      })
+    });
+    closeModal('modal-add-contact');
+    toast('Contact added', 'success');
+    loadContacts();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+  btn.disabled = false; btn.textContent = 'Add Contact';
+});
+
+// Import CSV
+document.getElementById('import-csv-btn').addEventListener('click', () => openModal('modal-import'));
+let importData = [];
+document.getElementById('csv-file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const text = ev.target.result;
+    const lines = text.split('\n').filter(l => l.trim());
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,'').toLowerCase());
+    importData = lines.slice(1).map(line => {
+      const vals = line.split(',').map(v => v.trim().replace(/"/g,''));
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+      return obj;
+    }).filter(r => r.phone || r.first_name);
+
+    document.getElementById('import-preview').innerHTML =
+      `<strong>${importData.length} rows detected</strong><br>` +
+      `Columns: ${headers.join(', ')}`;
+    document.getElementById('import-confirm-btn').disabled = importData.length === 0;
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById('import-confirm-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('import-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Importing...';
+  try {
+    const data = await API('/api/contacts/import', {
+      method: 'POST',
+      body: JSON.stringify({ contacts: importData })
+    });
+    closeModal('modal-import');
+    toast(`Imported ${data.imported} contacts (${data.skipped} skipped)`, 'success');
+    loadContacts();
+  } catch (err) { toast('Import error: ' + err.message, 'error'); }
+  btn.disabled = false; btn.textContent = 'Import';
+});
+
+// Lead Profile Modal
+async function openLeadProfile(id) {
+  openModal('modal-lead-profile');
+  document.getElementById('profile-modal-body').innerHTML = '<div class="loading"><span class="spinner"></span> Loading...</div>';
+  try {
+    const data = await API(`/api/contacts/${id}`);
+    const { lead, sms, calls, sequences } = data;
+    document.getElementById('profile-modal-title').textContent = `${lead.first_name} ${lead.last_name || ''} — ${lead.company || ''}`;
+    document.getElementById('profile-modal-body').innerHTML = `
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+        <span style="font-size:13px;">📞 ${lead.phone}</span>
+        ${lead.email ? `<span style="font-size:13px;">✉️ ${lead.email}</span>` : ''}
+        ${lead.niche ? `<span class="tag">${lead.niche}</span>` : ''}
+        ${statusBadge(lead.status)}
+      </div>
+      <div style="margin-bottom:14px;display:flex;gap:8px;">
+        <select id="profile-status-select" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;">
+          ${['new','contacted','replied','booked','not_interested','follow_up'].map(s =>
+            `<option value="${s}" ${lead.status===s?'selected':''}>${s.replace('_',' ')}</option>`).join('')}
+        </select>
+        <button class="btn btn-outline btn-sm" id="save-profile-status">Save status</button>
+        <button class="btn btn-danger btn-sm" id="profile-call-btn" data-phone="${lead.phone}" data-id="${lead.id}">📞 Call</button>
+        <button class="btn btn-blue btn-sm" id="profile-sms-btn" data-phone="${lead.phone}">💬 SMS</button>
+      </div>
+      <div class="profile-tabs">
+        <div class="profile-tab active" data-tab="calls-tab">Calls (${calls.length})</div>
+        <div class="profile-tab" data-tab="sms-tab">SMS (${sms.length})</div>
+        <div class="profile-tab" data-tab="seqs-tab">Sequences (${sequences.length})</div>
+      </div>
+      <div id="calls-tab" class="profile-tab-content active">
+        ${calls.length ? calls.map(c => `
+          <div class="activity-item">
+            <div class="ai-type">${c.direction} · ${c.outcome || 'no outcome'} ${c.duration_seconds ? `· ${fmtDuration(c.duration_seconds)}` : ''}</div>
+            <div class="ai-meta">${fmtDate(c.created_at)} ${c.notes ? '· ' + c.notes : ''}</div>
+            ${c.recording_url ? `<a href="${c.recording_url}" target="_blank" style="font-size:12px;color:var(--blue);">🎵 Recording</a>` : ''}
+          </div>`).join('') : '<p style="color:var(--text-light);font-size:13px;padding:10px 0;">No calls yet</p>'}
+      </div>
+      <div id="sms-tab" class="profile-tab-content">
+        ${sms.length ? sms.map(m => `
+          <div class="activity-item">
+            <div class="ai-type">${m.direction === 'outbound' ? '→ Sent' : '← Received'}</div>
+            <div style="font-size:13px;margin:3px 0;">${m.body}</div>
+            <div class="ai-meta">${fmtDate(m.created_at)} · ${m.status || ''}</div>
+          </div>`).join('') : '<p style="color:var(--text-light);font-size:13px;padding:10px 0;">No messages yet</p>'}
+      </div>
+      <div id="seqs-tab" class="profile-tab-content">
+        ${sequences.length ? sequences.map(s => `
+          <div class="activity-item">
+            <div class="ai-type">Step ${s.step} · ${s.campaign} · ${s.status}</div>
+            <div class="ai-meta">Scheduled: ${fmtDate(s.scheduled_at)} ${s.sent_at ? '· Sent: ' + fmtDate(s.sent_at) : ''}</div>
+          </div>`).join('') : '<p style="color:var(--text-light);font-size:13px;padding:10px 0;">Not enrolled in any sequence</p>'}
+      </div>
+    `;
+
+    document.querySelectorAll('.profile-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.profile-tab-content').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    document.getElementById('save-profile-status').addEventListener('click', async () => {
+      const newStatus = document.getElementById('profile-status-select').value;
+      await API(`/api/contacts/${id}`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
+      toast('Status updated', 'success');
+      loadContacts();
+    });
+
+    document.getElementById('profile-call-btn').addEventListener('click', () => {
+      startDialFromContacts(lead.id, lead.phone);
+      closeModal('modal-lead-profile');
+    });
+    document.getElementById('profile-sms-btn').addEventListener('click', () => {
+      document.getElementById('sms-to').value = lead.phone;
+      openModal('modal-send-sms');
+    });
+  } catch (err) {
+    document.getElementById('profile-modal-body').innerHTML = `<p style="color:var(--red);">Error: ${err.message}</p>`;
+  }
+}
+
+// ── DIALER ──
+let dialerQueue = [];
+let dialerIndex = 0;
+let currentCallSid = null;
+let currentCallId = null;
+let selectedOutcome = null;
+let callTimerInterval = null;
+let callStartTime = null;
+
+function startDialFromContacts(leadId, phone) {
+  navigateTo('dialer');
+  setTimeout(() => {
+    // Pre-load single lead into queue
+    dialerQueue = [{ id: leadId, phone }];
+    dialerIndex = 0;
+    loadDialerLead();
+  }, 100);
+}
+
+document.getElementById('load-dialer-queue').addEventListener('click', async () => {
+  try {
+    const data = await API('/api/contacts?status=new&limit=100');
+    if (!data.leads.length) {
+      const d2 = await API('/api/contacts?status=follow_up&limit=100');
+      dialerQueue = d2.leads;
+    } else {
+      dialerQueue = data.leads;
+    }
+    dialerIndex = 0;
+    document.getElementById('dialer-queue-info').textContent = `${dialerQueue.length} leads in queue`;
+    if (dialerQueue.length) loadDialerLead();
+    else toast('No new leads to dial', 'info');
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+});
+
+async function loadDialerLead() {
+  if (dialerIndex >= dialerQueue.length) {
+    document.getElementById('dialer-empty').style.display = 'block';
+    document.getElementById('dialer-lead-panel').style.display = 'none';
+    document.getElementById('dialer-queue-info').textContent = 'Queue complete!';
+    toast('Dialer queue complete', 'success');
+    return;
+  }
+  const lead = dialerQueue[dialerIndex];
+  // Fetch full lead if only partial data
+  let fullLead = lead;
+  if (!lead.first_name) {
+    try { const d = await API(`/api/contacts/${lead.id}`); fullLead = d.lead; } catch {}
+  }
+  document.getElementById('dialer-empty').style.display = 'none';
+  document.getElementById('dialer-lead-panel').style.display = 'block';
+  document.getElementById('d-name').textContent = `${fullLead.first_name || ''} ${fullLead.last_name || ''}`;
+  document.getElementById('d-company').textContent = fullLead.company || '—';
+  document.getElementById('d-niche').textContent = fullLead.niche || '';
+  document.getElementById('d-phone').textContent = fullLead.phone;
+  document.getElementById('d-status-badge').innerHTML = statusBadge(fullLead.status);
+  document.getElementById('dialer-notes').value = '';
+  document.getElementById('dialer-queue-info').textContent = `${dialerIndex + 1} / ${dialerQueue.length}`;
+  resetCallUI();
+  dialerQueue[dialerIndex] = fullLead;
+}
+
+function resetCallUI() {
+  const callBtn = document.getElementById('call-btn');
+  callBtn.className = 'call-btn idle';
+  callBtn.textContent = '📞';
+  document.getElementById('call-timer').textContent = '';
+  clearInterval(callTimerInterval);
+  document.querySelectorAll('.outcome-btn').forEach(b => { b.disabled = true; b.classList.remove('selected'); });
+  document.getElementById('save-outcome-btn').disabled = true;
+  selectedOutcome = null;
+  currentCallSid = null;
+  currentCallId = null;
+}
+
+document.getElementById('call-btn').addEventListener('click', async () => {
+  const lead = dialerQueue[dialerIndex];
+  if (!lead) return;
+  const callBtn = document.getElementById('call-btn');
+  if (callBtn.classList.contains('active')) {
+    // Hang up not directly supported via REST for in-progress, just mark
+    callBtn.className = 'call-btn idle';
+    callBtn.textContent = '📞';
+    clearInterval(callTimerInterval);
+    document.getElementById('call-timer').textContent = '';
+    enableOutcomeButtons();
+    return;
+  }
+  callBtn.className = 'call-btn disabled';
+  callBtn.textContent = '⏳';
+  try {
+    const data = await API('/api/calls/dial', {
+      method: 'POST',
+      body: JSON.stringify({ to: lead.phone, lead_id: lead.id })
+    });
+    currentCallSid = data.call_sid;
+    currentCallId = data.record?.id;
+    callBtn.className = 'call-btn active';
+    callBtn.textContent = '📵';
+    callStartTime = Date.now();
+    callTimerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+      document.getElementById('call-timer').textContent = fmtDuration(elapsed);
+    }, 1000);
+    toast('Call initiated to ' + lead.phone, 'info');
+  } catch (err) {
+    toast('Call error: ' + err.message, 'error');
+    callBtn.className = 'call-btn idle';
+    callBtn.textContent = '📞';
+  }
+});
+
+function enableOutcomeButtons() {
+  document.querySelectorAll('.outcome-btn').forEach(b => b.disabled = false);
+}
+
+document.querySelectorAll('.outcome-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.outcome-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedOutcome = btn.dataset.outcome;
+    document.getElementById('save-outcome-btn').disabled = false;
+  });
+});
+
+document.getElementById('save-outcome-btn').addEventListener('click', async () => {
+  if (!selectedOutcome) return;
+  const btn = document.getElementById('save-outcome-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    if (currentCallId) {
+      const elapsed = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
+      await API(`/api/calls/${currentCallId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ outcome: selectedOutcome, notes: document.getElementById('dialer-notes').value, duration_seconds: elapsed })
+      });
+    }
+    toast('Outcome saved', 'success');
+    dialerIndex++;
+    loadDialerLead();
+    loadCallHistory();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+  btn.disabled = false; btn.textContent = 'Save & Next';
+});
+
+document.getElementById('skip-lead-btn').addEventListener('click', () => {
+  dialerIndex++;
+  loadDialerLead();
+});
+
+document.getElementById('send-sms-from-dialer').addEventListener('click', () => {
+  const lead = dialerQueue[dialerIndex];
+  if (lead) document.getElementById('sms-to').value = lead.phone;
+  openModal('modal-send-sms');
+});
+
+async function loadCallHistory() {
+  try {
+    const data = await API('/api/contacts?limit=100');
+    const callsEl = document.getElementById('call-history-list');
+    // Load recent calls from dashboard stats
+    const stats = await API('/api/dashboard/stats');
+    callsEl.innerHTML = stats.recent_calls.length
+      ? stats.recent_calls.map(c => `
+        <div class="call-history-item">
+          <div class="ch-name">${c.phone}</div>
+          <div class="ch-meta">${c.direction} · ${c.outcome || 'pending'} · ${fmtDate(c.created_at)}</div>
+        </div>`).join('')
+      : '<div style="padding:16px;font-size:13px;color:var(--text-light);">No calls yet</div>';
+  } catch {}
+}
+
+// ── CONVERSATIONS ──
+let activeConvPhone = null;
+
+async function loadConversations() {
+  try {
+    const data = await API('/api/sms/conversation?phone=all').catch(() => null);
+    // Get all unique phones from recent SMS
+    const stats = await API('/api/dashboard/stats');
+    const phones = [...new Set([
+      ...stats.recent_sms.map(m => m.phone)
+    ])];
+
+    // Fetch all conversations grouped
+    const allSms = stats.recent_sms;
+    const grouped = {};
+    allSms.forEach(m => {
+      if (!grouped[m.phone]) grouped[m.phone] = [];
+      grouped[m.phone].push(m);
+    });
+
+    const convList = document.getElementById('conv-list');
+    if (!Object.keys(grouped).length) {
+      convList.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--text-light);">No conversations yet</div>';
+      return;
+    }
+
+    // Load lead info for phones
+    convList.innerHTML = Object.entries(grouped).map(([phone, msgs]) => {
+      const last = msgs[0];
+      const unread = msgs.filter(m => m.direction === 'inbound').length;
+      return `
+        <div class="conv-item ${activeConvPhone === phone ? 'active' : ''}" data-phone="${phone}">
+          <div class="conv-avatar">${phone.slice(-2)}</div>
+          <div class="conv-item-info">
+            <div class="conv-item-name">${phone}</div>
+            <div class="conv-item-preview">${last.body.substring(0, 40)}...</div>
+          </div>
+          ${unread > 0 ? `<div class="conv-unread">${unread}</div>` : ''}
+        </div>`;
+    }).join('');
+
+    convList.querySelectorAll('.conv-item').forEach(item => {
+      item.addEventListener('click', () => {
+        activeConvPhone = item.dataset.phone;
+        convList.querySelectorAll('.conv-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        loadConversationThread(item.dataset.phone);
+      });
+    });
+
+    if (activeConvPhone) loadConversationThread(activeConvPhone);
+  } catch (err) {
+    document.getElementById('conv-list').innerHTML = `<div style="padding:16px;font-size:13px;color:var(--red);">${err.message}</div>`;
+  }
+}
+
+async function loadConversationThread(phone) {
+  const threadEl = document.getElementById('conv-thread');
+  threadEl.innerHTML = '<div class="loading" style="margin:20px;"><span class="spinner"></span> Loading...</div>';
+  try {
+    const data = await API('/api/sms/conversation?phone=' + encodeURIComponent(phone));
+    const lead = data.lead;
+    threadEl.innerHTML = `
+      <div class="conv-thread-header">
+        <div>
+          <h3>${lead ? `${lead.first_name} ${lead.last_name || ''}` : phone}</h3>
+          <div style="font-size:12px;color:var(--text-light);">${phone} ${lead ? '· ' + lead.company : ''} ${lead ? '· ' + statusBadge(lead.status) : ''}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          ${lead ? `<button class="btn btn-outline btn-sm" onclick="openLeadProfile('${lead.id}')">View Profile</button>` : ''}
+        </div>
+      </div>
+      <div class="conv-messages" id="conv-messages">
+        ${data.messages.map(m => `
+          <div class="msg-bubble ${m.direction === 'outbound' ? 'out' : 'in'}">
+            ${m.body}
+            <div class="msg-time">${fmtDate(m.created_at)}</div>
+          </div>`).join('')}
+      </div>
+      <div class="conv-input-area">
+        <textarea id="conv-reply-input" placeholder="Type a message..." rows="2"></textarea>
+        <button class="btn btn-danger" id="conv-send-btn">Send</button>
+      </div>
+    `;
+
+    const msgs = document.getElementById('conv-messages');
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+
+    document.getElementById('conv-send-btn').addEventListener('click', async () => {
+      const body = document.getElementById('conv-reply-input').value.trim();
+      if (!body) return;
+      const sendBtn = document.getElementById('conv-send-btn');
+      sendBtn.disabled = true;
+      try {
+        await API('/api/sms/send', {
+          method: 'POST',
+          body: JSON.stringify({ to: phone, body, lead_id: lead?.id })
+        });
+        document.getElementById('conv-reply-input').value = '';
+        loadConversationThread(phone);
+      } catch (err) { toast('Send failed: ' + err.message, 'error'); }
+      sendBtn.disabled = false;
+    });
+
+    document.getElementById('conv-reply-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        document.getElementById('conv-send-btn').click();
+      }
+    });
+  } catch (err) {
+    threadEl.innerHTML = `<div class="conv-empty" style="color:var(--red);">${err.message}</div>`;
+  }
+}
+
+document.getElementById('new-sms-btn').addEventListener('click', () => openModal('modal-send-sms'));
+
+// SMS Templates
+const SMS_TEMPLATES = {
+  intro: "Hi {first_name}, I'm Godwin from Vyrrah Labs. We help businesses improve email deliverability and grow revenue. Got 15 mins this week for a quick chat?",
+  followup1: "Hey {first_name}, just following up on my message. Would love to chat about how we can help {company}. Got 15 mins?",
+  followup2: "Last follow-up {first_name} — if now's not the right time, no worries. Feel free to reach out whenever. Cheers, Godwin @ Vyrrah Labs",
+  booking: "Hi {first_name}, would you be free for a quick 15-min call this week? I can do Mon-Fri anytime between 10am-4pm AEST. — Godwin"
+};
+
+document.getElementById('sms-template-select').addEventListener('change', e => {
+  if (e.target.value) {
+    document.getElementById('sms-body').value = SMS_TEMPLATES[e.target.value] || '';
+  }
+});
+
+document.getElementById('send-sms-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('send-sms-btn');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const to = document.getElementById('sms-to').value.trim();
+    const body = document.getElementById('sms-body').value.trim();
+    if (!to || !body) throw new Error('Phone and message are required');
+    await API('/api/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) });
+    closeModal('modal-send-sms');
+    toast('SMS sent', 'success');
+    document.getElementById('sms-body').value = '';
+    document.getElementById('sms-to').value = '';
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+  btn.disabled = false; btn.textContent = 'Send SMS';
+});
+
+// ── SEQUENCES ──
+async function loadSequences() {
+  const tbody = document.getElementById('sequences-tbody');
+  try {
+    // Use Supabase via contacts endpoint to get sequences indirectly
+    // For now fetch recent sequences from a stats approach
+    const data = await API('/api/contacts?limit=200');
+    const leads = data.leads;
+
+    // We need sequences - fetch via each lead (simplified: show from a dedicated call)
+    // Since we don't have a direct list endpoint, show recent leads with sequence info
+    tbody.innerHTML = leads.slice(0, 30).map(l => `
+      <tr>
+        <td>${l.first_name} ${l.last_name || ''}<br><small style="color:var(--text-light);">${l.phone}</small></td>
+        <td>${l.campaign || '—'}</td>
+        <td>—</td>
+        <td>—</td>
+        <td>${statusBadge(l.status)}</td>
+        <td>—</td>
+      </tr>`).join('') || '<tr><td colspan="6"><div class="empty-state"><p>No sequences</p></div></td></tr>';
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6"><p style="color:var(--red);padding:14px;">${err.message}</p></td></tr>`;
+  }
+}
+
+document.getElementById('new-sequence-btn').addEventListener('click', () => openModal('modal-sequence'));
+
+let seqLeadSearchTimeout;
+document.getElementById('seq-lead-search').addEventListener('input', e => {
+  clearTimeout(seqLeadSearchTimeout);
+  seqLeadSearchTimeout = setTimeout(async () => {
+    const q = e.target.value.trim();
+    if (!q) return;
+    try {
+      const data = await API('/api/contacts?search=' + encodeURIComponent(q) + '&limit=5');
+      const resultEl = document.getElementById('seq-lead-result');
+      if (!data.leads.length) { resultEl.textContent = 'No leads found'; return; }
+      resultEl.innerHTML = data.leads.map(l =>
+        `<div class="activity-item" style="cursor:pointer;" onclick="selectSeqLead('${l.id}','${l.first_name} ${l.last_name || ''}','${l.phone}')">
+          <strong>${l.first_name} ${l.last_name || ''}</strong> — ${l.company || ''} — ${l.phone}
+        </div>`
+      ).join('');
+    } catch {}
+  }, 300);
+});
+
+window.selectSeqLead = (id, name, phone) => {
+  document.getElementById('seq-lead-id').value = id;
+  document.getElementById('seq-lead-search').value = `${name} (${phone})`;
+  document.getElementById('seq-lead-result').innerHTML = `<span style="color:var(--green);">✓ Selected</span>`;
+};
+
+document.getElementById('enroll-sequence-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('enroll-sequence-btn');
+  btn.disabled = true; btn.textContent = 'Enrolling...';
+  try {
+    const lead_id = document.getElementById('seq-lead-id').value;
+    const campaign = document.getElementById('seq-campaign').value.trim();
+    const step1_message = document.getElementById('seq-step1').value.trim();
+    if (!lead_id || !campaign || !step1_message) throw new Error('All fields required');
+    await API('/api/sequences/trigger', { method: 'POST', body: JSON.stringify({ lead_id, campaign, step1_message }) });
+    closeModal('modal-sequence');
+    toast('Lead enrolled in sequence', 'success');
+    loadSequences();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+  btn.disabled = false; btn.textContent = 'Enroll';
+});
+
+// ── SETTINGS ──
+async function loadSettings() {
+  const host = window.location.origin;
+  document.getElementById('settings-twilio-number').textContent = '+13292161295';
+  document.getElementById('settings-sms-webhook').textContent = `${host}/api/webhooks/sms`;
+  document.getElementById('settings-voice-webhook').textContent = `${host}/api/webhooks/voice`;
+}
+
+document.getElementById('load-optouts').addEventListener('click', async () => {
+  try {
+    const res = await fetch('/api/contacts?limit=1', { headers: { Authorization: 'Bearer ' + localStorage.getItem('vyrrah_token') } });
+    // Opt-outs don't have a direct list API — show placeholder
+    document.getElementById('optout-list').innerHTML = '<p style="font-size:13px;color:var(--text-light);">Opt-out list is stored in the database opt_outs table. Use Supabase dashboard to view.</p>';
+  } catch {}
+});
+
+// ── INIT ──
+(async () => {
+  const valid = await checkAuth();
+  if (valid) showApp();
+})();
+</script>
+</body>
+</html>

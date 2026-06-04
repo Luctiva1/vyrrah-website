@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "routes": [
+    { "src": "/admin", "dest": "/admin.html" },
+    { "src": "/api/(.*)", "dest": "/api/$1" }
+  ],
+  "crons": [
+    {
+      "path": "/api/sequences/process",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
