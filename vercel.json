@@ -7,7 +7,7 @@
   "crons": [
     {
       "path": "/api/sequences/process",
-      "schedule": "0 * * * *"
+      "schedule": "0 9 * * *"
     }
   ]
 }
