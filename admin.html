@@ -1602,10 +1602,9 @@ document.getElementById('load-optouts').addEventListener('click', async () => {
   } catch {}
 });
 
-// ── INIT ──
+// ── INIT — auth disabled for testing ──
 (async () => {
-  const valid = await checkAuth();
-  if (valid) showApp();
+  showApp();
 })();
 </script>
 </body>

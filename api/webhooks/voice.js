@@ -2,7 +2,7 @@ const twilio = require('twilio');
 const { getSupabase } = require('../_lib/supabase');
 
 // Godwin's mobile number to forward inbound calls to
-const FORWARD_TO = process.env.FORWARD_TO_MOBILE || process.env.TWILIO_PHONE_NUMBER;
+const FORWARD_TO = process.env.FORWARD_TO_MOBILE || '+918778974646';
 
 module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
