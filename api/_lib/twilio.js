@@ -4,10 +4,10 @@ let client = null;
 
 function getTwilio() {
   if (!client) {
+    // Use Account SID + Auth Token (API Key auth does not work for this account)
     client = new twilio(
-      process.env.TWILIO_API_KEY,
-      process.env.TWILIO_API_SECRET,
-      { accountSid: process.env.TWILIO_ACCOUNT_SID }
+      process.env.TWILIO_ACCOUNT_SID,
+      process.env.TWILIO_AUTH_TOKEN
     );
   }
   return client;

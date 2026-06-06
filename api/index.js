@@ -436,7 +436,7 @@ async function handleWebhookSms(req, res) {
   const twilioSignature = req.headers['x-twilio-signature'];
   const url = `https://${req.headers.host}${req.url}`;
   const params = req.body || {};
-  const authToken = process.env.TWILIO_API_SECRET;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
 
   if (!twilio.validateRequest(authToken, twilioSignature, url, params)) {
     console.warn('Invalid Twilio signature on SMS webhook');
@@ -508,7 +508,7 @@ async function handleWebhookVoice(req, res) {
   const twilioSignature = req.headers['x-twilio-signature'];
   const url = `https://${req.headers.host}${req.url}`;
   const params = req.body || {};
-  const authToken = process.env.TWILIO_API_SECRET;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
 
   if (!twilio.validateRequest(authToken, twilioSignature, url, params)) {
     console.warn('Invalid Twilio signature on voice webhook');
@@ -565,7 +565,7 @@ async function handleWebhookStatus(req, res) {
   const twilioSignature = req.headers['x-twilio-signature'];
   const url = `https://${req.headers.host}${req.url}`;
   const params = req.body || {};
-  const authToken = process.env.TWILIO_API_SECRET;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
 
   if (!twilio.validateRequest(authToken, twilioSignature, url, params)) {
     console.warn('Invalid Twilio signature on status webhook');
@@ -610,7 +610,7 @@ async function handleWebhookRecording(req, res) {
   const twilioSignature = req.headers['x-twilio-signature'];
   const url = `https://${req.headers.host}${req.url}`;
   const params = req.body || {};
-  const authToken = process.env.TWILIO_API_SECRET;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
 
   if (!twilio.validateRequest(authToken, twilioSignature, url, params)) {
     console.warn('Invalid Twilio signature on recording webhook');
@@ -787,6 +787,13 @@ async function handleSequencesBulkTrigger(req, res) {
     }
 
     const enrolled = inserted / 3; // 3 rows per lead
+
+    // Mark enrolled leads as 'contacted' so next batch gets fresh leads
+    const enrolledIds = leads.filter(l => !optOutSet.has(l.phone) && !enrolledSet.has(l.id)).map(l => l.id);
+    if (enrolledIds.length > 0) {
+      await supabase.from('leads').update({ status: 'contacted' }).in('id', enrolledIds);
+    }
+
     return res.status(200).json({ enrolled, skipped, rows_inserted: inserted, campaign });
   } catch (err) {
     console.error('Bulk trigger error:', err);
@@ -804,88 +811,66 @@ function interpolate(template, lead) {
 }
 
 async function handleSequencesProcess(req, res) {
-  // Allow both GET (cron) and POST (manual trigger)
   try {
     const supabase = getSupabase();
-    const now = new Date().toISOString();
-
-    const { data: pending, error } = await supabase
-      .from('sequences')
-      .select('*, leads(id, first_name, last_name, company, phone)')
-      .eq('status', 'pending')
-      .lte('scheduled_at', now)
-      .limit(50);
-
-    if (error) throw error;
-    if (!pending || pending.length === 0) {
-      return res.status(200).json({ processed: 0, message: 'No pending sequences' });
-    }
-
     const twilioClient = getTwilio();
-    const results = [];
+    let totalProcessed = 0;
+    const allResults = [];
 
-    for (const seq of pending) {
-      const lead = seq.leads;
-      if (!lead) {
-        await supabase.from('sequences').update({ status: 'skipped' }).eq('id', seq.id);
-        results.push({ id: seq.id, status: 'skipped', reason: 'lead not found' });
-        continue;
+    while (true) {
+      const now = new Date().toISOString();
+      const { data: pending, error } = await supabase
+        .from('sequences')
+        .select('*, leads(id, first_name, last_name, company, phone)')
+        .eq('status', 'pending')
+        .lte('scheduled_at', now)
+        .limit(100);
+
+      if (error) throw error;
+      if (!pending || pending.length === 0) break;
+
+      for (const seq of pending) {
+        const lead = seq.leads;
+        if (!lead) {
+          await supabase.from('sequences').update({ status: 'skipped' }).eq('id', seq.id);
+          allResults.push({ id: seq.id, status: 'skipped', reason: 'lead not found' });
+          continue;
+        }
+        const { data: optOut } = await supabase.from('opt_outs').select('id').eq('phone', lead.phone).maybeSingle();
+        if (optOut) {
+          await supabase.from('sequences').update({ status: 'skipped' }).eq('id', seq.id);
+          allResults.push({ id: seq.id, status: 'skipped', reason: 'opted out' });
+          continue;
+        }
+        const body = interpolate(seq.message_body, lead);
+        if (!body) {
+          await supabase.from('sequences').update({ status: 'skipped' }).eq('id', seq.id);
+          allResults.push({ id: seq.id, status: 'skipped', reason: 'empty message' });
+          continue;
+        }
+        try {
+          const message = await twilioClient.messages.create({
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: lead.phone,
+            body
+          });
+          await supabase.from('sms_messages').insert([{
+            lead_id: lead.id, phone: lead.phone, direction: 'outbound',
+            body, twilio_sid: message.sid, status: message.status
+          }]);
+          await supabase.from('sequences').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', seq.id);
+          await supabase.from('leads').update({ status: 'contacted' }).eq('id', lead.id).eq('status', 'new');
+          allResults.push({ id: seq.id, status: 'sent', sid: message.sid });
+        } catch (sendErr) {
+          console.error('Failed to send sequence', seq.id, sendErr.message);
+          allResults.push({ id: seq.id, status: 'error', error: sendErr.message });
+        }
       }
-
-      const { data: optOut } = await supabase
-        .from('opt_outs')
-        .select('id')
-        .eq('phone', lead.phone)
-        .maybeSingle();
-
-      if (optOut) {
-        await supabase.from('sequences').update({ status: 'skipped' }).eq('id', seq.id);
-        results.push({ id: seq.id, status: 'skipped', reason: 'opted out' });
-        continue;
-      }
-
-      const body = interpolate(seq.message_body, lead);
-      if (!body) {
-        await supabase.from('sequences').update({ status: 'skipped' }).eq('id', seq.id);
-        results.push({ id: seq.id, status: 'skipped', reason: 'empty message' });
-        continue;
-      }
-
-      try {
-        const message = await twilioClient.messages.create({
-          from: process.env.TWILIO_PHONE_NUMBER,
-          to: lead.phone,
-          body
-        });
-
-        await supabase.from('sms_messages').insert([{
-          lead_id: lead.id,
-          phone: lead.phone,
-          direction: 'outbound',
-          body,
-          twilio_sid: message.sid,
-          status: message.status
-        }]);
-
-        await supabase
-          .from('sequences')
-          .update({ status: 'sent', sent_at: new Date().toISOString() })
-          .eq('id', seq.id);
-
-        await supabase
-          .from('leads')
-          .update({ status: 'contacted' })
-          .eq('id', lead.id)
-          .eq('status', 'new');
-
-        results.push({ id: seq.id, status: 'sent', sid: message.sid });
-      } catch (sendErr) {
-        console.error(`Failed to send sequence ${seq.id}:`, sendErr);
-        results.push({ id: seq.id, status: 'error', error: sendErr.message });
-      }
+      totalProcessed += pending.length;
+      if (pending.length < 100) break; // No more pending
     }
 
-    return res.status(200).json({ processed: results.length, results });
+    return res.status(200).json({ processed: totalProcessed, results: allResults });
   } catch (err) {
     console.error('Sequence process error:', err);
     return res.status(500).json({ error: err.message });
@@ -958,6 +943,52 @@ async function handleDashboardStats(req, res) {
     });
   } catch (err) {
     console.error('Stats error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── Conversations handler ───────────────────────────────────────────────────
+
+async function handleConversationsList(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    // Get last message per phone number, with unread count
+    const { data: messages, error } = await supabase
+      .from('sms_messages')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    if (error) throw error;
+
+    // Group by phone
+    const byPhone = {};
+    for (const msg of (messages || [])) {
+      if (!byPhone[msg.phone]) {
+        byPhone[msg.phone] = { phone: msg.phone, last_message: msg, unread: 0, lead: null };
+      }
+      if (msg.direction === 'inbound') byPhone[msg.phone].unread++;
+    }
+
+    // Enrich with lead info
+    const phones = Object.keys(byPhone);
+    if (phones.length > 0) {
+      const { data: leads } = await supabase
+        .from('leads')
+        .select('id, first_name, last_name, company, phone, status')
+        .in('phone', phones);
+      for (const lead of (leads || [])) {
+        if (byPhone[lead.phone]) byPhone[lead.phone].lead = lead;
+      }
+    }
+
+    const conversations = Object.values(byPhone).sort((a, b) =>
+      new Date(b.last_message.created_at) - new Date(a.last_message.created_at)
+    );
+    return res.status(200).json({ conversations });
+  } catch (err) {
+    console.error('Conversations list error:', err);
     return res.status(500).json({ error: err.message });
   }
 }
@@ -1060,6 +1091,11 @@ module.exports = async (req, res) => {
   // /api/dashboard/stats
   if (seg0 === 'dashboard' && seg1 === 'stats') {
     return handleDashboardStats(req, res);
+  }
+
+  // /api/conversations
+  if (seg0 === 'conversations' && !seg1) {
+    return handleConversationsList(req, res);
   }
 
   return notFound(res);

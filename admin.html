@@ -1088,18 +1088,59 @@ document.getElementById('csv-file-input').addEventListener('change', e => {
   const reader = new FileReader();
   reader.onload = ev => {
     const text = ev.target.result;
-    const lines = text.split('\n').filter(l => l.trim());
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,'').toLowerCase());
+
+    function parseCSVLine(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i+1] === '"') { current += '"'; i++; }
+          else inQuotes = !inQuotes;
+        } else if (ch === ',' && !inQuotes) {
+          result.push(current.trim()); current = '';
+        } else {
+          current += ch;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    }
+
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const rawHeaders = parseCSVLine(lines[0]);
+    const headers = rawHeaders.map(h => h.toLowerCase().replace(/"/g, '').trim());
+
+    function getField(obj, ...keys) {
+      for (const k of keys) {
+        if (obj[k] !== undefined && obj[k] !== '') return obj[k];
+      }
+      return '';
+    }
+
     importData = lines.slice(1).map(line => {
-      const vals = line.split(',').map(v => v.trim().replace(/"/g,''));
+      const vals = parseCSVLine(line);
       const obj = {};
-      headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
-      return obj;
-    }).filter(r => r.phone || r.first_name);
+      headers.forEach((h, i) => { obj[h] = (vals[i] || '').replace(/^"|"$/g, '').trim(); });
+
+      // Map to our standard field names supporting multiple CSV column name variants
+      return {
+        first_name: getField(obj, 'first name', 'first_name', 'firstname', 'given name'),
+        last_name: getField(obj, 'last name', 'last_name', 'lastname', 'surname'),
+        company: getField(obj, 'company name', 'company', 'business', 'organization'),
+        phone: getField(obj, 'mobile number', 'phone', 'mobile', 'cell', 'telephone', 'phone number'),
+        email: getField(obj, 'email', 'email address', 'e-mail'),
+        country: getField(obj, 'country', 'location') || 'United States',
+        niche: getField(obj, 'industry', 'niche', 'sector', 'vertical'),
+        campaign: getField(obj, 'campaign', 'source') || 'USA Outreach',
+        status: 'new'
+      };
+    }).filter(r => r.first_name && r.phone);
 
     document.getElementById('import-preview').innerHTML =
-      `<strong>${importData.length} rows detected</strong><br>` +
-      `Columns: ${headers.join(', ')}`;
+      `<strong>${importData.length} valid rows detected</strong> (${lines.length - 1} total)<br>` +
+      `Sample: ${importData[0] ? importData[0].first_name + ' ' + importData[0].last_name + ' | ' + importData[0].phone : 'N/A'}`;
     document.getElementById('import-confirm-btn').disabled = importData.length === 0;
   };
   reader.readAsText(file);
@@ -1107,14 +1148,22 @@ document.getElementById('csv-file-input').addEventListener('change', e => {
 
 document.getElementById('import-confirm-btn').addEventListener('click', async () => {
   const btn = document.getElementById('import-confirm-btn');
-  btn.disabled = true; btn.textContent = 'Importing...';
+  btn.disabled = true;
+  const BATCH = 500;
+  let totalImported = 0, totalSkipped = 0;
   try {
-    const data = await API('/api/contacts/import', {
-      method: 'POST',
-      body: JSON.stringify({ contacts: importData })
-    });
+    for (let i = 0; i < importData.length; i += BATCH) {
+      const batch = importData.slice(i, i + BATCH);
+      btn.textContent = `Importing ${Math.min(i + BATCH, importData.length)}/${importData.length}...`;
+      const data = await API('/api/contacts/import', {
+        method: 'POST',
+        body: JSON.stringify({ contacts: batch })
+      });
+      totalImported += data.imported || 0;
+      totalSkipped += data.skipped || 0;
+    }
     closeModal('modal-import');
-    toast(`Imported ${data.imported} contacts (${data.skipped} skipped)`, 'success');
+    toast(`Imported ${totalImported} contacts (${totalSkipped} skipped)`, 'success');
     loadContacts();
   } catch (err) { toast('Import error: ' + err.message, 'error'); }
   btn.disabled = false; btn.textContent = 'Import';
@@ -1224,9 +1273,9 @@ function startDialFromContacts(leadId, phone) {
 
 document.getElementById('load-dialer-queue').addEventListener('click', async () => {
   try {
-    const data = await API('/api/contacts?status=new&limit=100');
+    const data = await API('/api/contacts?status=new&limit=500');
     if (!data.leads.length) {
-      const d2 = await API('/api/contacts?status=follow_up&limit=100');
+      const d2 = await API('/api/contacts?status=follow_up&limit=500');
       dialerQueue = d2.leads;
     } else {
       dialerQueue = data.leads;
@@ -1361,7 +1410,6 @@ document.getElementById('send-sms-from-dialer').addEventListener('click', () => 
 
 async function loadCallHistory() {
   try {
-    const data = await API('/api/contacts?limit=100');
     const callsEl = document.getElementById('call-history-list');
     // Load recent calls from dashboard stats
     const stats = await API('/api/dashboard/stats');
@@ -1379,40 +1427,30 @@ async function loadCallHistory() {
 let activeConvPhone = null;
 
 async function loadConversations() {
+  const convList = document.getElementById('conv-list');
+  convList.innerHTML = '<div class="loading" style="padding:16px;"><span class="spinner"></span> Loading...</div>';
   try {
-    const data = await API('/api/sms/conversation?phone=all').catch(() => null);
-    // Get all unique phones from recent SMS
-    const stats = await API('/api/dashboard/stats');
-    const phones = [...new Set([
-      ...stats.recent_sms.map(m => m.phone)
-    ])];
+    const data = await API('/api/conversations');
+    const conversations = data.conversations || [];
 
-    // Fetch all conversations grouped
-    const allSms = stats.recent_sms;
-    const grouped = {};
-    allSms.forEach(m => {
-      if (!grouped[m.phone]) grouped[m.phone] = [];
-      grouped[m.phone].push(m);
-    });
-
-    const convList = document.getElementById('conv-list');
-    if (!Object.keys(grouped).length) {
-      convList.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--text-light);">No conversations yet</div>';
+    if (!conversations.length) {
+      convList.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--text-light);">No conversations yet. SMS replies will appear here.</div>';
       return;
     }
 
-    // Load lead info for phones
-    convList.innerHTML = Object.entries(grouped).map(([phone, msgs]) => {
-      const last = msgs[0];
-      const unread = msgs.filter(m => m.direction === 'inbound').length;
+    convList.innerHTML = conversations.map(conv => {
+      const lead = conv.lead;
+      const name = lead ? `${lead.first_name} ${lead.last_name || ''}`.trim() : conv.phone;
+      const preview = (conv.last_message.body || '').substring(0, 50);
+      const isInbound = conv.last_message.direction === 'inbound';
       return `
-        <div class="conv-item ${activeConvPhone === phone ? 'active' : ''}" data-phone="${phone}">
-          <div class="conv-avatar">${phone.slice(-2)}</div>
+        <div class="conv-item ${activeConvPhone === conv.phone ? 'active' : ''}" data-phone="${conv.phone}">
+          <div class="conv-avatar">${name.charAt(0).toUpperCase()}</div>
           <div class="conv-item-info">
-            <div class="conv-item-name">${phone}</div>
-            <div class="conv-item-preview">${last.body.substring(0, 40)}...</div>
+            <div class="conv-item-name">${name}</div>
+            <div class="conv-item-preview" style="${isInbound ? 'font-weight:600;' : ''}">${isInbound ? '← ' : ''}${preview}${preview.length >= 50 ? '...' : ''}</div>
           </div>
-          ${unread > 0 ? `<div class="conv-unread">${unread}</div>` : ''}
+          ${conv.unread > 0 ? `<div class="conv-unread">${conv.unread}</div>` : ''}
         </div>`;
     }).join('');
 
@@ -1427,7 +1465,7 @@ async function loadConversations() {
 
     if (activeConvPhone) loadConversationThread(activeConvPhone);
   } catch (err) {
-    document.getElementById('conv-list').innerHTML = `<div style="padding:16px;font-size:13px;color:var(--red);">${err.message}</div>`;
+    convList.innerHTML = `<div style="padding:16px;font-size:13px;color:var(--red);">Error: ${err.message}</div>`;
   }
 }
 
