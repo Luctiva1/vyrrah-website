@@ -21,4 +21,13 @@ function validateTwilioSignature(req) {
   return twilio.validateRequest(authToken, twilioSignature, url, params);
 }
 
-module.exports = { getTwilio, validateTwilioSignature };
+function getFromNumber(toPhone) {
+  // Select outbound number based on destination country prefix
+  // Falls back to US number if country-specific number not configured
+  const digits = (toPhone || '').replace(/\D/g, '');
+  if (digits.startsWith('44') && process.env.TWILIO_UK_NUMBER) return process.env.TWILIO_UK_NUMBER;
+  if (digits.startsWith('61') && process.env.TWILIO_AU_NUMBER) return process.env.TWILIO_AU_NUMBER;
+  return process.env.TWILIO_PHONE_NUMBER; // US default (+15106310835)
+}
+
+module.exports = { getTwilio, validateTwilioSignature, getFromNumber };

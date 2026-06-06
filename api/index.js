@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const twilio = require('twilio');
 const { getSupabase } = require('./_lib/supabase');
-const { getTwilio } = require('./_lib/twilio');
+const { getTwilio, getFromNumber } = require('./_lib/twilio');
 const { verifyToken, requireAuth, cors } = require('./_lib/auth');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -265,7 +265,7 @@ async function handleSmsSend(req, res) {
 
     const twilioClient = getTwilio();
     const message = await twilioClient.messages.create({
-      from: process.env.TWILIO_PHONE_NUMBER,
+      from: getFromNumber(to),
       to,
       body
     });
@@ -866,7 +866,7 @@ async function handleSequencesProcess(req, res) {
         }
         try {
           const message = await twilioClient.messages.create({
-            from: process.env.TWILIO_PHONE_NUMBER,
+            from: getFromNumber(lead.phone),
             to: lead.phone,
             body
           });
@@ -999,7 +999,7 @@ async function handleCallsBridge(req, res) {
   const twiml = new VoiceResponse();
   if (to) {
     twiml.say({ voice: 'alice' }, 'Connecting to your lead now.');
-    const dial = twiml.dial({ callerId: process.env.TWILIO_PHONE_NUMBER, record: 'record-from-answer', timeout: 30 });
+    const dial = twiml.dial({ callerId: getFromNumber(to), record: 'record-from-answer', timeout: 30 });
     dial.number(to);
   } else {
     twiml.say({ voice: 'alice' }, 'No lead number configured. Goodbye.');

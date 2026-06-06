@@ -361,6 +361,7 @@
 
     .tag { display: inline-flex; padding: 2px 8px; background: #f3f4f6; border-radius: 10px; font-size: 11px; color: var(--text-light); }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
@@ -634,6 +635,13 @@
     <div class="page" id="page-settings">
       <div class="page-header"><div><h2>Settings</h2><p>Twilio & opt-out management</p></div></div>
       <div style="max-width:600px;">
+        <div class="card" style="margin-bottom:16px;">
+          <h3 style="margin-bottom:12px;">Desktop Notifications</h3>
+          <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">Get notified instantly when a lead replies or calls — even when this tab is in the background.</p>
+          <button class="btn btn-primary" id="enable-notif-btn" onclick="initNotifications().then(() => { this.textContent = notifPermission ? '✅ Notifications enabled' : '❌ Permission denied — check browser settings'; this.disabled = notifPermission; })">
+            🔔 Enable Desktop Notifications
+          </button>
+        </div>
         <div class="card card-body settings-section">
           <h3>Twilio Configuration</h3>
           <div class="settings-row">
@@ -1720,6 +1728,112 @@ document.getElementById('load-optouts').addEventListener('click', async () => {
 // ── INIT — auth disabled for testing ──
 (async () => {
   showApp();
+})();
+
+// ── DESKTOP NOTIFICATIONS ──
+const SUPABASE_URL = 'https://knwusjnyhkymgrjhjnlx.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_6BFqEg6K2i6L9EeNH_Dzyg_9NlCPH5v';
+
+let notifPermission = false;
+let supabaseClient = null;
+
+async function initNotifications() {
+  // Request notification permission
+  if ('Notification' in window) {
+    const perm = await Notification.requestPermission();
+    notifPermission = perm === 'granted';
+    if (notifPermission) {
+      console.log('Desktop notifications enabled');
+    }
+  }
+
+  // Set up Supabase Realtime
+  try {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Subscribe to inbound SMS
+    supabaseClient
+      .channel('inbound-sms')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'sms_messages',
+        filter: 'direction=eq.inbound'
+      }, (payload) => {
+        const msg = payload.new;
+        showNotification(
+          '💬 New SMS Reply',
+          `From: ${msg.phone}\n${(msg.body || '').substring(0, 100)}`,
+          () => {
+            navigateTo('conversations');
+            activeConvPhone = msg.phone;
+            loadConversations();
+          }
+        );
+        // Refresh conversations if open
+        if (document.querySelector('.nav-item[data-page="conversations"]')?.classList.contains('active')) {
+          loadConversations();
+        }
+        // Update dashboard
+        if (document.querySelector('.nav-item[data-page="dashboard"]')?.classList.contains('active')) {
+          loadDashboard();
+        }
+      })
+      .subscribe();
+
+    // Subscribe to inbound calls
+    supabaseClient
+      .channel('inbound-calls')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'calls',
+        filter: 'direction=eq.inbound'
+      }, (payload) => {
+        const call = payload.new;
+        showNotification(
+          '📞 Incoming Call',
+          `From: ${call.phone} — check your phone`,
+          () => navigateTo('dialer')
+        );
+      })
+      .subscribe();
+
+    console.log('Realtime subscriptions active');
+  } catch (err) {
+    console.warn('Realtime setup failed:', err.message);
+  }
+}
+
+function showNotification(title, body, onClick) {
+  // In-app toast always fires
+  toast(`${title}: ${body.substring(0, 60)}`, 'info');
+
+  // Desktop notification if permitted
+  if (notifPermission && 'Notification' in window) {
+    try {
+      const notif = new Notification(title, {
+        body,
+        icon: '/godwin.jpg',
+        badge: '/godwin.jpg',
+        tag: title, // prevent duplicate notifications
+        requireInteraction: true // stays until dismissed
+      });
+      notif.onclick = () => {
+        window.focus();
+        if (onClick) onClick();
+        notif.close();
+      };
+    } catch (err) {
+      console.warn('Notification failed:', err);
+    }
+  }
+}
+
+// Add notification enable button to settings page
+// Also init on load
+(async () => {
+  await initNotifications();
 })();
 </script>
 </body>
