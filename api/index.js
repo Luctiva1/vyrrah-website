@@ -646,9 +646,12 @@ async function handleWebhookRecording(req, res) {
 // ─── Sequences handlers ──────────────────────────────────────────────────────
 
 const SEQUENCE_DEFAULT_TEMPLATES = [
-  null, // step 1 must be provided
-  "Hey {first_name}, just following up on my message. Would love to chat about how we can help {company}. Got 15 mins this week?",
-  "Last follow-up {first_name} — if now's not the right time, no worries. Feel free to reach out whenever. Cheers, Godwin @ Vyrrah Labs"
+  // Step 1 — Day 1, send immediately
+  "Hey {first_name}, Godwin here from Vyrrah Labs. Just ran a quick AI scan on {company} and found some specific gaps worth showing you. Offering a free week-long growth audit — $899 value, no strings. Claim it: cal.com/godwin-rayen/30min",
+  // Step 2 — Day 2
+  "Hey {first_name} — did my message land? Free week-long growth audit for {company}. Full AI analysis, competitor breakdown, every revenue leak identified. $899 value, nothing to pay. And if we execute — $20K revenue guaranteed or free. cal.com/godwin-rayen/30min — Godwin",
+  // Step 3 — Day 3
+  "{first_name}, last one. Free growth audit for {company} closes today — $899 value, no charge. If we execute after: $20K in new revenue guaranteed or you pay nothing. Whenever you're ready: cal.com/godwin-rayen/30min — Godwin @ Vyrrah Labs"
 ];
 
 async function handleSequencesTrigger(req, res) {
@@ -660,9 +663,6 @@ async function handleSequencesTrigger(req, res) {
 
     if (!lead_id || !campaign) {
       return res.status(400).json({ error: 'lead_id and campaign are required' });
-    }
-    if (!step1_message) {
-      return res.status(400).json({ error: 'step1_message is required' });
     }
 
     const supabase = getSupabase();
@@ -696,7 +696,7 @@ async function handleSequencesTrigger(req, res) {
 
     const now = new Date();
     const steps = [
-      { step: 1, scheduled_at: now.toISOString(), message: step1_message },
+      { step: 1, scheduled_at: now.toISOString(), message: step1_message || SEQUENCE_DEFAULT_TEMPLATES[0] },
       { step: 2, scheduled_at: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(), message: SEQUENCE_DEFAULT_TEMPLATES[1] },
       { step: 3, scheduled_at: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(), message: SEQUENCE_DEFAULT_TEMPLATES[2] }
     ];
@@ -720,6 +720,76 @@ async function handleSequencesTrigger(req, res) {
     return res.status(200).json({ success: true, sequences: data });
   } catch (err) {
     console.error('Sequence trigger error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function handleSequencesBulkTrigger(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  try {
+    const { campaign = 'USA Outreach', status_filter = 'new', limit = 500 } = req.body;
+    const supabase = getSupabase();
+
+    // Get all leads matching the filter that aren't already in a pending sequence
+    const { data: leads, error: leadsErr } = await supabase
+      .from('leads')
+      .select('id, phone, first_name, last_name, company')
+      .eq('status', status_filter)
+      .limit(limit);
+
+    if (leadsErr) throw leadsErr;
+    if (!leads || leads.length === 0) {
+      return res.status(200).json({ enrolled: 0, skipped: 0, message: 'No leads found' });
+    }
+
+    // Get opt-outs
+    const { data: optOuts } = await supabase.from('opt_outs').select('phone');
+    const optOutSet = new Set((optOuts || []).map(o => o.phone));
+
+    // Get already-enrolled leads
+    const { data: existing } = await supabase
+      .from('sequences')
+      .select('lead_id')
+      .eq('campaign', campaign)
+      .eq('status', 'pending');
+    const enrolledSet = new Set((existing || []).map(e => e.lead_id));
+
+    const now = new Date();
+    const rows = [];
+    let skipped = 0;
+
+    for (const lead of leads) {
+      if (optOutSet.has(lead.phone) || enrolledSet.has(lead.id)) {
+        skipped++;
+        continue;
+      }
+      // Stagger Day 1 sends — spread over 3 hours to avoid spam flags (1 per 4 seconds)
+      const staggerMs = rows.length / 3 * 4000;
+      const sendAt = new Date(now.getTime() + staggerMs);
+
+      rows.push({ lead_id: lead.id, campaign, step: 1, scheduled_at: sendAt.toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[0] });
+      rows.push({ lead_id: lead.id, campaign, step: 2, scheduled_at: new Date(sendAt.getTime() + 86400000).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[1] });
+      rows.push({ lead_id: lead.id, campaign, step: 3, scheduled_at: new Date(sendAt.getTime() + 172800000).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[2] });
+    }
+
+    if (rows.length === 0) {
+      return res.status(200).json({ enrolled: 0, skipped, message: 'All leads already enrolled or opted out' });
+    }
+
+    // Insert in batches of 500
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await supabase.from('sequences').insert(rows.slice(i, i + 500));
+      if (error) throw error;
+      inserted += Math.min(500, rows.length - i);
+    }
+
+    const enrolled = inserted / 3; // 3 rows per lead
+    return res.status(200).json({ enrolled, skipped, rows_inserted: inserted, campaign });
+  } catch (err) {
+    console.error('Bulk trigger error:', err);
     return res.status(500).json({ error: err.message });
   }
 }
@@ -975,6 +1045,11 @@ module.exports = async (req, res) => {
   // /api/sequences/trigger
   if (seg0 === 'sequences' && seg1 === 'trigger') {
     return handleSequencesTrigger(req, res);
+  }
+
+  // /api/sequences/bulk-trigger
+  if (seg0 === 'sequences' && seg1 === 'bulk-trigger') {
+    return handleSequencesBulkTrigger(req, res);
   }
 
   // /api/sequences/process

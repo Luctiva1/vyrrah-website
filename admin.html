@@ -609,8 +609,11 @@
     <!-- SEQUENCES -->
     <div class="page" id="page-sequences">
       <div class="page-header">
-        <div><h2>Sequences</h2><p>Automated SMS follow-up</p></div>
-        <button class="btn btn-danger btn-sm" id="new-sequence-btn">Enroll Lead</button>
+        <div><h2>Sequences</h2><p>Automated SMS follow-up — 3-touch, auto-scheduled</p></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary btn-sm" id="bulk-enroll-btn">🚀 Bulk Enroll All Leads</button>
+          <button class="btn btn-danger btn-sm" id="new-sequence-btn">+ Enroll Single Lead</button>
+        </div>
       </div>
       <div class="card">
         <div class="table-wrap">
@@ -1544,6 +1547,46 @@ async function loadSequences() {
 }
 
 document.getElementById('new-sequence-btn').addEventListener('click', () => openModal('modal-sequence'));
+
+document.getElementById('bulk-enroll-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('bulk-enroll-btn');
+  const confirmed = confirm(
+    '🚀 Bulk Enroll All Leads\n\n' +
+    'This will enroll all "new" status leads into the 3-touch SMS sequence:\n\n' +
+    '• Day 1: Sends immediately (staggered over ~3 hours)\n' +
+    '• Day 2: Follows up 24 hours later\n' +
+    '• Day 3: Final message 48 hours later\n\n' +
+    'Leads already enrolled or opted out will be skipped.\n\n' +
+    'Continue?'
+  );
+  if (!confirmed) return;
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Enrolling...';
+
+  try {
+    // Enroll in batches of 500 until done
+    let totalEnrolled = 0, totalSkipped = 0, batch = 0;
+    while (true) {
+      const result = await API('/api/sequences/bulk-trigger', {
+        method: 'POST',
+        body: JSON.stringify({ campaign: 'USA Outreach', status_filter: 'new', limit: 500 })
+      });
+      totalEnrolled += result.enrolled || 0;
+      totalSkipped += result.skipped || 0;
+      batch++;
+      btn.textContent = `⏳ Enrolled ${totalEnrolled} so far...`;
+      if ((result.enrolled || 0) < 500) break; // No more to enroll
+      if (batch > 30) break; // Safety cap at 15,000 leads
+    }
+    toast(`✅ Done! ${totalEnrolled} leads enrolled in SMS sequence. ${totalSkipped} skipped (already enrolled or opted out).`, 'success');
+    loadSequences();
+  } catch (err) {
+    toast('Bulk enroll error: ' + err.message, 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = '🚀 Bulk Enroll All Leads';
+});
 
 let seqLeadSearchTimeout;
 document.getElementById('seq-lead-search').addEventListener('input', e => {
