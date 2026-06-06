@@ -612,6 +612,7 @@
         <div><h2>Sequences</h2><p>Automated SMS follow-up — 3-touch, auto-scheduled</p></div>
         <div style="display:flex;gap:10px;">
           <button class="btn btn-primary btn-sm" id="bulk-enroll-btn">🚀 Bulk Enroll All Leads</button>
+          <button class="btn btn-outline btn-sm" id="process-now-btn">▶ Process Now</button>
           <button class="btn btn-danger btn-sm" id="new-sequence-btn">+ Enroll Single Lead</button>
         </div>
       </div>
@@ -1372,7 +1373,7 @@ document.getElementById('call-btn').addEventListener('click', async () => {
       const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
       document.getElementById('call-timer').textContent = fmtDuration(elapsed);
     }, 1000);
-    toast('Call initiated to ' + lead.phone, 'info');
+    toast('📞 Your phone is ringing — pick up to connect to ' + lead.phone, 'info');
   } catch (err) {
     toast('Call error: ' + err.message, 'error');
     callBtn.className = 'call-btn idle';
@@ -1578,29 +1579,46 @@ document.getElementById('send-sms-btn').addEventListener('click', async () => {
 // ── SEQUENCES ──
 async function loadSequences() {
   const tbody = document.getElementById('sequences-tbody');
+  tbody.innerHTML = '<tr><td colspan="6"><div class="loading"><span class="spinner"></span> Loading...</div></td></tr>';
   try {
-    // Use Supabase via contacts endpoint to get sequences indirectly
-    // For now fetch recent sequences from a stats approach
-    const data = await API('/api/contacts?limit=200');
-    const leads = data.leads;
-
-    // We need sequences - fetch via each lead (simplified: show from a dedicated call)
-    // Since we don't have a direct list endpoint, show recent leads with sequence info
-    tbody.innerHTML = leads.slice(0, 30).map(l => `
-      <tr>
-        <td>${l.first_name} ${l.last_name || ''}<br><small style="color:var(--text-light);">${l.phone}</small></td>
-        <td>${l.campaign || '—'}</td>
-        <td>—</td>
-        <td>—</td>
-        <td>${statusBadge(l.status)}</td>
-        <td>—</td>
-      </tr>`).join('') || '<tr><td colspan="6"><div class="empty-state"><p>No sequences</p></div></td></tr>';
+    const data = await API('/api/sequences?limit=100');
+    const seqs = data.sequences || [];
+    if (!seqs.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>No sequences yet — import leads and hit Bulk Enroll</p></div></td></tr>';
+      return;
+    }
+    tbody.innerHTML = seqs.map(s => {
+      const lead = s.leads || {};
+      const name = lead.first_name ? `${lead.first_name} ${lead.last_name || ''}` : s.lead_id?.slice(0,8) + '...';
+      const scheduled = s.scheduled_at ? new Date(s.scheduled_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—';
+      const sent = s.sent_at ? new Date(s.sent_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—';
+      const statusColor = { sent: '#22c55e', pending: '#f59e0b', skipped: '#94a3b8', error: '#e63946' }[s.status] || '#94a3b8';
+      return `<tr>
+        <td><strong>${name}</strong><br><small style="color:var(--text-light);">${lead.phone || ''}</small></td>
+        <td>${s.campaign || '—'}</td>
+        <td style="text-align:center;font-weight:600;">Day ${s.step}</td>
+        <td>${scheduled}</td>
+        <td><span style="color:${statusColor};font-weight:600;text-transform:capitalize;">${s.status}</span></td>
+        <td>${sent}</td>
+      </tr>`;
+    }).join('');
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="6"><p style="color:var(--red);padding:14px;">${err.message}</p></td></tr>`;
   }
 }
 
 document.getElementById('new-sequence-btn').addEventListener('click', () => openModal('modal-sequence'));
+
+document.getElementById('process-now-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('process-now-btn');
+  btn.disabled = true; btn.textContent = '⏳ Processing...';
+  try {
+    const data = await API('/api/sequences/process');
+    toast(`Processed ${data.processed} sequences. ${data.results?.filter(r=>r.status==='sent').length || 0} SMS sent.`, 'success');
+    loadSequences();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+  btn.disabled = false; btn.textContent = '▶ Process Now';
+});
 
 document.getElementById('bulk-enroll-btn').addEventListener('click', async () => {
   const btn = document.getElementById('bulk-enroll-btn');

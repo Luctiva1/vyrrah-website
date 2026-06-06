@@ -354,12 +354,15 @@ async function handleCallsDial(req, res) {
     }
 
     const twilioClient = getTwilio();
-    const baseUrl = `https://${req.headers.host}`;
+    const baseUrl = `https://vyrrahlabs.com`;
+    const forwardTo = process.env.FORWARD_TO_MOBILE || '+918778974646';
 
+    // Power dialer: call GODWIN first, then when he answers, bridge to LEAD
+    // This way Godwin is live before the lead picks up — standard power dialer UX
     const call = await twilioClient.calls.create({
       from: process.env.TWILIO_PHONE_NUMBER,
-      to,
-      url: `${baseUrl}/api/webhooks/voice`,
+      to: forwardTo,
+      url: `${baseUrl}/api/calls/bridge?to=${encodeURIComponent(to)}`,
       statusCallback: `${baseUrl}/api/webhooks/status`,
       statusCallbackMethod: 'POST',
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
@@ -960,6 +963,52 @@ async function handleDashboardStats(req, res) {
   }
 }
 
+// ─── Sequences list handler ──────────────────────────────────────────────────
+
+async function handleSequencesList(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    const { status, limit = 100, page = 1 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    let query = supabase
+      .from('sequences')
+      .select('*, leads(id, first_name, last_name, company, phone, status)', { count: 'exact' })
+      .order('scheduled_at', { ascending: false })
+      .range(offset, offset + parseInt(limit) - 1);
+
+    if (status) query = query.eq('status', status);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+    return res.status(200).json({ sequences: data || [], total: count || 0, page: parseInt(page), limit: parseInt(limit) });
+  } catch (err) {
+    console.error('Sequences list error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── Calls bridge TwiML ──────────────────────────────────────────────────────
+
+async function handleCallsBridge(req, res) {
+  // Called when Godwin answers his phone — returns TwiML to bridge to lead
+  const { to } = req.query;
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const twiml = new VoiceResponse();
+  if (to) {
+    twiml.say({ voice: 'alice' }, 'Connecting to your lead now.');
+    const dial = twiml.dial({ callerId: process.env.TWILIO_PHONE_NUMBER, record: 'record-from-answer', timeout: 30 });
+    dial.number(to);
+  } else {
+    twiml.say({ voice: 'alice' }, 'No lead number configured. Goodbye.');
+    twiml.hangup();
+  }
+  res.setHeader('Content-Type', 'text/xml');
+  return res.status(200).send(twiml.toString());
+}
+
 // ─── Conversations handler ───────────────────────────────────────────────────
 
 async function handleConversationsList(req, res) {
@@ -1061,6 +1110,11 @@ module.exports = async (req, res) => {
     return handleCallsDial(req, res);
   }
 
+  // /api/calls/bridge (TwiML — called by Twilio when Godwin answers)
+  if (seg0 === 'calls' && seg1 === 'bridge') {
+    return handleCallsBridge(req, res);
+  }
+
   // /api/calls/:id
   if (seg0 === 'calls' && seg1) {
     return handleCallById(req, res, seg1);
@@ -1084,6 +1138,11 @@ module.exports = async (req, res) => {
   // /api/webhooks/recording
   if (seg0 === 'webhooks' && seg1 === 'recording') {
     return handleWebhookRecording(req, res);
+  }
+
+  // /api/sequences (list)
+  if (seg0 === 'sequences' && !seg1) {
+    return handleSequencesList(req, res);
   }
 
   // /api/sequences/trigger
