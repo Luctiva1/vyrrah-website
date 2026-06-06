@@ -659,6 +659,101 @@ async function handleWebhookRecording(req, res) {
   return res.status(200).end();
 }
 
+// ─── Quickmail webhook handler ───────────────────────────────────────────────
+
+async function handleWebhookQuickmail(req, res) {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  // Always return 200 immediately so Quickmail doesn't retry
+  res.status(200).json({ received: true });
+
+  try {
+    const payload = req.body || {};
+    const supabase = getSupabase();
+
+    // Log raw payload for inspection (first few real webhooks)
+    console.log('Quickmail webhook payload:', JSON.stringify(payload).slice(0, 500));
+
+    // Quickmail sends various event types — handle the ones we care about
+    // Common field patterns across Quickmail webhook versions:
+    const event = payload.event || payload.type || payload.action || '';
+    const isReply = event.toLowerCase().includes('reply') || event.toLowerCase().includes('response');
+    const isUnsubscribe = event.toLowerCase().includes('unsub') || event.toLowerCase().includes('optout');
+    const isBounce = event.toLowerCase().includes('bounce');
+
+    // Extract prospect info — Quickmail uses various field names
+    const prospect = payload.prospect || payload.contact || payload.lead || {};
+    const email = prospect.email || payload.email || payload.from || payload.prospect_email || '';
+    const firstName = prospect.first_name || prospect.firstName || payload.first_name || '';
+    const lastName = prospect.last_name || prospect.lastName || payload.last_name || '';
+    const company = prospect.company || payload.company || '';
+
+    // Extract reply body
+    const reply = payload.reply || payload.message || payload.email || {};
+    const body = (typeof reply === 'string' ? reply : reply.body || reply.text || reply.content || payload.body || payload.text || '')
+      || `[${event || 'Quickmail event'} — check Quickmail for details]`;
+
+    const campaignName = (payload.campaign || {}).name || payload.campaign_name || payload.campaign || 'Quickmail';
+
+    if (!email) {
+      console.warn('Quickmail webhook: no email found in payload');
+      return;
+    }
+
+    // Find matching lead by email
+    const { data: lead } = await supabase
+      .from('leads')
+      .select('id, status')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (isUnsubscribe) {
+      // Add to opt-outs (email-based — store email as phone field)
+      await supabase.from('opt_outs').upsert([{ phone: email }], { onConflict: 'phone' });
+      if (lead?.id) {
+        await supabase.from('leads').update({ status: 'not_interested' }).eq('id', lead.id);
+        await supabase.from('sequences').update({ status: 'skipped' })
+          .eq('lead_id', lead.id).eq('status', 'pending');
+      }
+      console.log(`Quickmail unsubscribe: ${email}`);
+      return;
+    }
+
+    if (isBounce) {
+      if (lead?.id) {
+        await supabase.from('leads').update({ status: 'not_interested' }).eq('id', lead.id);
+      }
+      console.log(`Quickmail bounce: ${email}`);
+      return;
+    }
+
+    if (isReply || body) {
+      // Log inbound email reply to sms_messages table with channel='email'
+      await supabase.from('sms_messages').insert([{
+        lead_id: lead?.id || null,
+        phone: email,          // store email in phone field for conversations
+        direction: 'inbound',
+        body: `📧 [Email reply via ${campaignName}]\n\n${body}`,
+        channel: 'email',
+        status: 'received',
+        twilio_sid: `qm_${Date.now()}`
+      }]);
+
+      // Update lead status to replied
+      if (lead?.id && ['new','contacted'].includes(lead.status)) {
+        await supabase.from('leads').update({ status: 'replied' }).eq('id', lead.id);
+        // Stop pending sequences for this lead
+        await supabase.from('sequences').update({ status: 'skipped' })
+          .eq('lead_id', lead.id).eq('status', 'pending');
+      }
+
+      console.log(`Quickmail reply logged: ${email} — ${body.slice(0, 80)}`);
+    }
+  } catch (err) {
+    console.error('Quickmail webhook error:', err);
+  }
+}
+
 // ─── Sequences handlers ──────────────────────────────────────────────────────
 
 const SEQUENCE_DEFAULT_TEMPLATES = [
@@ -1138,6 +1233,11 @@ module.exports = async (req, res) => {
   // /api/webhooks/recording
   if (seg0 === 'webhooks' && seg1 === 'recording') {
     return handleWebhookRecording(req, res);
+  }
+
+  // /api/webhooks/quickmail
+  if (seg0 === 'webhooks' && seg1 === 'quickmail') {
+    return handleWebhookQuickmail(req, res);
   }
 
   // /api/sequences (list)

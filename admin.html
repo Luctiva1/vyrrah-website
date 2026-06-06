@@ -1466,11 +1466,13 @@ async function loadConversations() {
     convList.innerHTML = conversations.map(conv => {
       const lead = conv.lead;
       const name = lead ? `${lead.first_name} ${lead.last_name || ''}`.trim() : conv.phone;
-      const preview = (conv.last_message.body || '').substring(0, 50);
+      const isEmail = conv.last_message.channel === 'email' || conv.phone.includes('@');
+      const channelIcon = isEmail ? '📧' : '💬';
+      const preview = (conv.last_message.body || '').replace(/📧 \[Email reply[^\]]*\]\n\n/, '').substring(0, 50);
       const isInbound = conv.last_message.direction === 'inbound';
       return `
         <div class="conv-item ${activeConvPhone === conv.phone ? 'active' : ''}" data-phone="${conv.phone}">
-          <div class="conv-avatar">${name.charAt(0).toUpperCase()}</div>
+          <div class="conv-avatar">${channelIcon}</div>
           <div class="conv-item-info">
             <div class="conv-item-name">${name}</div>
             <div class="conv-item-preview" style="${isInbound ? 'font-weight:600;' : ''}">${isInbound ? '← ' : ''}${preview}${preview.length >= 50 ? '...' : ''}</div>
@@ -1751,9 +1753,9 @@ async function initNotifications() {
   try {
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Subscribe to inbound SMS
+    // Subscribe to inbound SMS + email replies
     supabaseClient
-      .channel('inbound-sms')
+      .channel('inbound-messages')
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -1761,9 +1763,13 @@ async function initNotifications() {
         filter: 'direction=eq.inbound'
       }, (payload) => {
         const msg = payload.new;
+        const isEmail = msg.channel === 'email' || (msg.phone || '').includes('@');
+        const icon = isEmail ? '📧' : '💬';
+        const label = isEmail ? 'Email Reply' : 'SMS Reply';
+        const cleanBody = (msg.body || '').replace(/📧 \[Email reply[^\]]*\]\n\n/, '');
         showNotification(
-          '💬 New SMS Reply',
-          `From: ${msg.phone}\n${(msg.body || '').substring(0, 100)}`,
+          `${icon} New ${label}`,
+          `From: ${msg.phone}\n${cleanBody.substring(0, 100)}`,
           () => {
             navigateTo('conversations');
             activeConvPhone = msg.phone;
