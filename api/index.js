@@ -193,18 +193,31 @@ async function handleContactsImport(req, res) {
       return res.status(400).json({ error: 'Maximum 1000 contacts per import' });
     }
 
-    const rows = contacts.map(c => ({
-      first_name: c.first_name || c.firstName || c['First Name'] || '',
-      last_name: c.last_name || c.lastName || c['Last Name'] || null,
-      company: c.company || c.Company || null,
-      phone: c.phone || c.Phone || c.mobile || '',
-      email: c.email || c.Email || null,
-      country: c.country || c.Country || 'AU',
-      niche: c.niche || c.Niche || null,
-      status: 'new',
-      campaign: c.campaign || c.Campaign || null,
-      notes: c.notes || c.Notes || null
-    })).filter(c => c.first_name && c.phone);
+    function normalizePhone(raw) {
+      if (!raw) return '';
+      const digits = String(raw).replace(/\D/g, '');
+      if (!digits || digits.length < 7) return '';
+      if (digits.length === 10) return '+1' + digits;
+      if (digits.length === 11 && digits[0] === '1') return '+' + digits;
+      if (String(raw).trim().startsWith('+')) return '+' + digits;
+      return '+' + digits;
+    }
+
+    const rows = contacts.map(c => {
+      const phone = normalizePhone(c.phone || c.Phone || c.mobile || '');
+      return {
+        first_name: (c.first_name || c.firstName || c['First Name'] || '').trim(),
+        last_name: (c.last_name || c.lastName || c['Last Name'] || null),
+        company: c.company || c.Company || null,
+        phone,
+        email: c.email || c.Email || null,
+        country: c.country || c.Country || 'United States',
+        niche: c.niche || c.Niche || null,
+        status: 'new',
+        campaign: c.campaign || c.Campaign || 'USA Outreach',
+        notes: c.notes || c.Notes || null
+      };
+    }).filter(c => c.first_name && c.phone);
 
     const supabase = getSupabase();
     const { data, error } = await supabase

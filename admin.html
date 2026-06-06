@@ -1114,8 +1114,20 @@ document.getElementById('csv-file-input').addEventListener('change', e => {
 
     function getField(obj, ...keys) {
       for (const k of keys) {
-        if (obj[k] !== undefined && obj[k] !== '') return obj[k];
+        const v = obj[k];
+        if (v !== undefined && v !== '' && v.toLowerCase() !== 'nan' && v.toLowerCase() !== 'none') return v;
       }
+      return '';
+    }
+
+    // Normalize phone to E.164 format (+1XXXXXXXXXX for US)
+    function normalizePhone(raw) {
+      if (!raw) return '';
+      const digits = raw.replace(/\D/g, '');
+      if (!digits) return '';
+      if (digits.length === 10) return '+1' + digits;          // US 10-digit
+      if (digits.length === 11 && digits[0] === '1') return '+' + digits; // US with country code
+      if (digits.length > 7) return '+' + digits;              // International — prepend +
       return '';
     }
 
@@ -1124,12 +1136,16 @@ document.getElementById('csv-file-input').addEventListener('change', e => {
       const obj = {};
       headers.forEach((h, i) => { obj[h] = (vals[i] || '').replace(/^"|"$/g, '').trim(); });
 
-      // Map to our standard field names supporting multiple CSV column name variants
+      // Try mobile first, fallback to company phone
+      const rawPhone = getField(obj, 'mobile number', 'phone', 'mobile', 'cell', 'telephone', 'phone number')
+                    || getField(obj, 'company phone number', 'company phone', 'office phone', 'work phone');
+      const phone = normalizePhone(rawPhone);
+
       return {
         first_name: getField(obj, 'first name', 'first_name', 'firstname', 'given name'),
         last_name: getField(obj, 'last name', 'last_name', 'lastname', 'surname'),
         company: getField(obj, 'company name', 'company', 'business', 'organization'),
-        phone: getField(obj, 'mobile number', 'phone', 'mobile', 'cell', 'telephone', 'phone number'),
+        phone,
         email: getField(obj, 'email', 'email address', 'e-mail'),
         country: getField(obj, 'country', 'location') || 'United States',
         niche: getField(obj, 'industry', 'niche', 'sector', 'vertical'),
@@ -1139,8 +1155,8 @@ document.getElementById('csv-file-input').addEventListener('change', e => {
     }).filter(r => r.first_name && r.phone);
 
     document.getElementById('import-preview').innerHTML =
-      `<strong>${importData.length} valid rows detected</strong> (${lines.length - 1} total)<br>` +
-      `Sample: ${importData[0] ? importData[0].first_name + ' ' + importData[0].last_name + ' | ' + importData[0].phone : 'N/A'}`;
+      `<strong>${importData.length} valid rows</strong> (${lines.length - 1} total rows, ${lines.length - 1 - importData.length} skipped — no name or phone)<br>` +
+      `Sample: ${importData[0] ? importData[0].first_name + ' ' + importData[0].last_name + ' | ' + importData[0].phone + ' | ' + importData[0].company : 'N/A'}`;
     document.getElementById('import-confirm-btn').disabled = importData.length === 0;
   };
   reader.readAsText(file);
