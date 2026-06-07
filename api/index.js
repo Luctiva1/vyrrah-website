@@ -664,18 +664,16 @@ async function handleWebhookRecording(req, res) {
 async function handleWebhookQuickmail(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  // Always return 200 immediately so Quickmail doesn't retry
-  res.status(200).json({ received: true });
-
+  // Process FIRST, then respond — Vercel kills the function after res.send()
+  // Quickmail allows up to 30s before retrying, so a few seconds is fine
   try {
     const payload = req.body || {};
     const supabase = getSupabase();
 
-    // Log raw payload for inspection (first few real webhooks)
+    // Log raw payload for first-run inspection
     console.log('Quickmail webhook payload:', JSON.stringify(payload).slice(0, 500));
 
     // Quickmail sends various event types — handle the ones we care about
-    // Common field patterns across Quickmail webhook versions:
     const event = payload.event || payload.type || payload.action || '';
     const isReply = event.toLowerCase().includes('reply') || event.toLowerCase().includes('response');
     const isUnsubscribe = event.toLowerCase().includes('unsub') || event.toLowerCase().includes('optout');
@@ -684,20 +682,17 @@ async function handleWebhookQuickmail(req, res) {
     // Extract prospect info — Quickmail uses various field names
     const prospect = payload.prospect || payload.contact || payload.lead || {};
     const email = prospect.email || payload.email || payload.from || payload.prospect_email || '';
-    const firstName = prospect.first_name || prospect.firstName || payload.first_name || '';
-    const lastName = prospect.last_name || prospect.lastName || payload.last_name || '';
-    const company = prospect.company || payload.company || '';
 
     // Extract reply body
-    const reply = payload.reply || payload.message || payload.email || {};
+    const reply = payload.reply || payload.message || {};
     const body = (typeof reply === 'string' ? reply : reply.body || reply.text || reply.content || payload.body || payload.text || '')
-      || `[${event || 'Quickmail event'} — check Quickmail for details]`;
+      || `[${event || 'Quickmail event'} — see Quickmail for details]`;
 
     const campaignName = (payload.campaign || {}).name || payload.campaign_name || payload.campaign || 'Quickmail';
 
     if (!email) {
       console.warn('Quickmail webhook: no email found in payload');
-      return;
+      return res.status(200).json({ received: true, warning: 'no email in payload' });
     }
 
     // Find matching lead by email
@@ -749,8 +744,11 @@ async function handleWebhookQuickmail(req, res) {
 
       console.log(`Quickmail reply logged: ${email} — ${body.slice(0, 80)}`);
     }
+
+    return res.status(200).json({ received: true });
   } catch (err) {
     console.error('Quickmail webhook error:', err);
+    return res.status(200).json({ received: true, error: err.message });
   }
 }
 
