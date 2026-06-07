@@ -1016,7 +1016,7 @@ async function handleSequencesProcess(req, res) {
       const now = new Date().toISOString();
       const { data: pending, error } = await supabase
         .from('sequences')
-        .select('*, leads(id, first_name, last_name, company, phone)')
+        .select('*, leads(id, first_name, last_name, company, phone, email)')
         .eq('status', 'pending')
         .lte('scheduled_at', now)
         .limit(100);
