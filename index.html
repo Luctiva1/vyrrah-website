@@ -233,6 +233,66 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:40px 52p
 .flt{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--white)}
 .flt span{color:var(--gold)}
 
+/* ── MARQUEE ─────────────────────────────────────────── */
+.marquee-wrap{overflow:hidden;background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:18px 0}
+.marquee-track{display:flex;gap:0;width:max-content;animation:marquee 28s linear infinite}
+.marquee-track:hover{animation-play-state:paused}
+.marquee-item{display:flex;align-items:center;gap:16px;padding:0 48px;white-space:nowrap;font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gray);font-family:'Syne',sans-serif;font-weight:700}
+.marquee-dot{width:4px;height:4px;border-radius:50%;background:var(--gold);flex-shrink:0}
+.marquee-item.accent{color:var(--gold)}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* ── BENTO GRID ──────────────────────────────────────── */
+.bento{padding:100px 52px;background:var(--bg)}
+.bento-grid{display:grid;grid-template-columns:repeat(12,1fr);grid-template-rows:auto;gap:2px;margin-top:56px}
+.bcard{background:var(--bg2);padding:40px;position:relative;overflow:hidden;transition:background .3s}
+.bcard:hover{background:var(--bg3)}
+.bcard::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .4s;pointer-events:none}
+.bcard:hover::before{opacity:1}
+.bc1{grid-column:span 7;grid-row:span 2;background:var(--bg3)}
+.bc2{grid-column:span 5}
+.bc3{grid-column:span 5;background:#0d0d0d}
+.bc4{grid-column:span 4}
+.bc5{grid-column:span 4}
+.bc6{grid-column:span 4}
+.bcard-tag{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:20px;font-family:'Syne',sans-serif;font-weight:700}
+.bcard-num{font-family:'Syne',sans-serif;font-size:clamp(48px,7vw,96px);font-weight:800;line-height:1;letter-spacing:-3px;color:var(--white);margin-bottom:8px}
+.bcard-num sup{font-size:40%;color:var(--gold);letter-spacing:0;vertical-align:super}
+.bcard-label{font-size:13px;color:var(--mid);line-height:1.6;max-width:340px}
+.bcard-label strong{color:var(--white)}
+.bcard-big{font-family:'Fraunces',serif;font-size:clamp(28px,3.5vw,48px);font-weight:900;line-height:1.1;letter-spacing:-1px;margin-bottom:16px}
+.bcard-big em{font-style:italic;color:var(--gold)}
+.bcard-sub{font-size:14px;color:var(--mid);line-height:1.7;max-width:480px}
+.bcard-icon{font-size:48px;margin-bottom:20px;display:block}
+.bcard-accent{background:var(--red)!important}
+.bcard-accent .bcard-big{color:#fff}
+.bcard-accent .bcard-sub{color:rgba(255,255,255,.7)}
+.bcard-gold{background:linear-gradient(135deg,#1a1200 0%,#0d0d0d 100%)!important;border:1px solid rgba(240,165,0,.15)}
+.bcard-gold .bcard-num{color:var(--gold)}
+.bcard-noise::after{content:'';position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;opacity:.4}
+.bcard-grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(240,165,0,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(240,165,0,.03) 1px,transparent 1px);background-size:32px 32px;pointer-events:none}
+
+/* ── STATEMENT SECTION ──────────────────────────────── */
+.statement{padding:120px 52px;text-align:center;position:relative;overflow:hidden;background:var(--bg2);border-top:1px solid var(--border)}
+.statement::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:800px;height:400px;background:radial-gradient(ellipse,rgba(200,37,30,.06) 0%,transparent 70%);pointer-events:none}
+.st-eyebrow{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--gray);margin-bottom:32px;display:flex;align-items:center;justify-content:center;gap:20px}
+.st-eyebrow::before,.st-eyebrow::after{content:'';width:60px;height:1px;background:var(--border)}
+.st-headline{font-family:'Fraunces',serif;font-size:clamp(48px,9vw,130px);font-weight:900;line-height:.92;letter-spacing:-4px;margin-bottom:0}
+.st-headline .outline{-webkit-text-stroke:1px var(--white);color:transparent}
+.st-headline .fill{color:var(--white)}
+.st-headline .gold{color:var(--gold);font-style:italic}
+.st-headline .red{color:var(--red)}
+.st-sub{font-size:18px;color:var(--mid);max-width:520px;margin:36px auto 0;line-height:1.7;font-weight:300}
+
+/* ── GBAND UPGRADE ──────────────────────────────────── */
+.gband{position:relative;overflow:hidden}
+.gband::after{content:'';position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");pointer-events:none;mix-blend-mode:overlay}
+.gband-glow{position:absolute;top:-50%;right:-10%;width:500px;height:500px;background:radial-gradient(circle,rgba(255,100,80,.15) 0%,transparent 65%);pointer-events:none}
+
+/* ── 3D TILT CARDS ──────────────────────────────────── */
+.tilt{transform-style:preserve-3d;transition:transform .15s ease}
+.tilt-inner{transform:translateZ(20px)}
+
 /* ANIMATIONS */
 @keyframes up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 .reveal{opacity:0;transform:translateY(32px);transition:opacity .8s ease,transform .8s ease}
@@ -278,7 +338,10 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:40px 52p
   .pgrid{grid-template-columns:1fr}
   .vs{grid-template-columns:1fr 1fr}
   .gband{grid-template-columns:1fr;text-align:center}
-  section,.godwin,.problem,.ai,.tiers,.svcs,.proof,.process,.faq,.fcta{padding:72px 20px}
+  section,.godwin,.problem,.ai,.tiers,.svcs,.proof,.process,.faq,.fcta,.bento,.statement{padding:72px 20px}
+  .bento-grid{grid-template-columns:1fr}
+  .bc1,.bc2,.bc3,.bc4,.bc5,.bc6{grid-column:span 1;grid-row:span 1}
+  .st-headline{letter-spacing:-2px}
   .pb{padding:32px 20px}
   .ng,.lg{grid-template-columns:repeat(2,1fr)}
   footer{flex-direction:column;gap:12px;text-align:center;padding:32px 20px}
@@ -413,8 +476,31 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:40px 52p
   </div>
 </section>
 
+<!-- MARQUEE STRIP -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <span class="marquee-item accent">Revenue Growth<span class="marquee-dot"></span></span>
+    <span class="marquee-item">AI-Powered Analysis<span class="marquee-dot"></span></span>
+    <span class="marquee-item">Competitor Intelligence<span class="marquee-dot"></span></span>
+    <span class="marquee-item accent">$20K Guaranteed<span class="marquee-dot"></span></span>
+    <span class="marquee-item">Free Audit<span class="marquee-dot"></span></span>
+    <span class="marquee-item">7-Day Delivery<span class="marquee-dot"></span></span>
+    <span class="marquee-item accent">Zero Risk<span class="marquee-dot"></span></span>
+    <span class="marquee-item">UCLA · Ex-VC · Ex-Taboola<span class="marquee-dot"></span></span>
+    <span class="marquee-item">Revenue Growth<span class="marquee-dot"></span></span>
+    <span class="marquee-item">AI-Powered Analysis<span class="marquee-dot"></span></span>
+    <span class="marquee-item">Competitor Intelligence<span class="marquee-dot"></span></span>
+    <span class="marquee-item accent">$20K Guaranteed<span class="marquee-dot"></span></span>
+    <span class="marquee-item">Free Audit<span class="marquee-dot"></span></span>
+    <span class="marquee-item">7-Day Delivery<span class="marquee-dot"></span></span>
+    <span class="marquee-item accent">Zero Risk<span class="marquee-dot"></span></span>
+    <span class="marquee-item">UCLA · Ex-VC · Ex-Taboola<span class="marquee-dot"></span></span>
+  </div>
+</div>
+
 <!-- GUARANTEE BAND -->
 <div class="gband reveal">
+  <div class="gband-glow"></div>
   <div>
     <h3>Free $899 audit. Guaranteed target.<br><em>Or you pay nothing that month.</em></h3>
     <p>Start with a free week-long growth audit — full competitor analysis, every revenue leak identified, complete growth plan delivered in 7 days. Normally $899, yours free. Then if we agree on a target and don't hit it — that month is on me. No invoice, no awkward conversation, no excuses.</p>
@@ -560,6 +646,56 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:40px 52p
     <div class="fi"><div class="fq">Why not just hire a full-time growth person? <span class="ficon">+</span></div><div class="fa">A senior growth hire is $200K+ salary, 6 months to find, plus benefits and equity — and that's one person who probably doesn't have AI capabilities, VC pattern recognition, and 200M-user scale experience combined. I bring you a full AI-powered team for less than that single hire, operational in 48 hours, with a guarantee. Zero equity, zero hiring risk.</div></div>
     <div class="fi"><div class="fq">How fast do results actually come? <span class="ficon">+</span></div><div class="fa">The free 7-day audit is delivered within a week — full competitor analysis, revenue leaks identified, complete growth plan in your hands. Campaigns go live within 48 hours of us starting. Most clients see meaningful revenue movement within 30 days — that's the guarantee I stand behind with my fee.</div></div>
     <div class="fi"><div class="fq">Am I getting you, or a team of juniors? <span class="ficon">+</span></div><div class="fa">You get me on strategy, AI model direction, and weekly reviews — every single time. The execution team runs under my direct oversight. I don't hand clients off. If you booked an audit call, you're talking to Godwin. That's the whole point.</div></div>
+  </div>
+</section>
+
+<!-- STATEMENT SECTION -->
+<section class="statement reveal">
+  <div class="st-eyebrow">The Vyrrah Standard</div>
+  <h2 class="st-headline">
+    <span class="outline">We don't</span><br>
+    <span class="gold">guess.</span><br>
+    <span class="fill">We know.</span>
+  </h2>
+  <p class="st-sub">Every recommendation we make is backed by AI analysis, competitor data, and a decade of pattern recognition across hundreds of businesses. No gut feelings. No generic advice.</p>
+</section>
+
+<!-- BENTO GRID -->
+<section class="bento">
+  <div class="ey g reveal">By the numbers</div>
+  <h2 class="sh reveal">Results that <em>speak.</em></h2>
+
+  <div class="bento-grid reveal">
+    <div class="bcard bc1 bcard-noise">
+      <div class="bcard-grid-bg"></div>
+      <div class="bcard-tag">Average audit finding</div>
+      <div class="bcard-num"><sup>$</sup>40K<sup>+</sup></div>
+      <p class="bcard-label">The average business we audit has <strong>$40,000+ in untapped annual revenue</strong> sitting in their current operation. Not in new channels. In what they already have.</p>
+    </div>
+    <div class="bcard bc2 bcard-gold">
+      <div class="bcard-tag">Delivery</div>
+      <div class="bcard-num">7</div>
+      <p class="bcard-label">Days from audit start to full report in your inbox.</p>
+    </div>
+    <div class="bcard bc3">
+      <div class="bcard-tag">Your upfront cost</div>
+      <div class="bcard-num"><sup>$</sup>0</div>
+      <p class="bcard-label">The audit is free. The results aren't optional.</p>
+    </div>
+    <div class="bcard bc4 bcard-accent">
+      <div class="bcard-big"><em>$20K</em> guaranteed.</div>
+      <p class="bcard-sub">Or that month is on us. No invoice.</p>
+    </div>
+    <div class="bcard bc5">
+      <span class="bcard-icon">🎯</span>
+      <div class="bcard-tag">How we work</div>
+      <p class="bcard-label">We only take on clients where we can see a clear path to growth before we start. The audit is how we find it.</p>
+    </div>
+    <div class="bcard bc6">
+      <span class="bcard-icon">⚡</span>
+      <div class="bcard-tag">AI-powered</div>
+      <p class="bcard-label">Every audit runs our proprietary AI stack across your digital presence, competitors, and market position simultaneously.</p>
+    </div>
   </div>
 </section>
 
