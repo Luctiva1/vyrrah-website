@@ -1218,6 +1218,27 @@ module.exports = async (req, res) => {
     return handleWebhookQuickmail(req, res);
   }
 
+  // /api/debug/qm-insert — temporary, diagnose sms_messages insert failure
+  if (seg0 === 'debug' && seg1 === 'qm-insert') {
+    try {
+      const supabase = getSupabase();
+      const { email = 'debug@test.com' } = req.query;
+      const { data: lead } = await supabase.from('leads').select('id,status').eq('email', email).maybeSingle();
+      const insertResult = await supabase.from('sms_messages').insert([{
+        lead_id: lead?.id || null,
+        phone: email,
+        direction: 'inbound',
+        body: '📧 [Email reply via Debug]\n\nTest body',
+        channel: 'email',
+        status: 'received',
+        twilio_sid: `qm_debug_${Date.now()}`
+      }]).select();
+      return res.status(200).json({ lead, insertData: insertResult.data, insertError: insertResult.error });
+    } catch (err) {
+      return res.status(200).json({ caught: err.message });
+    }
+  }
+
   // /api/sequences (list)
   if (seg0 === 'sequences' && !seg1) {
     return handleSequencesList(req, res);
