@@ -238,6 +238,35 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:40px 52p
 .reveal{opacity:0;transform:translateY(32px);transition:opacity .8s ease,transform .8s ease}
 .reveal.visible{opacity:1;transform:translateY(0)}
 
+/* Motion.js enhanced hover — cards lift with smooth shadow */
+.pc, .tc, .sc, .pst, .test, .ci {
+  transform: translateY(0);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s, box-shadow 0.3s;
+}
+.pc:hover, .tc:hover, .sc:hover, .pst:hover, .test:hover, .ci:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+/* Smooth gold underline on section eyebrows */
+.ey::after {
+  content: '';
+  display: block;
+  width: 0;
+  height: 1px;
+  background: currentColor;
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Button magnetic feel */
+.btnr, .btng, .ncta {
+  transition: background 0.2s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s;
+}
+.btnr:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 8px 24px rgba(200,37,30,0.4); }
+.btng:hover { transform: translateY(-3px) scale(1.02); }
+/* Smooth cursor on interactive elements */
+.nb, .lb, .fq, .pc, .tc, .sc { cursor: pointer; }
+/* Subtle glow on gold elements on hover */
+.gcred:hover { border-color: var(--gold); background: rgba(240,165,0,0.08); transition: all 0.2s; }
+
 /* RESPONSIVE */
 @media(max-width:768px){
   nav{padding:14px 20px}
@@ -255,8 +284,10 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:40px 52p
   footer{flex-direction:column;gap:12px;text-align:center;padding:32px 20px}
 }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"></script>
 </head>
 <body>
+<div id="scroll-bar" style="position:fixed;top:0;left:0;height:2px;background:var(--gold);z-index:200;width:0%;transition:none;pointer-events:none"></div>
 
 <!-- POPUP -->
 <div class="po" id="popup">
@@ -722,12 +753,51 @@ function skip() {
 
 window.addEventListener("scroll", function() {
   document.getElementById("nav").classList.toggle("scrolled", window.scrollY > 40);
+  // Scroll progress
+  var scrollBar = document.getElementById('scroll-bar');
+  var docH = document.documentElement.scrollHeight - window.innerHeight;
+  scrollBar.style.width = (window.scrollY / docH * 100) + '%';
 });
 
-var obs = new IntersectionObserver(function(entries) {
-  entries.forEach(function(e) { if (e.isIntersecting) e.target.classList.add("visible"); });
-}, { threshold: 0.08 });
-document.querySelectorAll(".reveal").forEach(function(el) { obs.observe(el); });
+// Replace existing obs IntersectionObserver with Motion.js scroll animations
+var { animate, inView, stagger } = Motion;
+
+// Staggered grid reveals — for .pgrid, .tgrid, .sgrid, .tgrid2, .cs, .proc-steps, .vs
+document.querySelectorAll('.pgrid, .tgrid, .sgrid, .tgrid2, .cs, .proc-steps, .vs').forEach(function(grid) {
+  var children = Array.from(grid.children);
+  inView(grid, function() {
+    animate(children, { opacity: [0, 1], y: [32, 0] }, { duration: 0.6, delay: stagger(0.1), easing: [0.22, 1, 0.36, 1] });
+    return function() {};
+  }, { amount: 0.1 });
+});
+
+// Single reveal elements
+document.querySelectorAll('.reveal').forEach(function(el) {
+  inView(el, function() {
+    animate(el, { opacity: [0, 1], y: [28, 0] }, { duration: 0.7, easing: [0.22, 1, 0.36, 1] });
+    el.style.opacity = '0'; // ensure starts hidden
+    return function() {};
+  }, { amount: 0.08 });
+});
+
+// Stat number counters — animate the .sn numbers when they come into view
+document.querySelectorAll('.sn').forEach(function(el) {
+  var text = el.textContent;
+  var num = parseFloat(text.replace(/[^0-9.]/g, ''));
+  if (!num || isNaN(num)) return;
+  var prefix = text.match(/^[^0-9]*/)[0];
+  var suffix = text.match(/[^0-9.]*$/)[0];
+  inView(el, function() {
+    animate(0, num, {
+      duration: 1.5,
+      easing: [0.22, 1, 0.36, 1],
+      onUpdate: function(v) {
+        el.textContent = prefix + (num % 1 === 0 ? Math.round(v) : v.toFixed(1)) + suffix;
+      }
+    });
+    return function() {};
+  }, { amount: 0.5 });
+});
 
 document.querySelectorAll(".fq").forEach(function(q) {
   q.addEventListener("click", function() {
@@ -749,6 +819,18 @@ setInterval(function() {
     setTimeout(function() { swapEl.textContent = swaps[si]; swapEl.style.opacity = "1"; }, 300);
   }
 }, 2500);
+// Magnetic button effect
+document.querySelectorAll('.btnr, .btng, .ncta, .btno').forEach(function(btn) {
+  btn.addEventListener('mousemove', function(e) {
+    var rect = btn.getBoundingClientRect();
+    var x = e.clientX - rect.left - rect.width / 2;
+    var y = e.clientY - rect.top - rect.height / 2;
+    btn.style.transform = 'translate(' + x * 0.15 + 'px, ' + y * 0.15 + 'px)';
+  });
+  btn.addEventListener('mouseleave', function() {
+    btn.style.transform = '';
+  });
+});
 </script>
 </body>
 </html>
