@@ -610,21 +610,29 @@
     <!-- SEQUENCES -->
     <div class="page" id="page-sequences">
       <div class="page-header">
-        <div><h2>Sequences</h2><p>Automated SMS follow-up — 3-touch, auto-scheduled</p></div>
+        <div><h2>Sequences</h2><p>Automated SMS &amp; Email follow-up — 3-touch, auto-scheduled</p></div>
         <div style="display:flex;gap:10px;">
           <button class="btn btn-primary btn-sm" id="bulk-enroll-btn">🚀 Bulk Enroll All Leads</button>
+          <button class="btn btn-outline btn-sm" id="email-bulk-enroll-btn">📧 Bulk Email All Leads</button>
           <button class="btn btn-outline btn-sm" id="process-now-btn">▶ Process Now</button>
           <button class="btn btn-danger btn-sm" id="new-sequence-btn">+ Enroll Single Lead</button>
         </div>
       </div>
       <div class="card">
+        <div class="card-body" style="padding-bottom:0;">
+          <div style="margin-bottom:12px;display:flex;gap:8px;">
+            <button class="btn btn-sm btn-outline seq-filter active" data-filter="all">All</button>
+            <button class="btn btn-sm btn-outline seq-filter" data-filter="sms">💬 SMS</button>
+            <button class="btn btn-sm btn-outline seq-filter" data-filter="email">📧 Email</button>
+          </div>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>Lead</th><th>Campaign</th><th>Step</th><th>Scheduled</th><th>Status</th><th>Sent</th></tr>
+              <tr><th>Lead</th><th>Campaign</th><th>Step</th><th>Channel</th><th>Scheduled</th><th>Status</th><th>Sent</th></tr>
             </thead>
             <tbody id="sequences-tbody">
-              <tr><td colspan="6"><div class="loading"><span class="spinner"></span> Loading...</div></td></tr>
+              <tr><td colspan="7"><div class="loading"><span class="spinner"></span> Loading...</div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1587,35 +1595,52 @@ document.getElementById('send-sms-btn').addEventListener('click', async () => {
 });
 
 // ── SEQUENCES ──
-async function loadSequences() {
+let seqChannelFilter = 'all';
+
+async function loadSequences(channelFilter) {
+  if (channelFilter !== undefined) seqChannelFilter = channelFilter;
   const tbody = document.getElementById('sequences-tbody');
-  tbody.innerHTML = '<tr><td colspan="6"><div class="loading"><span class="spinner"></span> Loading...</div></td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7"><div class="loading"><span class="spinner"></span> Loading...</div></td></tr>';
   try {
-    const data = await API('/api/sequences?limit=100');
+    const params = new URLSearchParams({ limit: 100 });
+    if (seqChannelFilter && seqChannelFilter !== 'all') params.set('channel', seqChannelFilter);
+    const data = await API('/api/sequences?' + params);
     const seqs = data.sequences || [];
     if (!seqs.length) {
-      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>No sequences yet — import leads and hit Bulk Enroll</p></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><p>No sequences yet — import leads and hit Bulk Enroll</p></div></td></tr>';
       return;
     }
     tbody.innerHTML = seqs.map(s => {
       const lead = s.leads || {};
       const name = lead.first_name ? `${lead.first_name} ${lead.last_name || ''}` : s.lead_id?.slice(0,8) + '...';
+      const contactInfo = s.channel === 'email' ? (lead.email || '') : (lead.phone || '');
       const scheduled = s.scheduled_at ? new Date(s.scheduled_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—';
       const sent = s.sent_at ? new Date(s.sent_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—';
       const statusColor = { sent: '#22c55e', pending: '#f59e0b', skipped: '#94a3b8', error: '#e63946' }[s.status] || '#94a3b8';
+      const channelIcon = s.channel === 'email' ? '📧' : '💬';
       return `<tr>
-        <td><strong>${name}</strong><br><small style="color:var(--text-light);">${lead.phone || ''}</small></td>
+        <td><strong>${name}</strong><br><small style="color:var(--text-light);">${contactInfo}</small></td>
         <td>${s.campaign || '—'}</td>
         <td style="text-align:center;font-weight:600;">Day ${s.step}</td>
+        <td>${channelIcon} ${s.channel || 'sms'}</td>
         <td>${scheduled}</td>
         <td><span style="color:${statusColor};font-weight:600;text-transform:capitalize;">${s.status}</span></td>
         <td>${sent}</td>
       </tr>`;
     }).join('');
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="6"><p style="color:var(--red);padding:14px;">${err.message}</p></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><p style="color:var(--red);padding:14px;">${err.message}</p></td></tr>`;
   }
 }
+
+// Channel filter buttons
+document.querySelectorAll('.seq-filter').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.seq-filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadSequences(btn.dataset.filter);
+  });
+});
 
 document.getElementById('new-sequence-btn').addEventListener('click', () => openModal('modal-sequence'));
 
@@ -1668,6 +1693,45 @@ document.getElementById('bulk-enroll-btn').addEventListener('click', async () =>
   }
   btn.disabled = false;
   btn.textContent = '🚀 Bulk Enroll All Leads';
+});
+
+document.getElementById('email-bulk-enroll-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('email-bulk-enroll-btn');
+  const confirmed = confirm(
+    '📧 Bulk Email All Leads\n\n' +
+    'This will enroll all "new" status leads with an email address into the 3-touch Email sequence:\n\n' +
+    '• Day 1: Sends immediately (staggered)\n' +
+    '• Day 2: Follow-up 24 hours later\n' +
+    '• Day 3: Closing email 48 hours later\n\n' +
+    'Leads already enrolled or opted out will be skipped.\n\n' +
+    'Continue?'
+  );
+  if (!confirmed) return;
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Enrolling...';
+
+  try {
+    let totalEnrolled = 0, totalSkipped = 0, batch = 0;
+    while (true) {
+      const result = await API('/api/sequences/email-bulk-trigger', {
+        method: 'POST',
+        body: JSON.stringify({ campaign: 'USA Outreach', status_filter: 'new', limit: 500 })
+      });
+      totalEnrolled += result.enrolled || 0;
+      totalSkipped += result.skipped || 0;
+      batch++;
+      btn.textContent = `⏳ Enrolled ${totalEnrolled} so far...`;
+      if ((result.enrolled || 0) < 500) break;
+      if (batch > 30) break;
+    }
+    toast(`✅ Done! ${totalEnrolled} leads enrolled in Email sequence. ${totalSkipped} skipped.`, 'success');
+    loadSequences();
+  } catch (err) {
+    toast('Email bulk enroll error: ' + err.message, 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = '📧 Bulk Email All Leads';
 });
 
 let seqLeadSearchTimeout;

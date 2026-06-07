@@ -11,6 +11,30 @@ function notFound(res) {
   return res.status(404).json({ error: 'Route not found' });
 }
 
+async function sendEmail({ to, toName, subject, body, leadId }) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'godwin@vyrrahlabs.com';
+  const fromName = process.env.SENDGRID_FROM_NAME || 'Godwin Rayen';
+  if (!apiKey) throw new Error('SENDGRID_API_KEY not configured');
+
+  const r = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: to, name: toName || '' }] }],
+      from: { email: fromEmail, name: fromName },
+      reply_to: { email: fromEmail, name: fromName },
+      subject,
+      content: [{ type: 'text/plain', value: body }]
+    })
+  });
+  if (!r.ok) {
+    const err = await r.text();
+    throw new Error(`SendGrid error ${r.status}: ${err}`);
+  }
+  return { status: r.status };
+}
+
 // ─── Auth handlers ───────────────────────────────────────────────────────────
 
 async function handleAuthLogin(req, res) {
@@ -738,6 +762,82 @@ async function handleWebhookQuickmail(req, res) {
 
 // ─── Sequences handlers ──────────────────────────────────────────────────────
 
+const EMAIL_SEQUENCE_TEMPLATES = [
+  {
+    subject: "Still taking new clients?",
+    body: `{{firstname}},
+
+I ran a quick AI scan on {{company}} this morning and found some specific gaps worth showing you.
+
+So here's what I want to do.
+
+I want to give you our full week-long growth audit completely free. Normally $899. Here's what it covers:
+
+Full AI analysis of your entire online presence.
+Competitor gap analysis — exactly where they're beating you and why.
+Every revenue leak in your current setup identified.
+A complete prioritised growth plan built specifically for your business.
+Delivered as a full report within 7 days.
+
+No call needed to claim it. No credit card. Nothing.
+
+And if you like what the audit finds and want us to execute it — we guarantee $20K in new revenue in 30 days or you pay nothing.
+
+Two layers of zero risk. Free audit first. Guaranteed results second.
+
+Claim your free audit: cal.com/godwin-rayen/30min
+
+Godwin Rayen
+Vyrrah Labs · UCLA Stats '19 · Ex-VC · Ex-Taboola R&D`
+  },
+  {
+    subject: "Re: Still taking new clients?",
+    body: `{{firstname}},
+
+Tried calling this morning.
+
+Just want to make sure this landed clearly because it's a genuinely unusual offer.
+
+Free. Week-long. $899 value. No strings.
+
+Full AI analysis of your entire online presence.
+Competitor gap analysis — where they're beating you and exactly why.
+Every revenue leak in your current setup identified.
+Complete prioritised growth plan built for your business.
+Delivered as a full report in 7 days.
+
+You don't pay for the audit.
+You don't pay for execution until we've added $20K to your revenue.
+No contract. No junior team. I personally run everything.
+
+A similar business in your area went through the same audit. We found $40K in annual revenue sitting untouched. Fixed it in 60 days.
+
+Claim it here: cal.com/godwin-rayen/30min
+
+Godwin`
+  },
+  {
+    subject: "Closing {{company}} file",
+    body: `{{firstname}},
+
+Reached out a few times. Closing your file today.
+
+One last thing.
+
+The free audit offer — $899 worth of analysis, no charge — closes with this email.
+
+Full AI analysis of your online presence. Competitor gap breakdown. Every revenue leak identified. Complete growth plan. Delivered in 7 days. Nothing to pay.
+
+And if you want us to execute — $20K in new revenue guaranteed or you pay nothing.
+
+If that ever becomes relevant: cal.com/godwin-rayen/30min
+
+Godwin
+
+P.S. Reply 'not now' and I'll follow up in 30 days. No hard feelings either way.`
+  }
+];
+
 const SEQUENCE_DEFAULT_TEMPLATES = [
   // Step 1 — Day 1, send immediately
   "Hey {first_name}, Godwin here from Vyrrah Labs. Just ran a quick AI scan on {company} and found some specific gaps worth showing you. Offering a free week-long growth audit — $899 value, no strings. Claim it: cal.com/godwin-rayen/30min",
@@ -897,6 +997,8 @@ async function handleSequencesBulkTrigger(req, res) {
 function interpolate(template, lead) {
   if (!template) return '';
   return template
+    .replace(/\{\{firstname\}\}/gi, lead.first_name || '')
+    .replace(/\{\{company\}\}/gi, lead.company || 'your company')
     .replace(/\{first_name\}/g, lead.first_name || '')
     .replace(/\{last_name\}/g, lead.last_name || '')
     .replace(/\{company\}/g, lead.company || 'your company')
@@ -942,18 +1044,50 @@ async function handleSequencesProcess(req, res) {
           continue;
         }
         try {
-          const message = await twilioClient.messages.create({
-            from: getFromNumber(lead.phone),
-            to: lead.phone,
-            body
-          });
-          await supabase.from('sms_messages').insert([{
-            lead_id: lead.id, phone: lead.phone, direction: 'outbound',
-            body, twilio_sid: message.sid, status: message.status
-          }]);
-          await supabase.from('sequences').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', seq.id);
-          await supabase.from('leads').update({ status: 'contacted' }).eq('id', lead.id).eq('status', 'new');
-          allResults.push({ id: seq.id, status: 'sent', sid: message.sid });
+          if (seq.channel === 'email') {
+            // Email send via SendGrid
+            if (!lead.email) {
+              await supabase.from('sequences').update({ status: 'skipped' }).eq('id', seq.id);
+              allResults.push({ id: seq.id, status: 'skipped', reason: 'no email address' });
+              continue;
+            }
+            let subject = 'Follow up';
+            let emailBody = body;
+            try {
+              const parsed = JSON.parse(seq.message_body);
+              subject = interpolate(parsed.subject, lead);
+              emailBody = interpolate(parsed.body, lead);
+            } catch { emailBody = body; }
+
+            await sendEmail({ to: lead.email, toName: `${lead.first_name} ${lead.last_name || ''}`.trim(), subject, body: emailBody, leadId: lead.id });
+
+            await supabase.from('sms_messages').insert([{
+              lead_id: lead.id,
+              phone: lead.email,
+              direction: 'outbound',
+              body: `📧 [Email - ${subject}]\n\n${emailBody.substring(0, 200)}`,
+              channel: 'email',
+              status: 'sent',
+              twilio_sid: `sg_${Date.now()}`
+            }]);
+            await supabase.from('sequences').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', seq.id);
+            await supabase.from('leads').update({ status: 'contacted' }).eq('id', lead.id).eq('status', 'new');
+            allResults.push({ id: seq.id, status: 'sent', channel: 'email' });
+          } else {
+            // SMS via Twilio
+            const message = await twilioClient.messages.create({
+              from: getFromNumber(lead.phone),
+              to: lead.phone,
+              body
+            });
+            await supabase.from('sms_messages').insert([{
+              lead_id: lead.id, phone: lead.phone, direction: 'outbound',
+              body, twilio_sid: message.sid, status: message.status
+            }]);
+            await supabase.from('sequences').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', seq.id);
+            await supabase.from('leads').update({ status: 'contacted' }).eq('id', lead.id).eq('status', 'new');
+            allResults.push({ id: seq.id, status: 'sent', sid: message.sid });
+          }
         } catch (sendErr) {
           console.error('Failed to send sequence', seq.id, sendErr.message);
           allResults.push({ id: seq.id, status: 'error', error: sendErr.message });
@@ -967,6 +1101,189 @@ async function handleSequencesProcess(req, res) {
   } catch (err) {
     console.error('Sequence process error:', err);
     return res.status(500).json({ error: err.message });
+  }
+}
+
+async function handleEmailSequencesTrigger(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const { lead_id, campaign } = req.body;
+    if (!lead_id || !campaign) return res.status(400).json({ error: 'lead_id and campaign required' });
+
+    const supabase = getSupabase();
+    const { data: lead } = await supabase.from('leads').select('id, email, status').eq('id', lead_id).single();
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+    // Check email opt-out
+    const { data: optOut } = await supabase.from('opt_outs').select('id').eq('phone', lead.email).maybeSingle();
+    if (optOut) return res.status(400).json({ error: 'Lead has opted out' });
+
+    // Cancel any existing pending email sequences
+    await supabase.from('sequences').update({ status: 'skipped' })
+      .eq('lead_id', lead_id).eq('campaign', campaign).eq('status', 'pending').eq('channel', 'email');
+
+    const now = new Date();
+    const emailRows = EMAIL_SEQUENCE_TEMPLATES.map((tpl, i) => ({
+      lead_id,
+      campaign,
+      step: i + 1,
+      scheduled_at: new Date(now.getTime() + i * 24 * 60 * 60 * 1000).toISOString(),
+      status: 'pending',
+      channel: 'email',
+      message_body: JSON.stringify({ subject: tpl.subject, body: tpl.body })
+    }));
+
+    const { data, error } = await supabase.from('sequences').insert(emailRows).select();
+    if (error) throw error;
+    return res.status(200).json({ success: true, sequences: data });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function handleEmailSequencesBulkTrigger(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const { campaign = 'USA Outreach', status_filter = 'new', limit = 500 } = req.body;
+    const supabase = getSupabase();
+
+    const { data: leads, error: leadsErr } = await supabase
+      .from('leads').select('id, email, phone, first_name, last_name, company')
+      .eq('status', status_filter).not('email', 'is', null).neq('email', '').limit(limit);
+    if (leadsErr) throw leadsErr;
+    if (!leads?.length) return res.status(200).json({ enrolled: 0, skipped: 0, message: 'No leads found' });
+
+    const { data: optOuts } = await supabase.from('opt_outs').select('phone');
+    const optOutSet = new Set((optOuts || []).map(o => o.phone));
+
+    const { data: existing } = await supabase.from('sequences').select('lead_id')
+      .eq('campaign', campaign).eq('status', 'pending').eq('channel', 'email');
+    const enrolledSet = new Set((existing || []).map(e => e.lead_id));
+
+    const now = new Date();
+    const rows = [];
+    const enrolledIds = [];
+    let skipped = 0;
+
+    for (const lead of leads) {
+      if (!lead.email || optOutSet.has(lead.email) || enrolledSet.has(lead.id)) { skipped++; continue; }
+      const staggerMs = (rows.length / 3) * 4000;
+      const sendAt = new Date(now.getTime() + staggerMs);
+      enrolledIds.push(lead.id);
+      EMAIL_SEQUENCE_TEMPLATES.forEach((tpl, i) => {
+        rows.push({
+          lead_id: lead.id, campaign, step: i + 1, channel: 'email',
+          scheduled_at: new Date(sendAt.getTime() + i * 86400000).toISOString(),
+          status: 'pending',
+          message_body: JSON.stringify({ subject: tpl.subject, body: tpl.body })
+        });
+      });
+    }
+
+    if (!rows.length) return res.status(200).json({ enrolled: 0, skipped, message: 'All leads enrolled or opted out' });
+
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await supabase.from('sequences').insert(rows.slice(i, i + 500));
+      if (error) throw error;
+    }
+    if (enrolledIds.length) {
+      await supabase.from('leads').update({ status: 'contacted' }).in('id', enrolledIds);
+    }
+    return res.status(200).json({ enrolled: enrolledIds.length, skipped, campaign, channel: 'email' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function handleWebhookSendgrid(req, res) {
+  // SendGrid Inbound Parse sends multipart form data
+  if (req.method !== 'POST') return res.status(405).end();
+  try {
+    const body = req.body || {};
+    const fromRaw = body.from || '';
+    // Extract email from "Name <email>" format
+    const emailMatch = fromRaw.match(/<([^>]+)>/) || [null, fromRaw];
+    const fromEmail = emailMatch[1]?.trim() || fromRaw.trim();
+    const replyText = body.text || (body.html || '').replace(/<[^>]*>/g, '') || '';
+    const subject = body.subject || '';
+
+    if (!fromEmail) return res.status(200).end();
+
+    const supabase = getSupabase();
+    const { data: lead } = await supabase.from('leads').select('id, status').eq('email', fromEmail).maybeSingle();
+
+    // Log the reply
+    await supabase.from('sms_messages').insert([{
+      lead_id: lead?.id || null,
+      phone: fromEmail,
+      direction: 'inbound',
+      body: `📧 [Email reply: ${subject}]\n\n${replyText.substring(0, 500)}`,
+      channel: 'email',
+      status: 'received',
+      twilio_sid: `sg_inbound_${Date.now()}`
+    }]);
+
+    // Update lead status and stop sequences
+    if (lead?.id) {
+      if (['new','contacted'].includes(lead.status)) {
+        await supabase.from('leads').update({ status: 'replied' }).eq('id', lead.id);
+      }
+      await supabase.from('sequences').update({ status: 'skipped' })
+        .eq('lead_id', lead.id).eq('status', 'pending').eq('channel', 'email');
+    }
+
+    return res.status(200).end();
+  } catch (err) {
+    console.error('SendGrid inbound error:', err);
+    return res.status(200).end();
+  }
+}
+
+// ─── SendGrid event webhook (bounces, unsubscribes, opens) ───────────────────
+
+async function handleWebhookSendgridEvents(req, res) {
+  if (req.method !== 'POST') return res.status(405).end();
+  try {
+    const events = Array.isArray(req.body) ? req.body : [req.body];
+    const supabase = getSupabase();
+
+    for (const evt of events) {
+      const email = evt.email || '';
+      const event = evt.event || '';
+      if (!email) continue;
+
+      const { data: lead } = await supabase.from('leads')
+        .select('id, status').eq('email', email).maybeSingle();
+
+      if (event === 'bounce' || event === 'dropped') {
+        if (lead?.id) await supabase.from('leads').update({ status: 'not_interested' }).eq('id', lead.id);
+        await supabase.from('sequences').update({ status: 'skipped' })
+          .eq('status', 'pending').eq('channel', 'email')
+          .eq('lead_id', lead?.id || '00000000-0000-0000-0000-000000000000');
+        console.log(`SendGrid bounce/drop: ${email}`);
+      }
+
+      if (event === 'unsubscribe' || event === 'group_unsubscribe' || event === 'spamreport') {
+        await supabase.from('opt_outs').upsert([{ phone: email }], { onConflict: 'phone' });
+        if (lead?.id) {
+          await supabase.from('leads').update({ status: 'not_interested' }).eq('id', lead.id);
+          await supabase.from('sequences').update({ status: 'skipped' })
+            .eq('lead_id', lead.id).eq('status', 'pending').eq('channel', 'email');
+        }
+        console.log(`SendGrid unsubscribe: ${email}`);
+      }
+
+      if (event === 'open' && lead?.id) {
+        // Log open as a touchpoint — don't change status
+        console.log(`SendGrid open: ${email}`);
+      }
+    }
+    return res.status(200).end();
+  } catch (err) {
+    console.error('SendGrid events error:', err);
+    return res.status(200).end();
   }
 }
 
@@ -1047,16 +1364,17 @@ async function handleSequencesList(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
   try {
     const supabase = getSupabase();
-    const { status, limit = 100, page = 1 } = req.query;
+    const { status, channel, limit = 100, page = 1 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     let query = supabase
       .from('sequences')
-      .select('*, leads(id, first_name, last_name, company, phone, status)', { count: 'exact' })
+      .select('*, leads(id, first_name, last_name, company, phone, email, status)', { count: 'exact' })
       .order('scheduled_at', { ascending: false })
       .range(offset, offset + parseInt(limit) - 1);
 
     if (status) query = query.eq('status', status);
+    if (channel) query = query.eq('channel', channel);
 
     const { data, error, count } = await query;
     if (error) throw error;
@@ -1222,25 +1540,14 @@ module.exports = async (req, res) => {
     return handleWebhookQuickmail(req, res);
   }
 
-  // /api/debug/qm-insert — temporary, diagnose sms_messages insert failure
-  if (seg0 === 'debug' && seg1 === 'qm-insert') {
-    try {
-      const supabase = getSupabase();
-      const { email = 'debug@test.com' } = req.query;
-      const { data: lead } = await supabase.from('leads').select('id,status').eq('email', email).maybeSingle();
-      const insertResult = await supabase.from('sms_messages').insert([{
-        lead_id: lead?.id || null,
-        phone: email,
-        direction: 'inbound',
-        body: '📧 [Email reply via Debug]\n\nTest body',
-        channel: 'email',
-        status: 'received',
-        twilio_sid: `qm_debug_${Date.now()}`
-      }]).select();
-      return res.status(200).json({ lead, insertData: insertResult.data, insertError: insertResult.error });
-    } catch (err) {
-      return res.status(200).json({ caught: err.message });
-    }
+  // /api/webhooks/sendgrid (inbound parse — email replies)
+  if (seg0 === 'webhooks' && seg1 === 'sendgrid') {
+    return handleWebhookSendgrid(req, res);
+  }
+
+  // /api/webhooks/sendgrid-events (bounces, unsubscribes, opens)
+  if (seg0 === 'webhooks' && seg1 === 'sendgrid-events') {
+    return handleWebhookSendgridEvents(req, res);
   }
 
   // /api/sequences (list)
@@ -1261,6 +1568,16 @@ module.exports = async (req, res) => {
   // /api/sequences/process
   if (seg0 === 'sequences' && seg1 === 'process') {
     return handleSequencesProcess(req, res);
+  }
+
+  // /api/sequences/email-trigger
+  if (seg0 === 'sequences' && seg1 === 'email-trigger') {
+    return handleEmailSequencesTrigger(req, res);
+  }
+
+  // /api/sequences/email-bulk-trigger
+  if (seg0 === 'sequences' && seg1 === 'email-bulk-trigger') {
+    return handleEmailSequencesBulkTrigger(req, res);
   }
 
   // /api/dashboard/stats
