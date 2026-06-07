@@ -23,7 +23,7 @@ async function sendEmail({ to, toName, subject, body, leadId }) {
     body: JSON.stringify({
       personalizations: [{ to: [{ email: to, name: toName || '' }] }],
       from: { email: fromEmail, name: fromName },
-      reply_to: { email: fromEmail, name: fromName },
+      reply_to: { email: `godwin@in.vyrrahlabs.com`, name: fromName },
       subject,
       content: [{ type: 'text/plain', value: body }]
     })
