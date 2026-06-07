@@ -661,75 +661,79 @@ async function handleWebhookRecording(req, res) {
 
 // ─── Quickmail webhook handler ───────────────────────────────────────────────
 
-async function processQuickmailPayload(payload) {
-  const supabase = getSupabase();
-  console.log('Quickmail payload:', JSON.stringify(payload).slice(0, 500));
-
-  const event = payload.event || payload.type || payload.action || '';
-  const isReply       = event.toLowerCase().includes('reply') || event.toLowerCase().includes('response');
-  const isUnsubscribe = event.toLowerCase().includes('unsub') || event.toLowerCase().includes('optout');
-  const isBounce      = event.toLowerCase().includes('bounce');
-
-  const prospect = payload.prospect || payload.contact || payload.lead || {};
-  const email = prospect.email || payload.email || payload.from || payload.prospect_email || '';
-  if (!email) { console.warn('Quickmail webhook: no email in payload'); return; }
-
-  const replyRaw = payload.reply || payload.message || {};
-  const body = (typeof replyRaw === 'string' ? replyRaw
-    : replyRaw.body || replyRaw.text || replyRaw.content
-    || payload.body || payload.text || '')
-    || `[${event || 'Quickmail event'} — see Quickmail for details]`;
-
-  const campaignName = (payload.campaign || {}).name || payload.campaign_name || payload.campaign || 'Quickmail';
-
-  const { data: lead } = await supabase
-    .from('leads').select('id, status').eq('email', email).maybeSingle();
-
-  if (isUnsubscribe) {
-    await supabase.from('opt_outs').upsert([{ phone: email }], { onConflict: 'phone' });
-    if (lead?.id) {
-      await Promise.all([
-        supabase.from('leads').update({ status: 'not_interested' }).eq('id', lead.id),
-        supabase.from('sequences').update({ status: 'skipped' }).eq('lead_id', lead.id).eq('status', 'pending')
-      ]);
-    }
-    console.log(`Quickmail unsubscribe: ${email}`);
-    return;
-  }
-
-  if (isBounce) {
-    if (lead?.id) await supabase.from('leads').update({ status: 'not_interested' }).eq('id', lead.id);
-    console.log(`Quickmail bounce: ${email}`);
-    return;
-  }
-
-  if (isReply || body) {
-    const inserts = [supabase.from('sms_messages').insert([{
-      lead_id: lead?.id || null,
-      phone: email,
-      direction: 'inbound',
-      body: `📧 [Email reply via ${campaignName}]\n\n${body}`,
-      channel: 'email',
-      status: 'received',
-      twilio_sid: `qm_${Date.now()}`
-    }])];
-    if (lead?.id && ['new','contacted'].includes(lead.status)) {
-      inserts.push(supabase.from('leads').update({ status: 'replied' }).eq('id', lead.id));
-      inserts.push(supabase.from('sequences').update({ status: 'skipped' }).eq('lead_id', lead.id).eq('status', 'pending'));
-    }
-    await Promise.all(inserts);
-    console.log(`Quickmail reply: ${email} — ${body.slice(0, 80)}`);
-  }
-}
-
 async function handleWebhookQuickmail(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  // Fire-and-await: start processing, respond immediately (< 100ms),
-  // then await keeps the Vercel function alive until DB writes finish.
-  const work = processQuickmailPayload(req.body || {});
-  res.status(200).json({ received: true });
-  try { await work; } catch (err) { console.error('Quickmail processing error:', err); }
+  // Process sequentially then respond — sequential awaits are reliable,
+  // Promise.all has issues with Supabase lazy query builders
+  try {
+    const payload = req.body || {};
+    const supabase = getSupabase();
+    console.log('Quickmail webhook:', JSON.stringify(payload).slice(0, 300));
+
+    const event = payload.event || payload.type || payload.action || '';
+    const isReply       = event.toLowerCase().includes('reply') || event.toLowerCase().includes('response');
+    const isUnsubscribe = event.toLowerCase().includes('unsub') || event.toLowerCase().includes('optout');
+    const isBounce      = event.toLowerCase().includes('bounce');
+
+    const prospect = payload.prospect || payload.contact || payload.lead || {};
+    const email = prospect.email || payload.email || payload.from || payload.prospect_email || '';
+    if (!email) return res.status(200).json({ received: true, warning: 'no email in payload' });
+
+    const replyRaw = payload.reply || payload.message || {};
+    const body = (typeof replyRaw === 'string' ? replyRaw
+      : replyRaw.body || replyRaw.text || replyRaw.content
+      || payload.body || payload.text || '')
+      || `[${event || 'Quickmail event'}]`;
+
+    const campaignName = (payload.campaign || {}).name || payload.campaign_name
+      || (typeof payload.campaign === 'string' ? payload.campaign : '') || 'Quickmail';
+
+    const { data: lead } = await supabase
+      .from('leads').select('id, status').eq('email', email).maybeSingle();
+
+    if (isUnsubscribe) {
+      await supabase.from('opt_outs').upsert([{ phone: email }], { onConflict: 'phone' });
+      if (lead?.id) {
+        await supabase.from('leads').update({ status: 'not_interested' }).eq('id', lead.id);
+        await supabase.from('sequences').update({ status: 'skipped' })
+          .eq('lead_id', lead.id).eq('status', 'pending');
+      }
+      console.log(`QM unsubscribe: ${email}`);
+      return res.status(200).json({ received: true, action: 'unsubscribed' });
+    }
+
+    if (isBounce) {
+      if (lead?.id) await supabase.from('leads').update({ status: 'not_interested' }).eq('id', lead.id);
+      console.log(`QM bounce: ${email}`);
+      return res.status(200).json({ received: true, action: 'bounced' });
+    }
+
+    if (isReply || body) {
+      const { error: insertErr } = await supabase.from('sms_messages').insert([{
+        lead_id: lead?.id || null,
+        phone: email,
+        direction: 'inbound',
+        body: `📧 [Email reply via ${campaignName}]\n\n${body}`,
+        channel: 'email',
+        status: 'received',
+        twilio_sid: `qm_${Date.now()}`
+      }]);
+      if (insertErr) console.error('QM insert error:', insertErr);
+
+      if (lead?.id && ['new','contacted'].includes(lead.status)) {
+        await supabase.from('leads').update({ status: 'replied' }).eq('id', lead.id);
+        await supabase.from('sequences').update({ status: 'skipped' })
+          .eq('lead_id', lead.id).eq('status', 'pending');
+      }
+      console.log(`QM reply: ${email}`);
+    }
+
+    return res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('Quickmail webhook error:', err);
+    return res.status(200).json({ received: true, error: err.message });
+  }
 }
 
 // ─── Sequences handlers ──────────────────────────────────────────────────────
