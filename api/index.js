@@ -854,10 +854,14 @@ async function handleSequencesTrigger(req, res) {
       .eq('status', 'pending');
 
     const now = new Date();
+    const H = 3600000;
     const steps = [
-      { step: 1, scheduled_at: now.toISOString(), message: step1_message || SEQUENCE_DEFAULT_TEMPLATES[0] },
-      { step: 2, scheduled_at: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(), message: SEQUENCE_DEFAULT_TEMPLATES[1] },
-      { step: 3, scheduled_at: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString(), message: SEQUENCE_DEFAULT_TEMPLATES[2] }
+      // SMS 1: Day 1 afternoon (5hr after email fires)
+      { step: 1, scheduled_at: new Date(now.getTime() + 5*H).toISOString(), message: step1_message || SEQUENCE_DEFAULT_TEMPLATES[0] },
+      // SMS 2: Day 2 afternoon (36hr — after morning call attempt)
+      { step: 2, scheduled_at: new Date(now.getTime() + 36*H).toISOString(), message: SEQUENCE_DEFAULT_TEMPLATES[1] },
+      // SMS 3: Day 4 morning (84hr — final close day)
+      { step: 3, scheduled_at: new Date(now.getTime() + 84*H).toISOString(), message: SEQUENCE_DEFAULT_TEMPLATES[2] }
     ];
 
     const rows = steps.map(s => ({
@@ -928,9 +932,10 @@ async function handleSequencesBulkTrigger(req, res) {
       const staggerMs = rows.length / 3 * 4000;
       const sendAt = new Date(now.getTime() + staggerMs);
 
-      rows.push({ lead_id: lead.id, campaign, step: 1, scheduled_at: sendAt.toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[0] });
-      rows.push({ lead_id: lead.id, campaign, step: 2, scheduled_at: new Date(sendAt.getTime() + 86400000).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[1] });
-      rows.push({ lead_id: lead.id, campaign, step: 3, scheduled_at: new Date(sendAt.getTime() + 172800000).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[2] });
+      const H = 3600000;
+      rows.push({ lead_id: lead.id, campaign, step: 1, scheduled_at: new Date(sendAt.getTime() + 5*H).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[0] });
+      rows.push({ lead_id: lead.id, campaign, step: 2, scheduled_at: new Date(sendAt.getTime() + 36*H).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[1] });
+      rows.push({ lead_id: lead.id, campaign, step: 3, scheduled_at: new Date(sendAt.getTime() + 84*H).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[2] });
     }
 
     if (rows.length === 0) {
@@ -1090,11 +1095,16 @@ async function handleEmailSequencesTrigger(req, res) {
       .eq('lead_id', lead_id).eq('campaign', campaign).eq('status', 'pending').eq('channel', 'email');
 
     const now = new Date();
+    const H = 3600000;
+    // Email 1: Day 1 morning (immediate)
+    // Email 2: Day 3 morning (60hr — after 2 call attempts, before final push)
+    // Email 3: Day 4 morning (84hr — final close alongside SMS 3)
+    const emailDelays = [0, 60*H, 84*H];
     const emailRows = EMAIL_SEQUENCE_TEMPLATES.map((tpl, i) => ({
       lead_id,
       campaign,
       step: i + 1,
-      scheduled_at: new Date(now.getTime() + i * 24 * 60 * 60 * 1000).toISOString(),
+      scheduled_at: new Date(now.getTime() + emailDelays[i]).toISOString(),
       status: 'pending',
       channel: 'email',
       message_body: JSON.stringify({ subject: tpl.subject, body: tpl.body })
@@ -1138,10 +1148,12 @@ async function handleEmailSequencesBulkTrigger(req, res) {
       const staggerMs = (rows.length / 3) * 4000;
       const sendAt = new Date(now.getTime() + staggerMs);
       enrolledIds.push(lead.id);
+      const eH = 3600000;
+      const emailDelays = [0, 60*eH, 84*eH];
       EMAIL_SEQUENCE_TEMPLATES.forEach((tpl, i) => {
         rows.push({
           lead_id: lead.id, campaign, step: i + 1, channel: 'email',
-          scheduled_at: new Date(sendAt.getTime() + i * 86400000).toISOString(),
+          scheduled_at: new Date(sendAt.getTime() + emailDelays[i]).toISOString(),
           status: 'pending',
           message_body: JSON.stringify({ subject: tpl.subject, body: tpl.body })
         });
@@ -1554,6 +1566,34 @@ module.exports = async (req, res) => {
   // /api/conversations
   if (seg0 === 'conversations' && !seg1) {
     return handleConversationsList(req, res);
+  }
+
+  // /api/contacts/eod-stop — end of day call debrief: stop sequences for called leads
+  if (seg0 === 'contacts' && seg1 === 'eod-stop') {
+    if (!requireAuth(req, res)) return;
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+    try {
+      const { phones = [], outcome = 'contacted' } = req.body;
+      if (!phones.length) return res.status(400).json({ error: 'phones array required' });
+      const supabase = getSupabase();
+      const results = { stopped: 0, not_found: [] };
+      for (const phone of phones) {
+        const normalized = phone.replace(/\D/g, '');
+        const { data: lead } = await supabase.from('leads').select('id')
+          .or(`phone.eq.+${normalized},phone.eq.${phone}`).maybeSingle();
+        if (!lead) { results.not_found.push(phone); continue; }
+        await supabase.from('sequences').update({ status: 'skipped' })
+          .eq('lead_id', lead.id).eq('status', 'pending');
+        const validOutcomes = ['contacted','replied','not_interested','booked','follow_up'];
+        if (validOutcomes.includes(outcome)) {
+          await supabase.from('leads').update({ status: outcome }).eq('id', lead.id);
+        }
+        results.stopped++;
+      }
+      return res.status(200).json({ success: true, ...results });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
   }
 
   return notFound(res);

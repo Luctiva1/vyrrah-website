@@ -530,6 +530,7 @@
         <div style="display:flex;gap:8px;align-items:center;">
           <span style="font-size:13px;color:var(--text-light);" id="dialer-queue-info">Load contacts to start</span>
           <button class="btn btn-outline btn-sm" id="load-dialer-queue">Load Queue</button>
+          <button class="btn btn-danger btn-sm" id="eod-btn">🌙 End of Day</button>
         </div>
       </div>
       <div class="dialer-layout">
@@ -727,6 +728,27 @@
     <div class="modal-footer">
       <button class="btn btn-outline" data-close="modal-add-contact">Cancel</button>
       <button class="btn btn-danger" id="save-contact-btn">Add Contact</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: End of Day Debrief -->
+<div class="modal-overlay" id="modal-eod">
+  <div class="modal-box" style="max-width:520px;">
+    <h3>🌙 End of Day Debrief</h3>
+    <button class="modal-close" data-close="modal-eod">&times;</button>
+    <p style="font-size:13px;color:var(--text-light);margin:12px 0;">Paste the phone numbers of everyone you called today — one per line. Their sequences will be stopped and status updated.</p>
+    <textarea id="eod-phones" placeholder="+15105551001&#10;+15105551002&#10;+15105551003" style="width:100%;height:120px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:10px;font-size:13px;font-family:monospace;resize:vertical;border-radius:4px;"></textarea>
+    <p style="font-size:12px;color:var(--text-light);margin:10px 0 4px;">Mark these leads as:</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      <button class="btn btn-sm btn-outline eod-outcome active" data-outcome="contacted">Tried, no answer</button>
+      <button class="btn btn-sm btn-outline eod-outcome" data-outcome="replied">Spoke to them</button>
+      <button class="btn btn-sm btn-outline eod-outcome" data-outcome="not_interested">Not interested</button>
+      <button class="btn btn-sm btn-outline eod-outcome" data-outcome="booked">Booked a call</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline" data-close="modal-eod">Cancel</button>
+      <button class="btn btn-danger" id="eod-confirm-btn">Stop Sequences</button>
     </div>
   </div>
 </div>
@@ -1303,6 +1325,35 @@ function startDialFromContacts(leadId, phone) {
     loadDialerLead();
   }, 100);
 }
+
+// ── END OF DAY DEBRIEF ──
+let eodOutcome = 'contacted';
+document.getElementById('eod-btn').addEventListener('click', () => openModal('modal-eod'));
+document.querySelectorAll('.eod-outcome').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.eod-outcome').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    eodOutcome = btn.dataset.outcome;
+  });
+});
+document.getElementById('eod-confirm-btn').addEventListener('click', async () => {
+  const raw = document.getElementById('eod-phones').value.trim();
+  if (!raw) { toast('Paste some phone numbers first', 'error'); return; }
+  const phones = raw.split('\n').map(p => p.trim()).filter(Boolean);
+  const btn = document.getElementById('eod-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Stopping...';
+  try {
+    const data = await API('/api/contacts/eod-stop', {
+      method: 'POST',
+      body: JSON.stringify({ phones, outcome: eodOutcome })
+    });
+    closeModal('modal-eod');
+    document.getElementById('eod-phones').value = '';
+    toast(`Done. ${data.stopped} leads stopped. ${data.not_found?.length || 0} not found.`, 'success');
+    loadDashboard();
+  } catch (err) { toast('Error: ' + err.message, 'error'); }
+  btn.disabled = false; btn.textContent = 'Stop Sequences';
+});
 
 document.getElementById('load-dialer-queue').addEventListener('click', async () => {
   try {
