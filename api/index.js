@@ -764,72 +764,53 @@ async function handleWebhookQuickmail(req, res) {
 
 const EMAIL_SEQUENCE_TEMPLATES = [
   {
-    subject: "{{company}} — one thing I'd fix immediately",
+    subject: "{{firstname}}",
     body: `{{firstname}},
 
-I was looking at how {{company}} acquires new customers online this morning.
+I work with practice owners in your space to add 15-20k in new revenue within 30 days. Not an agency thing. I come in as your Head of Growth, run everything, and you get a weekly call telling you exactly what's happening.
 
-Honest take: there's at least $15K in revenue sitting in your current setup that isn't being captured. I've seen the same pattern in almost every business in your space.
+1,500 for month one. If I don't hit the number I keep working until I do.
 
-I'm not an agency. I embed as a fractional Head of Growth — I own your acquisition number and build whatever it takes to hit it. Ads, outreach, creative. All of it.
+Got one opening this month. Is {{company}} the right fit?
 
-I take on one new client per month. If I'm not generating you at least $15K in new revenue within 30 days, I'm not doing my job.
-
-$1,500 for month one. No lock-in. I earn the right to stay.
-
-Worth 15 minutes: cal.com/godwin-rayen/30min
-
-Godwin Rayen
-Vyrrah Labs · UCLA Stats '19 · Ex-VC · Ex-Taboola R&D`
+Godwin
+Vyrrah Labs`
   },
   {
-    subject: "Re: {{company}} — one thing I'd fix immediately",
+    subject: "Re: {{firstname}}",
     body: `{{firstname}},
 
 Tried calling this morning.
 
-To be more specific about what I mean:
+Practices in your space that are growing right now have one thing set up that most don't. I looked at {{company}} and wanted to walk you through it.
 
-The gap for most businesses I work with isn't a lack of marketing spend — it's that nobody's owning the full picture. You've got an ads person, maybe an SEO person, nobody connecting it.
+1,500, 15k in 30 days, I run everything myself. No lock in.
 
-What I do differently: I sit inside your business as your growth function. I'm accountable to a revenue number, not a deliverables list. I'm on a call with you every week telling you exactly what's working and what's next.
-
-The model:
-— Month 1: $1,500. I build and launch. You see activity in week one.
-— Month 2+: $5K/month if you want to continue. No contract.
-— Guarantee: $15K in new attributable revenue in 30 days or we have an honest conversation.
-
-I've never had to have that conversation.
-
-15 minutes: cal.com/godwin-rayen/30min
+15 mins: cal.com/godwin-rayen/30min
 
 Godwin`
   },
   {
-    subject: "Closing {{company}} file",
+    subject: "Re: {{firstname}}",
     body: `{{firstname}},
 
 Last one from me.
 
-I only work with one new client per month — the model doesn't work if I'm spread thin. I've got a slot open this month and {{company}} was on my shortlist.
+1,500. 15k in 30 days. One opening left this month.
 
-The offer: $1,500 for month one. I generate you $15K in new revenue in 30 days or we have an honest conversation about what happened. I personally run everything. No junior team.
+Whenever the timing works: cal.com/godwin-rayen/30min
 
-If timing's off — reply "not now" and I'll follow up in 30 days.
-If it's a flat no — no hard feelings.
-If any part of you thinks your growth should be moving faster: cal.com/godwin-rayen/30min
-
-Godwin Rayen`
+Godwin`
   }
 ];
 
 const SEQUENCE_DEFAULT_TEMPLATES = [
   // Step 1 — Day 1, send immediately
-  "Hey {first_name}, Godwin here. I looked at {company}'s online presence this morning — there's a gap between where you're showing up and where your competitors are. I work as a fractional Head of Growth, $1,500 month one, $15K revenue target. One client/month. Worth a call? cal.com/godwin-rayen/30min",
+  "Hey {first_name}, Godwin here. Sent you an email just now. I get practices like yours 15k in new revenue in 30 days or I keep working. One opening this month. — Godwin",
   // Step 2 — Day 2
-  "Hey {first_name} — did my message land? Not selling an audit or a report. I embed as your Head of Growth and own the number. $1,500 month one, no lock-in. If I don't generate {company} $15K in new revenue in 30 days I don't deserve to stay. cal.com/godwin-rayen/30min — Godwin",
+  "Hey {first_name}, tried calling you earlier. Practices in your market that are growing have one thing set up that {company} doesn't yet. Takes 15 mins to show you. cal.com/godwin-rayen/30min",
   // Step 3 — Day 3
-  "{first_name}, last one. One slot open this month — {company} was on my shortlist. $1,500 month one, $15K revenue guarantee, no contracts. If the timing's ever right: cal.com/godwin-rayen/30min — Godwin, Vyrrah Labs"
+  "{first_name}, last one from me. One opening left this month. cal.com/godwin-rayen/30min"
 ];
 
 async function handleSequencesTrigger(req, res) {
