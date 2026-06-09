@@ -764,55 +764,44 @@ async function handleWebhookQuickmail(req, res) {
 
 const EMAIL_SEQUENCE_TEMPLATES = [
   {
-    subject: "Still taking new clients?",
+    subject: "{{company}} — one thing I'd fix immediately",
     body: `{{firstname}},
 
-I ran a quick AI scan on {{company}} this morning and found some specific gaps worth showing you.
+I was looking at how {{company}} acquires new customers online this morning.
 
-So here's what I want to do.
+Honest take: there's at least $15K in revenue sitting in your current setup that isn't being captured. I've seen the same pattern in almost every business in your space.
 
-I want to give you our full week-long growth audit completely free. Normally $899. Here's what it covers:
+I'm not an agency. I embed as a fractional Head of Growth — I own your acquisition number and build whatever it takes to hit it. Ads, outreach, creative. All of it.
 
-Full AI analysis of your entire online presence.
-Competitor gap analysis — exactly where they're beating you and why.
-Every revenue leak in your current setup identified.
-A complete prioritised growth plan built specifically for your business.
-Delivered as a full report within 7 days.
+I take on one new client per month. If I'm not generating you at least $15K in new revenue within 30 days, I'm not doing my job.
 
-No call needed to claim it. No credit card. Nothing.
+$1,500 for month one. No lock-in. I earn the right to stay.
 
-And if you like what the audit finds and want us to execute it — we guarantee $20K in new revenue in 30 days or you pay nothing.
-
-Two layers of zero risk. Free audit first. Guaranteed results second.
-
-Claim your free audit: cal.com/godwin-rayen/30min
+Worth 15 minutes: cal.com/godwin-rayen/30min
 
 Godwin Rayen
 Vyrrah Labs · UCLA Stats '19 · Ex-VC · Ex-Taboola R&D`
   },
   {
-    subject: "Re: Still taking new clients?",
+    subject: "Re: {{company}} — one thing I'd fix immediately",
     body: `{{firstname}},
 
 Tried calling this morning.
 
-Just want to make sure this landed clearly because it's a genuinely unusual offer.
+To be more specific about what I mean:
 
-Free. Week-long. $899 value. No strings.
+The gap for most businesses I work with isn't a lack of marketing spend — it's that nobody's owning the full picture. You've got an ads person, maybe an SEO person, nobody connecting it.
 
-Full AI analysis of your entire online presence.
-Competitor gap analysis — where they're beating you and exactly why.
-Every revenue leak in your current setup identified.
-Complete prioritised growth plan built for your business.
-Delivered as a full report in 7 days.
+What I do differently: I sit inside your business as your growth function. I'm accountable to a revenue number, not a deliverables list. I'm on a call with you every week telling you exactly what's working and what's next.
 
-You don't pay for the audit.
-You don't pay for execution until we've added $20K to your revenue.
-No contract. No junior team. I personally run everything.
+The model:
+— Month 1: $1,500. I build and launch. You see activity in week one.
+— Month 2+: $5K/month if you want to continue. No contract.
+— Guarantee: $15K in new attributable revenue in 30 days or we have an honest conversation.
 
-A similar business in your area went through the same audit. We found $40K in annual revenue sitting untouched. Fixed it in 60 days.
+I've never had to have that conversation.
 
-Claim it here: cal.com/godwin-rayen/30min
+15 minutes: cal.com/godwin-rayen/30min
 
 Godwin`
   },
@@ -820,31 +809,27 @@ Godwin`
     subject: "Closing {{company}} file",
     body: `{{firstname}},
 
-Reached out a few times. Closing your file today.
+Last one from me.
 
-One last thing.
+I only work with one new client per month — the model doesn't work if I'm spread thin. I've got a slot open this month and {{company}} was on my shortlist.
 
-The free audit offer — $899 worth of analysis, no charge — closes with this email.
+The offer: $1,500 for month one. I generate you $15K in new revenue in 30 days or we have an honest conversation about what happened. I personally run everything. No junior team.
 
-Full AI analysis of your online presence. Competitor gap breakdown. Every revenue leak identified. Complete growth plan. Delivered in 7 days. Nothing to pay.
+If timing's off — reply "not now" and I'll follow up in 30 days.
+If it's a flat no — no hard feelings.
+If any part of you thinks your growth should be moving faster: cal.com/godwin-rayen/30min
 
-And if you want us to execute — $20K in new revenue guaranteed or you pay nothing.
-
-If that ever becomes relevant: cal.com/godwin-rayen/30min
-
-Godwin
-
-P.S. Reply 'not now' and I'll follow up in 30 days. No hard feelings either way.`
+Godwin Rayen`
   }
 ];
 
 const SEQUENCE_DEFAULT_TEMPLATES = [
   // Step 1 — Day 1, send immediately
-  "Hey {first_name}, Godwin here from Vyrrah Labs. Just ran a quick AI scan on {company} and found some specific gaps worth showing you. Offering a free week-long growth audit — $899 value, no strings. Claim it: cal.com/godwin-rayen/30min",
+  "Hey {first_name}, Godwin here. I looked at {company}'s online presence this morning — there's a gap between where you're showing up and where your competitors are. I work as a fractional Head of Growth, $1,500 month one, $15K revenue target. One client/month. Worth a call? cal.com/godwin-rayen/30min",
   // Step 2 — Day 2
-  "Hey {first_name} — did my message land? Free week-long growth audit for {company}. Full AI analysis, competitor breakdown, every revenue leak identified. $899 value, nothing to pay. And if we execute — $20K revenue guaranteed or free. cal.com/godwin-rayen/30min — Godwin",
+  "Hey {first_name} — did my message land? Not selling an audit or a report. I embed as your Head of Growth and own the number. $1,500 month one, no lock-in. If I don't generate {company} $15K in new revenue in 30 days I don't deserve to stay. cal.com/godwin-rayen/30min — Godwin",
   // Step 3 — Day 3
-  "{first_name}, last one. Free growth audit for {company} closes today — $899 value, no charge. If we execute after: $20K in new revenue guaranteed or you pay nothing. Whenever you're ready: cal.com/godwin-rayen/30min — Godwin @ Vyrrah Labs"
+  "{first_name}, last one. One slot open this month — {company} was on my shortlist. $1,500 month one, $15K revenue guarantee, no contracts. If the timing's ever right: cal.com/godwin-rayen/30min — Godwin, Vyrrah Labs"
 ];
 
 async function handleSequencesTrigger(req, res) {
