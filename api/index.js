@@ -767,11 +767,15 @@ const EMAIL_SEQUENCE_TEMPLATES = [
     subject: "{{firstname}}",
     body: `{{firstname}},
 
-I work with practice owners in your space to add 15-20k in new revenue within 30 days. Not an agency thing. I come in as your Head of Growth, run everything, and you get a weekly call telling you exactly what's happening.
+I build landing pages for practice owners in your space. Charging 20 bucks — enough to know you're serious, not enough to make it a decision.
 
-1,500 for month one. If I don't hit the number I keep working until I do.
+If you like what I put together, I do a full audit of {{company}} for 500. I look at everything — your online presence, what's losing you patients, what's costing you and what's easy to fix.
 
-Got one opening this month. Is {{company}} the right fit?
+If the audit makes sense, we talk about what working together looks like long term.
+
+20 dollars. Nothing beyond that unless you want it.
+
+cal.com/godwin-rayen/30min
 
 Godwin
 Vyrrah Labs`
@@ -782,11 +786,13 @@ Vyrrah Labs`
 
 Tried calling this morning.
 
-Practices in your space that are growing right now have one thing set up that most don't. I looked at {{company}} and wanted to walk you through it.
+Most practices I look at have the same 3 problems. Usually one of them is costing 10-15k a year in patients who never came back or never booked.
 
-1,500, 15k in 30 days, I run everything myself. No lock in.
+The audit finds them. The page starts fixing them.
 
-15 mins: cal.com/godwin-rayen/30min
+20 to get started. 500 for the full picture.
+
+cal.com/godwin-rayen/30min
 
 Godwin`
   },
@@ -796,21 +802,23 @@ Godwin`
 
 Last one from me.
 
-1,500. 15k in 30 days. One opening left this month.
+20 for the page. 500 for the audit. 5k a month if you want me running growth long term.
 
-Whenever the timing works: cal.com/godwin-rayen/30min
+Most people I work with start with the page and never look back.
+
+cal.com/godwin-rayen/30min
 
 Godwin`
   }
 ];
 
 const SEQUENCE_DEFAULT_TEMPLATES = [
-  // Step 1 — Day 1, send immediately
-  "Hey {first_name}, Godwin here. Sent you an email just now. I get practices like yours 15k in new revenue in 30 days or I keep working. One opening this month. — Godwin",
-  // Step 2 — Day 2
-  "Hey {first_name}, tried calling you earlier. Practices in your market that are growing have one thing set up that {company} doesn't yet. Takes 15 mins to show you. cal.com/godwin-rayen/30min",
-  // Step 3 — Day 3
-  "{first_name}, last one from me. One opening left this month. cal.com/godwin-rayen/30min"
+  // SMS 1 — Day 1 afternoon
+  "Hey {first_name}, Godwin here. I build landing pages for practices like {company} — 20 bucks to show you what I can do. If you like it, I do a full audit for 500. That's it. Worth a look? cal.com/godwin-rayen/30min",
+  // SMS 2 — Day 2 afternoon (after call attempt)
+  "Hey {first_name}, tried calling earlier. Built a page for a practice like {company} this week. 20 to start, 500 for the audit, 5K/month if you want me running growth. No lock in. cal.com/godwin-rayen/30min — Godwin",
+  // SMS 3 — Day 3 close
+  "{first_name}, last one. 20 for the page. 500 for the audit. 5K/month if it makes sense. cal.com/godwin-rayen/30min — Godwin"
 ];
 
 async function handleSequencesTrigger(req, res) {
@@ -856,12 +864,12 @@ async function handleSequencesTrigger(req, res) {
     const now = new Date();
     const H = 3600000;
     const steps = [
-      // SMS 1: Day 1 afternoon (5hr after email fires)
+      // SMS 1: Day 1 afternoon (5hr after email)
       { step: 1, scheduled_at: new Date(now.getTime() + 5*H).toISOString(), message: step1_message || SEQUENCE_DEFAULT_TEMPLATES[0] },
-      // SMS 2: Day 2 afternoon (36hr — after morning call attempt)
-      { step: 2, scheduled_at: new Date(now.getTime() + 36*H).toISOString(), message: SEQUENCE_DEFAULT_TEMPLATES[1] },
-      // SMS 3: Day 4 morning (84hr — final close day)
-      { step: 3, scheduled_at: new Date(now.getTime() + 84*H).toISOString(), message: SEQUENCE_DEFAULT_TEMPLATES[2] }
+      // SMS 2: Day 2 afternoon (30hr — after morning call attempt)
+      { step: 2, scheduled_at: new Date(now.getTime() + 30*H).toISOString(), message: SEQUENCE_DEFAULT_TEMPLATES[1] },
+      // SMS 3: Day 3 afternoon (54hr — close)
+      { step: 3, scheduled_at: new Date(now.getTime() + 54*H).toISOString(), message: SEQUENCE_DEFAULT_TEMPLATES[2] }
     ];
 
     const rows = steps.map(s => ({
@@ -934,8 +942,8 @@ async function handleSequencesBulkTrigger(req, res) {
 
       const H = 3600000;
       rows.push({ lead_id: lead.id, campaign, step: 1, scheduled_at: new Date(sendAt.getTime() + 5*H).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[0] });
-      rows.push({ lead_id: lead.id, campaign, step: 2, scheduled_at: new Date(sendAt.getTime() + 36*H).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[1] });
-      rows.push({ lead_id: lead.id, campaign, step: 3, scheduled_at: new Date(sendAt.getTime() + 84*H).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[2] });
+      rows.push({ lead_id: lead.id, campaign, step: 2, scheduled_at: new Date(sendAt.getTime() + 30*H).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[1] });
+      rows.push({ lead_id: lead.id, campaign, step: 3, scheduled_at: new Date(sendAt.getTime() + 54*H).toISOString(), status: 'pending', message_body: SEQUENCE_DEFAULT_TEMPLATES[2] });
     }
 
     if (rows.length === 0) {
@@ -1097,9 +1105,9 @@ async function handleEmailSequencesTrigger(req, res) {
     const now = new Date();
     const H = 3600000;
     // Email 1: Day 1 morning (immediate)
-    // Email 2: Day 3 morning (60hr — after 2 call attempts, before final push)
-    // Email 3: Day 4 morning (84hr — final close alongside SMS 3)
-    const emailDelays = [0, 60*H, 84*H];
+    // Email 2: Day 2 morning (24hr)
+    // Email 3: Day 3 morning (48hr — close)
+    const emailDelays = [0, 24*H, 48*H];
     const emailRows = EMAIL_SEQUENCE_TEMPLATES.map((tpl, i) => ({
       lead_id,
       campaign,
@@ -1149,7 +1157,7 @@ async function handleEmailSequencesBulkTrigger(req, res) {
       const sendAt = new Date(now.getTime() + staggerMs);
       enrolledIds.push(lead.id);
       const eH = 3600000;
-      const emailDelays = [0, 60*eH, 84*eH];
+      const emailDelays = [0, 24*eH, 48*eH];
       EMAIL_SEQUENCE_TEMPLATES.forEach((tpl, i) => {
         rows.push({
           lead_id: lead.id, campaign, step: i + 1, channel: 'email',
@@ -1566,6 +1574,27 @@ module.exports = async (req, res) => {
   // /api/conversations
   if (seg0 === 'conversations' && !seg1) {
     return handleConversationsList(req, res);
+  }
+
+  // /api/contacts/newsletter-add — add lead to SendGrid newsletter
+  if (seg0 === 'contacts' && seg1 === 'newsletter-add') {
+    if (!requireAuth(req, res)) return;
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+    try {
+      const { lead_id } = req.body;
+      const supabase = getSupabase();
+      const { data: lead } = await supabase.from('leads').select('email, first_name, last_name').eq('id', lead_id).single();
+      if (!lead?.email) return res.status(400).json({ error: 'No email on lead' });
+      const sgRes = await fetch('https://api.sendgrid.com/v3/marketing/contacts', {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          list_ids: ['52013c2c-1c6f-4e21-9fe0-0e9940da8df1'],
+          contacts: [{ email: lead.email, first_name: lead.first_name || '', last_name: lead.last_name || '' }]
+        })
+      });
+      return res.status(200).json({ success: sgRes.ok, status: sgRes.status });
+    } catch (err) { return res.status(500).json({ error: err.message }); }
   }
 
   // /api/contacts/eod-stop — end of day call debrief: stop sequences for called leads

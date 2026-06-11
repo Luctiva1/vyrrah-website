@@ -1247,6 +1247,7 @@ async function openLeadProfile(id) {
         <button class="btn btn-outline btn-sm" id="save-profile-status">Save status</button>
         <button class="btn btn-danger btn-sm" id="profile-call-btn" data-phone="${lead.phone}" data-id="${lead.id}">📞 Call</button>
         <button class="btn btn-blue btn-sm" id="profile-sms-btn" data-phone="${lead.phone}">💬 SMS</button>
+        <button class="btn btn-outline btn-sm" id="profile-newsletter-btn" data-id="${lead.id}" title="Add to Vyrrah Growth Network newsletter">📧 Newsletter</button>
       </div>
       <div class="profile-tabs">
         <div class="profile-tab active" data-tab="calls-tab">Calls (${calls.length})</div>
@@ -1301,6 +1302,14 @@ async function openLeadProfile(id) {
     document.getElementById('profile-sms-btn').addEventListener('click', () => {
       document.getElementById('sms-to').value = lead.phone;
       openModal('modal-send-sms');
+    });
+    document.getElementById('profile-newsletter-btn').addEventListener('click', async function() {
+      this.disabled = true; this.textContent = '⏳ Adding...';
+      try {
+        await API('/api/contacts/newsletter-add', { method: 'POST', body: JSON.stringify({ lead_id: lead.id }) });
+        this.textContent = '✅ Added';
+        toast(lead.first_name + ' added to Growth Network newsletter', 'success');
+      } catch (err) { this.textContent = '📧 Newsletter'; this.disabled = false; toast('Error: ' + err.message, 'error'); }
     });
   } catch (err) {
     document.getElementById('profile-modal-body').innerHTML = `<p style="color:var(--red);">Error: ${err.message}</p>`;
