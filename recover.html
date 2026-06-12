@@ -77,11 +77,41 @@
   footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;font-size:13px;color:var(--muted)}
   footer a{color:var(--muted)}
   #app{display:none}
+
+  /* tabs */
+  .tabbar{display:flex;gap:8px;margin:22px 0 4px}
+  .tabbtn{background:#161616;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;padding:11px 20px;cursor:pointer}
+  .tabbtn.on{border-color:var(--red);color:var(--text);background:rgba(200,37,30,.12)}
+  #viewOverview,#viewInbox{display:none}
+
+  /* inbox */
+  .inbox{display:grid;grid-template-columns:300px 1fr;gap:16px;margin-top:18px}
+  .convolist{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;max-height:600px;overflow-y:auto}
+  .convoitem{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+  .convoitem:last-child{border-bottom:none}
+  .convoitem:hover{background:#161616}
+  .convoitem.sel{background:rgba(200,37,30,.1)}
+  .ci-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .ci-caller{font-family:'Syne',sans-serif;font-weight:700;font-size:13px}
+  .ci-caller.unread{color:var(--text)}
+  .ci-time{font-size:11px;color:var(--muted);white-space:nowrap}
+  .ci-prev{font-size:12.5px;color:var(--muted);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ci-prev.unread{color:var(--text);font-weight:700}
+  .ci-pills{margin-top:7px;display:flex;gap:6px}
+  .minipill{font-size:9px;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.1em;border-radius:999px;padding:2px 8px}
+  .minipill.booked{color:var(--green);border:1px solid rgba(47,191,113,.4)}
+  .minipill.recovered{color:var(--gold);border:1px solid rgba(240,165,0,.4)}
+  .convopanel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;min-height:200px;max-height:600px;overflow-y:auto}
+  .panel-empty{color:var(--muted);text-align:center;padding:60px 20px;font-size:14px}
+  .sysrow{text-align:center;font-size:12px;color:var(--muted);margin:12px 0}
+
   @media(max-width:640px){
     .stats{grid-template-columns:repeat(2,1fr)}
     .stat .num{font-size:28px}
     .practice{font-size:18px}
     .bubble{max-width:90%}
+    .inbox{grid-template-columns:1fr}
+    .convolist{max-height:300px}
   }
 </style>
 </head>
@@ -106,6 +136,12 @@
       </div>
     </header>
 
+    <div class="tabbar">
+      <button class="tabbtn on" id="tabOverview" data-view="Overview">Overview</button>
+      <button class="tabbtn" id="tabInbox" data-view="Inbox">Inbox</button>
+    </div>
+
+    <div id="viewOverview" style="display:block">
     <div class="numbercard" id="numberCard" style="display:none">
       <div>
         <div class="ncn">Your Vyrrah number</div>
@@ -139,6 +175,16 @@
 
     <h2>Recent recovered conversations</h2>
     <div id="convos"></div>
+    </div><!-- /viewOverview -->
+
+    <div id="viewInbox">
+      <div class="inbox">
+        <div class="convolist" id="convoList"></div>
+        <div class="convopanel" id="convoPanel">
+          <div class="panel-empty">Select a conversation to see its full timeline.</div>
+        </div>
+      </div>
+    </div><!-- /viewInbox -->
   </div>
 </div>
 
@@ -151,6 +197,9 @@
 (function(){
   var token = new URLSearchParams(location.search).get('token');
   var firstLoad = true;
+  var activeView = 'Overview';
+  var inboxData = null;
+  var selectedCaller = null;
 
   function show(id){
     ['loading','error','app'].forEach(function(x){
@@ -239,6 +288,104 @@
     firstLoad = false;
   }
 
+  function fmtClock(iso){
+    if(!iso) return '';
+    return new Date(iso).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+  }
+
+  var CALL_LABEL = {
+    answered:'📞 Answered', missed:'📞 Missed call', busy:'📞 Busy',
+    failed:'📞 Failed call', voicemail:'📞 Voicemail'
+  };
+
+  function renderInbox(){
+    if(!inboxData) return;
+    var convos = inboxData.conversations || [];
+    var list = document.getElementById('convoList');
+    if(!convos.length){
+      list.innerHTML = '<div class="panel-empty">No conversations yet.</div>';
+      return;
+    }
+    list.innerHTML = convos.map(function(c){
+      var lastMsg = null, lastInbound = false;
+      for(var i=c.timeline.length-1;i>=0;i--){
+        if(c.timeline[i].type==='message'){ lastMsg = c.timeline[i]; break; }
+      }
+      lastInbound = lastMsg && lastMsg.direction==='inbound';
+      var prev = lastMsg ? lastMsg.body : (c.call_count ? 'Missed call' : '');
+      var pills = (c.booked ? '<span class="minipill booked">BOOKED</span>' : '') +
+                  (c.recovered && !c.booked ? '<span class="minipill recovered">RECOVERED</span>' : '');
+      var sel = c.caller_raw_last4 === selectedCaller ? ' sel' : '';
+      var uc = lastInbound ? ' unread' : '';
+      return '<div class="convoitem'+sel+'" data-id="'+esc(c.caller_raw_last4)+'">'+
+        '<div class="ci-top"><span class="ci-caller'+uc+'">'+esc(c.caller)+'</span>'+
+        '<span class="ci-time">'+esc(fmtTime(c.last_contact))+'</span></div>'+
+        '<div class="ci-prev'+uc+'">'+esc(prev)+'</div>'+
+        (pills ? '<div class="ci-pills">'+pills+'</div>' : '')+'</div>';
+    }).join('');
+    list.querySelectorAll('.convoitem').forEach(function(el){
+      el.addEventListener('click', function(){
+        selectedCaller = el.dataset.id;
+        renderInbox();
+        renderPanel();
+      });
+    });
+  }
+
+  function renderPanel(){
+    var panel = document.getElementById('convoPanel');
+    if(!inboxData || selectedCaller==null){
+      panel.innerHTML = '<div class="panel-empty">Select a conversation to see its full timeline.</div>';
+      return;
+    }
+    var c = (inboxData.conversations||[]).filter(function(x){ return x.caller_raw_last4===selectedCaller; })[0];
+    if(!c){ panel.innerHTML = '<div class="panel-empty">Conversation not found.</div>'; return; }
+    panel.innerHTML = '<div class="convo-head"><span class="caller">'+esc(c.caller)+
+      (c.booked?'<span class="tag">BOOKED</span>':'')+'</span></div>' +
+      c.timeline.map(function(t){
+        if(t.type==='call'){
+          return '<div class="sysrow">'+esc(CALL_LABEL[t.outcome]||('📞 '+(t.outcome||'call')))+
+            ' · '+esc(fmtClock(t.created_at))+'</div>';
+        }
+        var cls = t.direction==='inbound' ? 'in' : 'out';
+        var statusHtml = '';
+        if(t.direction!=='inbound'){
+          var ds = (t.delivery_status||'').toLowerCase();
+          if(ds==='deferred') statusHtml = '<span class="defer-note">scheduled for morning</span>';
+          else if(ds==='delivered'||ds==='sent') statusHtml = '<span class="dot-status ok"></span>delivered';
+          else if(ds==='failed'||ds==='undelivered') statusHtml = '<span class="dot-status fail"></span>failed';
+          else if(ds) statusHtml = '<span class="dot-status pending"></span>sending';
+        }
+        return '<div class="bubble '+cls+'">'+esc(t.body)+
+          '<span class="stamp">'+esc(fmtClock(t.created_at))+(statusHtml?' · '+statusHtml:'')+'</span></div>';
+      }).join('');
+  }
+
+  function loadInbox(){
+    fetch('/api/tool/inbox?token=' + encodeURIComponent(token))
+      .then(function(r){ if(!r.ok) throw new Error('bad'); return r.json(); })
+      .then(function(d){
+        inboxData = d;
+        if(selectedCaller==null && d.conversations && d.conversations.length){
+          selectedCaller = d.conversations[0].caller_raw_last4;
+        }
+        renderInbox();
+        renderPanel();
+      })
+      .catch(function(){ /* keep overview usable */ });
+  }
+
+  function setView(view){
+    activeView = view;
+    document.getElementById('tabOverview').className = 'tabbtn' + (view==='Overview'?' on':'');
+    document.getElementById('tabInbox').className = 'tabbtn' + (view==='Inbox'?' on':'');
+    document.getElementById('viewOverview').style.display = view==='Overview' ? 'block' : 'none';
+    document.getElementById('viewInbox').style.display = view==='Inbox' ? 'block' : 'none';
+    if(view==='Inbox') loadInbox();
+  }
+  document.getElementById('tabOverview').addEventListener('click', function(){ setView('Overview'); });
+  document.getElementById('tabInbox').addEventListener('click', function(){ setView('Inbox'); });
+
   function load(){
     if(!token){ show('error'); return; }
     fetch('/api/tool/dashboard?token=' + encodeURIComponent(token))
@@ -248,7 +395,10 @@
   }
 
   load();
-  setInterval(load, 60000);
+  setInterval(function(){
+    if(activeView==='Inbox') loadInbox();
+    else load();
+  }, 60000);
 })();
 </script>
 </body>

@@ -972,6 +972,176 @@ async function handleDashboard(req, res) {
   }
 }
 
+// ─── GET /api/tool/inbox?token=MAGIC — full conversation history ────────────
+// No auth (magic token). Groups all calls + messages by caller_phone.
+async function handleInbox(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    const token = req.query.token;
+    if (!token) return res.status(400).json({ error: 'token required' });
+
+    const { data: client } = await supabase
+      .from('tool_clients')
+      .select('*')
+      .eq('magic_token', token)
+      .single();
+    if (!client) return res.status(404).json({ error: 'Invalid token' });
+
+    const { data: calls } = await supabase
+      .from('tool_calls')
+      .select('caller_phone, outcome, recovered, booked, est_value, created_at')
+      .eq('client_id', client.id)
+      .order('created_at', { ascending: true });
+
+    const { data: messages } = await supabase
+      .from('tool_messages')
+      .select('caller_phone, direction, body, delivery_status, created_at')
+      .eq('client_id', client.id)
+      .order('created_at', { ascending: true });
+
+    const callList = calls || [];
+    const msgList = messages || [];
+
+    // Group by caller_phone
+    const groups = new Map();
+    function group(phone) {
+      if (!groups.has(phone)) {
+        groups.set(phone, {
+          caller_raw: phone,
+          recovered: false,
+          booked: false,
+          call_count: 0,
+          message_count: 0,
+          timeline: []
+        });
+      }
+      return groups.get(phone);
+    }
+
+    for (const c of callList) {
+      if (!c.caller_phone) continue;
+      const g = group(c.caller_phone);
+      g.call_count++;
+      if (c.recovered) g.recovered = true;
+      if (c.booked) g.booked = true;
+      g.timeline.push({ type: 'call', outcome: c.outcome, created_at: c.created_at });
+    }
+    for (const m of msgList) {
+      if (!m.caller_phone) continue;
+      const g = group(m.caller_phone);
+      g.message_count++;
+      g.timeline.push({
+        type: 'message',
+        direction: m.direction,
+        body: m.body,
+        delivery_status: m.delivery_status,
+        created_at: m.created_at
+      });
+    }
+
+    const conversations = [];
+    for (const g of groups.values()) {
+      g.timeline.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      const first = g.timeline[0];
+      const last = g.timeline[g.timeline.length - 1];
+      const digits = normalizePhone(g.caller_raw);
+      conversations.push({
+        caller: maskPhone(g.caller_raw),
+        caller_raw_last4: digits.slice(-4),
+        first_contact: first ? first.created_at : null,
+        last_contact: last ? last.created_at : null,
+        recovered: g.recovered,
+        booked: g.booked,
+        call_count: g.call_count,
+        message_count: g.message_count,
+        timeline: g.timeline
+      });
+    }
+    conversations.sort((a, b) => new Date(b.last_contact) - new Date(a.last_contact));
+
+    const missedOutcomes = ['missed', 'busy', 'failed', 'voicemail'];
+    const calls_summary = {
+      total: callList.length,
+      answered: callList.filter((c) => c.outcome === 'answered').length,
+      missed: callList.filter((c) => missedOutcomes.includes(c.outcome)).length,
+      recovered: callList.filter((c) => c.recovered).length,
+      booked: callList.filter((c) => c.booked).length
+    };
+
+    return res.status(200).json({
+      practice_name: client.practice_name,
+      twilio_number: client.twilio_number || null,
+      conversations: conversations.slice(0, 100),
+      calls_summary
+    });
+  } catch (err) {
+    console.error('tool/inbox error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── GET /api/tool/checkout?client_id=X — self-serve subscription ────────────
+// No auth. Degrades to trial mode if DODO is not configured.
+async function handleCheckout(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    if (!process.env.DODO_API_KEY) {
+      return res.status(200).json({ mode: 'trial', message: 'Free trial active' });
+    }
+
+    const clientId = req.query.client_id;
+    if (!clientId) return res.status(400).json({ error: 'client_id required' });
+
+    const supabase = getSupabase();
+    const { data: client } = await supabase
+      .from('tool_clients')
+      .select('*')
+      .eq('id', clientId)
+      .single();
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+
+    try {
+      const successUrl =
+        `${PUBLIC_BASE}/recaller?token=${encodeURIComponent(client.magic_token || '')}&paid=1`;
+      const r = await fetch('https://live.dodopayments.com/subscriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.DODO_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          product_id: process.env.DODO_PRODUCT_ID,
+          quantity: 1,
+          payment_link: true,
+          return_url: successUrl,
+          customer: {
+            email: client.owner_email,
+            name: client.owner_name || client.practice_name
+          },
+          billing: { country: 'US', state: '', city: '', street: '', zipcode: '' },
+          metadata: { client_id: String(client.id) }
+        })
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        return res.status(200).json({ mode: 'trial', error: `Dodo API ${r.status}` });
+      }
+      const checkout_url = body.payment_link || body.link || body.url || null;
+      if (!checkout_url) {
+        return res.status(200).json({ mode: 'trial', error: 'No checkout URL returned' });
+      }
+      return res.status(200).json({ mode: 'paid', checkout_url });
+    } catch (apiErr) {
+      console.error('tool/checkout Dodo API error:', apiErr);
+      return res.status(200).json({ mode: 'trial', error: apiErr.message });
+    }
+  } catch (err) {
+    console.error('tool/checkout error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
 // ─── POST /api/tool/sms-status — Twilio delivery status callback ─────────────
 // No auth (Twilio webhook). Signature-validated. Always returns 200.
 async function handleSmsStatus(req, res) {
@@ -1477,6 +1647,8 @@ module.exports = async (req, res) => {
   if (seg0 === 'cron-weekly') return handleCronWeekly(req, res);
   if (seg0 === 'cron-flush') return handleCronFlush(req, res);
   if (seg0 === 'dashboard') return handleDashboard(req, res);
+  if (seg0 === 'inbox') return handleInbox(req, res);
+  if (seg0 === 'checkout') return handleCheckout(req, res);
   if (seg0 === 'dodo-webhook') return handleDodoWebhook(req, res);
   if (seg0 === 'pay') return handlePay(req, res);
 

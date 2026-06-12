@@ -201,8 +201,14 @@
     <div class="confetti">🥂</div>
     <h2 style="font-family:'Fraunces',serif;font-weight:900;font-size:24px;margin-bottom:10px">You're live.</h2>
     <p style="color:var(--muted);font-size:15px;line-height:1.6">Every missed call now gets caught, texted back, and tracked. Watch it happen on your dashboard:</p>
+    <div id="payBlock" style="display:none">
+      <div class="gold-note" style="margin-top:0;margin-bottom:18px">$500/month, cancel anytime. Start your subscription to keep your recovery line live.</div>
+      <a class="btn" id="payLink" href="#" target="_blank" rel="noopener" style="margin-top:0">Start your subscription →</a>
+    </div>
+    <div id="trialBlock" style="display:none">
+      <div class="gold-note" style="margin-top:0">Your free week starts now. <b>Godwin will call you in 7 days with your numbers.</b> No card needed until you've seen the results.</div>
+    </div>
     <a class="btn" id="dashLink" href="#" style="background:var(--gold);color:#070707">Open my dashboard →</a>
-    <div class="gold-note">Your free week starts now. <b>Godwin will call you in 7 days with your numbers.</b> No card needed until you've seen the results.</div>
   </div>
 </div>
 
@@ -328,7 +334,26 @@
     var token = state.client && state.client.magic_token;
     document.getElementById('dashLink').href = token ? ('/recover?token=' + encodeURIComponent(token)) : '#';
     showStep(3);
+    loadCheckout();
   });
+
+  function loadCheckout(){
+    var payBlock = document.getElementById('payBlock');
+    var trialBlock = document.getElementById('trialBlock');
+    var id = state.client && state.client.id;
+    if(!id){ trialBlock.style.display = 'block'; return; }
+    fetch('/api/tool/checkout?client_id=' + encodeURIComponent(id))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d && d.mode === 'paid' && d.checkout_url){
+          document.getElementById('payLink').href = d.checkout_url;
+          payBlock.style.display = 'block';
+        } else {
+          trialBlock.style.display = 'block';
+        }
+      })
+      .catch(function(){ trialBlock.style.display = 'block'; });
+  }
 })();
 </script>
 </body>
