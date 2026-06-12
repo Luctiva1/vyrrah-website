@@ -1,4 +1,4 @@
-// Vyrrah Recover — missed-call recovery engine for local practices
+// Vyrrah Recaller — missed-call recovery engine for local practices
 // All routes under /api/tool/... (see vercel.json: tool route ABOVE index catch-all)
 
 const crypto = require('crypto');
@@ -6,7 +6,7 @@ const twilio = require('twilio');
 const { getSupabase } = require('./_lib/supabase');
 const { requireAuth, cors } = require('./_lib/auth');
 
-const BRAND = { name: 'Vyrrah Recover', from: 'Vyrrah Labs' }; // single place to rename later
+const BRAND = { name: 'Vyrrah Recaller', from: 'Vyrrah Labs' }; // single place to rename later
 
 const VOICE_URL = 'https://vyrrahlabs.com/api/tool/voice';
 const SMS_URL = 'https://vyrrahlabs.com/api/tool/sms';
