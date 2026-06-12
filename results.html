@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Results | Vyrrah Labs</title>
+<meta name="description" content="Real client numbers, published as they land. Calls missed, calls recovered, dollars saved. No fabricated case studies.">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,300;1,9..144,700;1,9..144,900&family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070707;--bg2:#0f0f0f;--bg3:#161616;--white:#f2ede4;--red:#c8251e;--red2:#e03030;
+  --gold:#f0a500;--gold2:#f5c030;--border:rgba(242,237,228,.07);--border2:rgba(242,237,228,.13);
+  --gray:#666;--mid:#999;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--white);font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+::selection{background:var(--gold);color:var(--bg)}
+a{color:inherit}
+button{font-family:inherit;cursor:pointer}
+#grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:97;opacity:.05;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");animation:grain 7s steps(8) infinite}
+@keyframes grain{0%,100%{transform:translate(0,0)}25%{transform:translate(-3%,2%)}50%{transform:translate(2%,-3%)}75%{transform:translate(-2%,-2%)}}
+.glow{position:absolute;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:18px 52px;background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
+.nlt{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--white);letter-spacing:-.5px;text-decoration:none}
+.nlt span{color:var(--gold)}
+.nlinks{display:flex;gap:30px;align-items:center}
+.nlinks a{font-size:13px;color:var(--mid);text-decoration:none;transition:color .2s}
+.nlinks a:not(.ncta):hover{color:var(--white)}
+.ncta{background:var(--red);color:#fff!important;font-size:13px;font-weight:600;padding:10px 22px;text-decoration:none;transition:background .2s,transform .2s}
+.ncta:hover{background:var(--red2);transform:translateY(-1px)}
+@media(max-width:920px){.nlinks a:not(.ncta){display:none}}
+@media(max-width:720px){nav{padding:14px 20px}}
+.btnr{background:var(--red);color:#fff;font-size:15px;font-weight:600;padding:17px 36px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;transition:background .2s,transform .2s,box-shadow .25s;border:none}
+.btnr:hover{background:var(--red2);transform:translateY(-2px);box-shadow:0 14px 40px rgba(200,37,30,.3)}
+.btnr .arr{transition:transform .25s}
+.btnr:hover .arr{transform:translateX(4px)}
+[data-reveal]{opacity:0}
+.no-motion [data-reveal]{opacity:1}
+.ey{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:12px;font-weight:500;color:var(--gold)}
+.ey::before{content:'';width:28px;height:1px;background:currentColor}
+.head{padding:190px 52px 80px;position:relative;overflow:hidden}
+.head .glow.a{width:520px;height:520px;background:rgba(240,165,0,.07);top:-200px;right:-120px}
+.head h1{font-family:'Fraunces',serif;font-size:clamp(40px,6vw,84px);font-weight:900;line-height:1.02;letter-spacing:-2px;margin-bottom:26px;max-width:900px;position:relative;z-index:2}
+.head h1 em{font-style:italic;color:var(--gold)}
+.head p{font-size:17px;color:var(--mid);max-width:640px;line-height:1.75;position:relative;z-index:2}
+.head p b{color:var(--white);font-weight:500}
+.rule{font-size:13px;color:var(--gray);border:1px solid var(--border2);display:inline-flex;align-items:center;gap:10px;padding:10px 18px;margin-top:30px;position:relative;z-index:2}
+.rule i{font-style:normal;color:var(--gold)}
+.slots{padding:40px 52px 130px;max-width:1240px;margin:0 auto}
+.slot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.slot{border:1px dashed rgba(242,237,228,.18);padding:38px 34px;position:relative;transition:border-color .3s,transform .3s;background:var(--bg)}
+.slot:hover{border-color:rgba(240,165,0,.45);transform:translateY(-4px)}
+.slot .co-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.slot .status{font-family:'Fraunces',serif;font-size:24px;font-weight:900;margin-bottom:26px}
+.slot .status em{font-style:italic;color:var(--gray)}
+.slot-rows{display:flex;flex-direction:column}
+.slot-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--border);font-size:14px}
+.slot-row:last-child{border-bottom:none}
+.slot-row span{color:var(--gray)}
+.slot-row b{color:var(--gray);font-family:'Syne',sans-serif;font-size:16px;letter-spacing:3px}
+.slot .note{font-size:12.5px;color:var(--gray);line-height:1.65;margin-top:24px}
+.slot.you{border-style:solid;border-color:rgba(240,165,0,.4);background:#120d02}
+.slot.you .status{color:var(--gold)}
+.slot.you .note{color:var(--mid)}
+.slot.you .btnr{margin-top:24px;width:100%;justify-content:center}
+.how{padding:0 52px 130px;max-width:1240px;margin:0 auto}
+.how-box{border:1px solid var(--border);background:var(--bg2);padding:54px;display:grid;grid-template-columns:1.2fr .8fr;gap:60px;align-items:center}
+.how-box h2{font-family:'Fraunces',serif;font-size:clamp(26px,3vw,40px);font-weight:900;line-height:1.1;margin-bottom:18px}
+.how-box h2 em{font-style:italic;color:var(--gold)}
+.how-box p{font-size:15px;color:var(--mid);line-height:1.8;max-width:560px}
+.how-box p b{color:var(--white);font-weight:500}
+.metric-list{display:flex;flex-direction:column}
+.metric{display:flex;align-items:center;gap:16px;padding:16px 0;border-bottom:1px solid var(--border);font-size:14.5px;color:var(--mid)}
+.metric:last-child{border-bottom:none}
+.metric .sq{width:10px;height:10px;background:var(--gold);flex-shrink:0}
+.metric .sq.r{background:var(--red2)}
+.metric b{color:var(--white);font-weight:500}
+footer{padding:54px 52px;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;border-top:1px solid var(--border)}
+footer .fl{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:-.5px}
+footer .fl span{color:var(--gold)}
+footer p{font-size:12.5px;color:var(--gray)}
+footer .flinks{display:flex;gap:24px}
+footer .flinks a{font-size:12.5px;color:var(--gray);text-decoration:none;transition:color .2s}
+footer .flinks a:hover{color:var(--gold)}
+@media(max-width:980px){
+  .head{padding:150px 20px 60px}
+  .slots{padding:30px 20px 90px}
+  .slot-grid{grid-template-columns:1fr}
+  .how{padding:0 20px 90px}
+  .how-box{grid-template-columns:1fr;padding:34px 26px;gap:40px}
+}
+@media(max-width:720px){footer{padding:44px 20px;flex-direction:column;text-align:center}}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  [data-reveal]{opacity:1!important;transform:none!important}
+}
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<nav>
+  <a class="nlt" href="/">Vyrrah<span>.</span>Labs</a>
+  <div class="nlinks">
+    <a href="/#calculator">Calculator</a>
+    <a href="/#leak">Leak finder</a>
+    <a href="/#gap">Growth gap</a>
+    <a href="/#pricing">Pricing</a>
+    <a class="ncta" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book 30 minutes</a>
+  </div>
+</nav>
+
+<header class="head">
+  <div class="glow a"></div>
+  <div class="ey" data-reveal>Results · published as they land</div>
+  <h1 data-reveal>No fake testimonials. <em>Real numbers or nothing.</em></h1>
+  <p data-reveal>Every agency site you've ever seen has a wall of glowing quotes from people who may or may not exist. This page works differently. As founding clients complete their first month, their numbers get published here: <b>calls missed, calls recovered, dollars saved.</b> Anonymized, verified, real.</p>
+  <div class="rule" data-reveal><i>◆</i> House rule: if it's not a real client's real data, it doesn't go on this page.</div>
+</header>
+
+<section class="slots">
+  <div class="slot-grid">
+    <div class="slot" data-reveal>
+      <div class="co-label">Founding client · Slot 01</div>
+      <div class="status"><em>Reserved</em></div>
+      <div class="slot-rows">
+        <div class="slot-row"><span>Industry</span><b>···</b></div>
+        <div class="slot-row"><span>Trial period</span><b>···</b></div>
+        <div class="slot-row"><span>Calls missed</span><b>···</b></div>
+        <div class="slot-row"><span>Calls recovered</span><b>···</b></div>
+        <div class="slot-row"><span>Revenue saved</span><b>···</b></div>
+      </div>
+      <p class="note">First month numbers publish here when the engagement completes.</p>
+    </div>
+    <div class="slot" data-reveal>
+      <div class="co-label">Founding client · Slot 02</div>
+      <div class="status"><em>Reserved</em></div>
+      <div class="slot-rows">
+        <div class="slot-row"><span>Industry</span><b>···</b></div>
+        <div class="slot-row"><span>Trial period</span><b>···</b></div>
+        <div class="slot-row"><span>Calls missed</span><b>···</b></div>
+        <div class="slot-row"><span>Calls recovered</span><b>···</b></div>
+        <div class="slot-row"><span>Revenue saved</span><b>···</b></div>
+      </div>
+      <p class="note">First month numbers publish here when the engagement completes.</p>
+    </div>
+    <div class="slot you" data-reveal>
+      <div class="co-label">Founding client · Slot 03</div>
+      <div class="status">This one's open.</div>
+      <div class="slot-rows">
+        <div class="slot-row"><span>Industry</span><b>YOURS</b></div>
+        <div class="slot-row"><span>Trial period</span><b>1 WEEK, FREE</b></div>
+        <div class="slot-row"><span>Calls missed</span><b>?</b></div>
+        <div class="slot-row"><span>Calls recovered</span><b>?</b></div>
+        <div class="slot-row"><span>Revenue saved</span><b>?</b></div>
+      </div>
+      <p class="note">The free week fills in the question marks with your real data. Keep the numbers whether we work together or not.</p>
+      <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Claim this slot <span class="arr">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="how">
+  <div class="how-box" data-reveal>
+    <div>
+      <h2>What gets measured <em>here.</em></h2>
+      <p>Every engagement tracks the same three numbers, pulled straight from the missed call recovery system, not from anyone's memory. When a founding client's first month closes, the numbers go up. <b>If they're bad, they still go up.</b> That's the deal that keeps me honest.</p>
+    </div>
+    <div class="metric-list">
+      <div class="metric"><span class="sq r"></span><div><b>Calls missed.</b> Every call that rang out, after hours or mid rush.</div></div>
+      <div class="metric"><span class="sq"></span><div><b>Calls recovered.</b> Missed callers who answered the 60 second text back.</div></div>
+      <div class="metric"><span class="sq"></span><div><b>Dollars saved.</b> Booked jobs that would have walked, valued at the client's own average.</div></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div>
+    <div class="fl">Vyrrah<span>.</span>Labs</div>
+    <p>Godwin Rayen · UCLA Stats '19 · Ex VC · Ex Taboola R&amp;D</p>
+  </div>
+  <div class="flinks">
+    <a href="/">Home</a>
+    <a href="https://www.linkedin.com/in/godwinrayen/" target="_blank" rel="noopener">LinkedIn</a>
+    <a href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book a call</a>
+  </div>
+  <p>© 2026 Vyrrah Labs</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"></script>
+<script>
+(function(){
+"use strict";
+var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var hasMotion = typeof Motion !== 'undefined' && !reduceMotion;
+if(!hasMotion){
+  document.documentElement.classList.add('no-motion');
+  document.querySelectorAll('[data-reveal]').forEach(function(el){ el.style.opacity = 1; });
+  return;
+}
+document.querySelectorAll('[data-reveal]').forEach(function(el){
+  Motion.inView(el, function(){
+    Motion.animate(el, {opacity:[0,1], y:[26,0]}, {duration:.75, easing:[.22,1,.36,1]});
+  }, {margin:'0px 0px -8% 0px'});
+});
+})();
+</script>
+</body>
+</html>
