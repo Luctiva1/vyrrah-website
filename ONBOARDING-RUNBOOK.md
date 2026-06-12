@@ -1,4 +1,4 @@
-# Front Desk AI — 15-Minute Client Onboarding Runbook
+# Vyrrah Recover — 15-Minute Client Onboarding Runbook
 
 Godwin's script for onboarding a practice live on a call (or async via link). Target: under 15 minutes from "yes" to live.
 
@@ -78,4 +78,4 @@ curl -X POST https://vyrrahlabs.com/api/tool/clients/provision \
 (`area_code` optional; response includes the new `twilio_number` and forwarding instructions.)
 
 ---
-Front Desk AI · a Vyrrah Labs product · godwin@vyrrahlabs.com
+Vyrrah Recover · a Vyrrah Labs product · godwin@vyrrahlabs.com

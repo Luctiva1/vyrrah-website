@@ -1,4 +1,4 @@
-// Front Desk AI — missed-call recovery engine for local practices
+// Vyrrah Recover — missed-call recovery engine for local practices
 // All routes under /api/tool/... (see vercel.json: tool route ABOVE index catch-all)
 
 const crypto = require('crypto');
@@ -6,7 +6,7 @@ const twilio = require('twilio');
 const { getSupabase } = require('./_lib/supabase');
 const { requireAuth, cors } = require('./_lib/auth');
 
-const BRAND = { name: 'Front Desk AI', from: 'Vyrrah Labs' }; // single place to rename later
+const BRAND = { name: 'Vyrrah Recover', from: 'Vyrrah Labs' }; // single place to rename later
 
 const VOICE_URL = 'https://vyrrahlabs.com/api/tool/voice';
 const SMS_URL = 'https://vyrrahlabs.com/api/tool/sms';
@@ -75,42 +75,55 @@ async function sendEmail({ to, toName, subject, body }) {
   return { status: r.status };
 }
 
-// AI message generation — falls back to templates when OPENAI_API_KEY is absent
+// AI message generation — Anthropic (Claude) preferred, OpenAI fallback, templates if neither
+function aiAvailable() {
+  return !!(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY);
+}
 async function generateAiMessage({ client, history = [], purpose, fallback }) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return fallback;
+  if (!aiAvailable()) return fallback;
+  const system =
+    `You are the friendly front-desk assistant for ${client.practice_name}, a local practice. ` +
+    `Services: ${client.services || 'general services'}. ` +
+    `Business hours: ${client.business_hours || 'standard business hours'}. ` +
+    (client.booking_link ? `Booking link: ${client.booking_link}. ` : '') +
+    `Write as the practice itself in a warm, human tone. ${purpose} ` +
+    `Keep it to 1-2 short sentences suitable for SMS. No emojis, no sign-offs.`;
+
+  const turns = [];
+  for (const m of history) {
+    turns.push({ role: m.direction === 'inbound' ? 'user' : 'assistant', content: m.body || '' });
+  }
+  if (!turns.length || turns[turns.length - 1].role !== 'user') {
+    turns.push({ role: 'user', content: 'Write the SMS now.' });
+  }
+
   try {
-    const system =
-      `You are the friendly front-desk assistant for ${client.practice_name}, a local practice. ` +
-      `Services: ${client.services || 'general services'}. ` +
-      `Business hours: ${client.business_hours || 'standard business hours'}. ` +
-      (client.booking_link ? `Booking link: ${client.booking_link}. ` : '') +
-      `Write as the practice itself in a warm, human tone. ${purpose} ` +
-      `Keep it to 1-2 short sentences suitable for SMS. No emojis, no sign-offs.`;
-
-    const messages = [{ role: 'system', content: system }];
-    for (const m of history) {
-      messages.push({
-        role: m.direction === 'inbound' ? 'user' : 'assistant',
-        content: m.body || ''
+    if (process.env.ANTHROPIC_API_KEY) {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 100, system, messages: turns })
       });
+      if (!r.ok) { console.error('Anthropic error', r.status, await r.text()); return fallback; }
+      const data = await r.json();
+      const text = (data?.content || []).map(b => b.text || '').join('').trim();
+      return text || fallback;
     }
-    if (messages.length === 1) messages.push({ role: 'user', content: 'Write the SMS now.' });
-
+    // OpenAI fallback
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 100, messages })
+      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 100, messages: [{ role: 'system', content: system }, ...turns] })
     });
-    if (!r.ok) {
-      console.error('OpenAI error', r.status, await r.text());
-      return fallback;
-    }
+    if (!r.ok) { console.error('OpenAI error', r.status, await r.text()); return fallback; }
     const data = await r.json();
-    const text = data?.choices?.[0]?.message?.content?.trim();
-    return text || fallback;
+    return data?.choices?.[0]?.message?.content?.trim() || fallback;
   } catch (err) {
-    console.error('OpenAI call failed:', err);
+    console.error('AI call failed:', err);
     return fallback;
   }
 }
@@ -429,7 +442,7 @@ async function handleVoiceStatus(req, res) {
           caller_phone: caller,
           direction: 'outbound',
           body,
-          ai_generated: !!process.env.OPENAI_API_KEY,
+          ai_generated: aiAvailable(),
           twilio_sid: msg.sid
         });
         if (callRow) {
@@ -553,7 +566,7 @@ async function handleSms(req, res) {
         caller_phone: caller,
         direction: 'outbound',
         body: reply,
-        ai_generated: !!process.env.OPENAI_API_KEY,
+        ai_generated: aiAvailable(),
         twilio_sid: msg.sid
       });
     } catch (sendErr) {
