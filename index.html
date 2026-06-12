@@ -13,7 +13,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,300;1,9..144,700;1,9..144,900&family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script>document.documentElement.classList.add('js');</script>
 <style>
+@property --ang{syntax:'<angle>';initial-value:0deg;inherits:false}
 :root{
   --bg:#070707;
   --bg2:#0f0f0f;
@@ -27,6 +29,7 @@
   --border2:rgba(242,237,228,.13);
   --gray:#666;
   --mid:#999;
+  --ease:cubic-bezier(.22,1,.36,1);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -40,12 +43,32 @@ button{font-family:inherit;cursor:pointer}
 /* ATMOSPHERE */
 #grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:97;opacity:.05;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");animation:grain 7s steps(8) infinite}
 @keyframes grain{0%,100%{transform:translate(0,0)}25%{transform:translate(-3%,2%)}50%{transform:translate(2%,-3%)}75%{transform:translate(-2%,-2%)}}
-#scroll-bar{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--red),var(--gold));z-index:200;width:0%;pointer-events:none}
+#scroll-bar{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--red),var(--gold));z-index:300;width:0%;pointer-events:none}
 .glow{position:absolute;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0}
 
+/* PRELOADER */
+#loader{position:fixed;inset:0;background:var(--bg);z-index:500;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:transform .7s var(--ease)}
+.js #loader{display:flex}
+#loader.gone{transform:translateY(-100%)}
+#loader .mark{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;letter-spacing:4px;color:var(--white)}
+#loader .mark span{color:var(--gold)}
+#loader .pct{font-family:'Fraunces',serif;font-size:clamp(70px,12vw,140px);font-weight:900;font-style:italic;line-height:1;color:var(--white);font-variant-numeric:tabular-nums}
+#loader .bar{width:min(280px,60vw);height:1px;background:var(--border2);position:relative;overflow:hidden}
+#loader .bar i{position:absolute;inset:0;background:linear-gradient(90deg,var(--red),var(--gold));transform:scaleX(0);transform-origin:left}
+#loader .tag{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gray)}
+
+/* CUSTOM CURSOR */
+#cur-dot,#cur-ring{position:fixed;top:0;left:0;pointer-events:none;z-index:400;border-radius:50%;display:none}
+@media(pointer:fine){
+  .js #cur-dot{display:block;width:6px;height:6px;background:var(--gold);transform:translate(-50%,-50%)}
+  .js #cur-ring{display:block;width:34px;height:34px;border:1px solid rgba(240,165,0,.5);transform:translate(-50%,-50%);transition:width .25s,height .25s,border-color .25s,background .25s}
+  .js #cur-ring.hot{width:58px;height:58px;border-color:rgba(240,165,0,.9);background:rgba(240,165,0,.08)}
+}
+
 /* NAV */
-nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:18px 52px;transition:background .35s,border-color .35s,padding .35s;border-bottom:1px solid transparent}
+nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:18px 52px;transition:background .35s,border-color .35s,padding .35s,transform .45s var(--ease);border-bottom:1px solid transparent}
 nav.scrolled{background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom-color:var(--border);padding:13px 52px}
+nav.hidden{transform:translateY(-110%)}
 .nlt{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--white);letter-spacing:-.5px;text-decoration:none}
 .nlt span{color:var(--gold)}
 .nlinks{display:flex;gap:30px;align-items:center}
@@ -59,16 +82,25 @@ nav.scrolled{background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backd
 @media(max-width:720px){nav,nav.scrolled{padding-left:20px;padding-right:20px}}
 
 /* BUTTONS */
-.btnr{background:var(--red);color:#fff;font-size:15px;font-weight:600;padding:17px 36px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;transition:background .2s,transform .2s,box-shadow .25s;border:none;position:relative;overflow:hidden}
-.btnr:hover{background:var(--red2);transform:translateY(-2px);box-shadow:0 14px 40px rgba(200,37,30,.3)}
+.btnr{background:var(--red);color:#fff;font-size:15px;font-weight:600;padding:17px 36px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;border:none;position:relative;overflow:hidden;transition:transform .25s var(--ease),box-shadow .25s;will-change:transform}
+.btnr>*{position:relative;z-index:2}
+.btnr::before{content:'';position:absolute;inset:0;background:var(--red2);transform:translateX(-101%);transition:transform .35s var(--ease);z-index:1}
+.btnr:hover::before{transform:translateX(0)}
+.btnr:hover{box-shadow:0 14px 40px rgba(200,37,30,.35)}
 .btnr .arr{transition:transform .25s}
 .btnr:hover .arr{transform:translateX(4px)}
-.btng{background:transparent;color:var(--white);font-size:15px;font-weight:500;padding:16px 30px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;border:1px solid var(--border2);transition:border-color .2s,color .2s,transform .2s}
-.btng:hover{border-color:var(--gold);color:var(--gold);transform:translateY(-2px)}
+.btng{background:transparent;color:var(--white);font-size:15px;font-weight:500;padding:16px 30px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;border:1px solid var(--border2);transition:border-color .2s,color .2s,transform .25s var(--ease);will-change:transform}
+.btng:hover{border-color:var(--gold);color:var(--gold)}
 
-/* REVEAL DEFAULTS */
-[data-reveal]{opacity:0}
-.no-motion [data-reveal]{opacity:1}
+/* REVEALS */
+.js [data-reveal]{opacity:0;transform:translateY(28px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+.js [data-reveal].in{opacity:1;transform:translateY(0)}
+.js [data-reveal][data-d="1"]{transition-delay:.08s}
+.js [data-reveal][data-d="2"]{transition-delay:.16s}
+.js [data-reveal][data-d="3"]{transition-delay:.24s}
+.lmask{display:block;overflow:hidden}
+.lmask>span{display:block;transform:translateY(115%);transition:transform 1s var(--ease)}
+.js .in .lmask>span,.js .lmask.in>span{transform:translateY(0)}
 
 /* EYEBROW + HEADINGS */
 .ey{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:12px;font-weight:500}
@@ -82,23 +114,39 @@ nav.scrolled{background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backd
 .sb strong{color:var(--white);font-weight:500}
 
 /* HERO */
-.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;position:relative;padding:140px 52px 60px;overflow:hidden}
-.hero .glow.a{width:560px;height:560px;background:rgba(200,37,30,.13);top:-180px;right:-120px}
-.hero .glow.b{width:480px;height:480px;background:rgba(240,165,0,.07);bottom:-160px;left:-140px}
-.hero-ghost{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(300px,40vw,640px);color:rgba(242,237,228,.016);letter-spacing:-20px;pointer-events:none;user-select:none;line-height:1;z-index:0;white-space:nowrap}
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;position:relative;padding:150px 52px 60px;overflow:hidden}
+.hero .glow.a{width:560px;height:560px;background:rgba(200,37,30,.14);top:-180px;right:-120px;will-change:transform}
+.hero .glow.b{width:480px;height:480px;background:rgba(240,165,0,.08);bottom:-160px;left:-140px;will-change:transform}
+.hero-ghost{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(300px,40vw,640px);color:rgba(242,237,228,.018);letter-spacing:-20px;pointer-events:none;user-select:none;line-height:1;z-index:0;white-space:nowrap;will-change:transform}
 .hero-grid{position:relative;z-index:2;display:grid;grid-template-columns:1.35fr .9fr;gap:70px;align-items:center;max-width:1240px;margin:0 auto;width:100%}
-.htag{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);margin-bottom:22px;display:flex;align-items:center;gap:12px}
+.htag{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);margin-bottom:26px;display:flex;align-items:center;gap:12px}
 .htag::before{content:'';width:28px;height:1px;background:var(--gold)}
-.hero h1{font-family:'Fraunces',serif;font-size:clamp(44px,5.6vw,86px);font-weight:900;line-height:1;letter-spacing:-2px;margin-bottom:30px}
+.hero h1{font-family:'Fraunces',serif;font-size:clamp(42px,5.2vw,82px);font-weight:900;line-height:1.02;letter-spacing:-2px;margin-bottom:30px}
+.hero h1 .hl{display:block;overflow:hidden;padding-bottom:.08em;margin-bottom:-.08em}
+.hero h1 .hl>span{display:block;transform:translateY(115%)}
+html.loaded .hero h1 .hl>span{animation:lineup 1s var(--ease) forwards}
+.hero h1 .hl:nth-child(1)>span{animation-delay:.15s}
+.hero h1 .hl:nth-child(2)>span{animation-delay:.3s}
+.hero h1 .hl:nth-child(3)>span{animation-delay:.45s}
+@keyframes lineup{to{transform:translateY(0)}}
 .hero h1 .r{color:var(--red2)}
 .hero h1 .g{font-style:italic;color:var(--gold)}
-.hsub{font-size:17px;color:var(--mid);max-width:560px;line-height:1.75;margin-bottom:38px}
+.hero h1 .dim{color:var(--mid)}
+.hero .fade{opacity:0;transform:translateY(20px);transition:opacity .9s var(--ease),transform .9s var(--ease)}
+html.loaded .hero .fade{opacity:1;transform:translateY(0)}
+html.loaded .hero .fade.f1{transition-delay:.1s}
+html.loaded .hero .fade.f2{transition-delay:.55s}
+html.loaded .hero .fade.f3{transition-delay:.7s}
+html.loaded .hero .fade.f4{transition-delay:.85s}
+.hsub{font-size:17px;color:var(--mid);max-width:560px;line-height:1.75;margin-bottom:34px}
 .hsub strong{color:var(--white);font-weight:500}
 .hbtns{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.hmicro{margin-top:18px;font-size:12.5px;color:var(--gray);letter-spacing:.3px}
+.hmicro b{color:var(--gold);font-weight:500}
 .hstats{position:relative;z-index:2;max-width:1240px;margin:80px auto 0;width:100%;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border)}
 .hstat{padding:28px 24px 6px;border-left:1px solid var(--border)}
 .hstat:first-child{border-left:none;padding-left:0}
-.sn{font-family:'Syne',sans-serif;font-size:40px;font-weight:800;color:var(--white);line-height:1;letter-spacing:-1px;display:block;margin-bottom:8px}
+.sn{font-family:'Syne',sans-serif;font-size:40px;font-weight:800;color:var(--white);line-height:1;letter-spacing:-1px;display:block;margin-bottom:8px;font-variant-numeric:tabular-nums}
 .sn .u{color:var(--gold);font-size:16px;vertical-align:super}
 .sl{font-size:12px;color:var(--gray);letter-spacing:.5px;text-transform:uppercase}
 
@@ -108,7 +156,7 @@ nav.scrolled{background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backd
 .ticker-label .dot{width:6px;height:6px;border-radius:50%;background:var(--red2);animation:blink 1.6s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 .ticker{display:flex;flex-direction:column;gap:12px;position:relative}
-.tk{background:var(--bg2);border:1px solid var(--border);padding:18px 20px;display:flex;align-items:center;gap:14px;transition:opacity .5s,transform .5s}
+.tk{background:rgba(15,15,15,.72);backdrop-filter:blur(8px);border:1px solid var(--border);padding:18px 20px;display:flex;align-items:center;gap:14px;transition:opacity .5s,transform .5s}
 .tk .ic{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
 .tk .ic svg{width:17px;height:17px}
 .tk.call .ic{background:rgba(242,237,228,.06);color:var(--white)}
@@ -120,7 +168,7 @@ nav.scrolled{background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backd
 .tk .when{margin-left:auto;font-size:11px;color:var(--gray);white-space:nowrap}
 .tk.dim{opacity:.28}
 @media(max-width:980px){
-  .hero{padding:120px 20px 50px}
+  .hero{padding:130px 20px 50px}
   .hero-grid{grid-template-columns:1fr;gap:54px}
   .hstats{grid-template-columns:repeat(2,1fr);margin-top:60px}
   .hstat{padding:22px 0 6px 18px}
@@ -129,32 +177,43 @@ nav.scrolled{background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backd
 
 /* MARQUEE */
 .marq{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:18px 0;overflow:hidden;background:var(--bg2);position:relative}
-.marq-track{display:flex;gap:56px;width:max-content;animation:marq 36s linear infinite}
+.marq-track{display:flex;gap:56px;width:max-content;animation:marq 36s linear infinite;will-change:transform}
 .marq span{font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gray);white-space:nowrap;display:flex;align-items:center;gap:56px}
 .marq span i{font-style:normal;color:var(--gold);font-size:9px}
 @keyframes marq{to{transform:translateX(-50%)}}
 
-/* STORY */
-.story{padding:130px 52px;position:relative;overflow:hidden}
+/* STORY: STICKY STACK */
+.story{padding:130px 52px 90px;position:relative;overflow:visible}
 .story .glow.a{width:500px;height:500px;background:rgba(200,37,30,.06);top:10%;left:-200px}
-.beats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-top:64px}
-.beat{background:var(--bg);padding:44px 36px;position:relative;transition:background .3s}
-.beat:hover{background:var(--bg2)}
-.beat .num{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;color:var(--gold);margin-bottom:22px}
-.beat h3{font-family:'Fraunces',serif;font-size:25px;font-weight:700;line-height:1.2;margin-bottom:14px}
-.beat p{font-size:14.5px;color:var(--mid);line-height:1.7}
+.stack{margin-top:70px;display:flex;flex-direction:column;gap:24px}
+.beat{position:sticky;background:var(--bg2);border:1px solid var(--border2);padding:52px 48px;display:grid;grid-template-columns:auto 1fr auto;gap:40px;align-items:center;box-shadow:0 -20px 60px rgba(0,0,0,.55);will-change:transform}
+.beat:nth-child(1){top:110px}
+.beat:nth-child(2){top:134px}
+.beat:nth-child(3){top:158px}
+.beat .num{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;color:var(--gold);writing-mode:vertical-rl;transform:rotate(180deg)}
+.beat h3{font-family:'Fraunces',serif;font-size:clamp(24px,2.6vw,38px);font-weight:900;line-height:1.15;margin-bottom:14px}
+.beat h3 em{font-style:italic;color:var(--red2)}
+.beat p{font-size:15px;color:var(--mid);line-height:1.7;max-width:560px}
 .beat p b{color:var(--white);font-weight:500}
-.beat .big-bg{position:absolute;bottom:-26px;right:-6px;font-family:'Syne',sans-serif;font-size:130px;font-weight:800;color:rgba(242,237,228,.025);line-height:1;pointer-events:none;letter-spacing:-6px}
-.beat.last h3 em{font-style:italic;color:var(--red2)}
-@media(max-width:980px){.story{padding:90px 20px}.beats{grid-template-columns:1fr}}
+.beat .big-bg{font-family:'Syne',sans-serif;font-size:clamp(90px,10vw,160px);font-weight:800;color:rgba(242,237,228,.04);line-height:1;letter-spacing:-8px;user-select:none}
+.beat.last{background:#140503;border-color:rgba(200,37,30,.3)}
+@media(max-width:980px){
+  .story{padding:90px 20px 70px}
+  .beat{grid-template-columns:1fr;gap:18px;padding:34px 26px}
+  .beat .num{writing-mode:horizontal-tb;transform:none}
+  .beat .big-bg{display:none}
+  .beat:nth-child(1){top:90px}.beat:nth-child(2){top:106px}.beat:nth-child(3){top:122px}
+}
 
 /* TOOL SECTIONS SHARED */
 .toolsec{padding:130px 52px;position:relative;overflow:hidden}
 .toolsec.alt{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-.tool-ghost{position:absolute;top:34px;right:30px;font-family:'Syne',sans-serif;font-size:clamp(120px,16vw,230px);font-weight:800;color:rgba(242,237,228,.022);line-height:1;letter-spacing:-10px;pointer-events:none;user-select:none}
+.tool-ghost{position:absolute;top:34px;right:30px;font-family:'Syne',sans-serif;font-size:clamp(120px,16vw,230px);font-weight:800;color:rgba(242,237,228,.022);line-height:1;letter-spacing:-10px;pointer-events:none;user-select:none;will-change:transform}
 .tool-head{max-width:760px;position:relative;z-index:2}
-.app{margin-top:56px;background:var(--bg3);border:1px solid var(--border2);position:relative;z-index:2;box-shadow:0 40px 90px rgba(0,0,0,.5)}
+.app{margin-top:56px;background:var(--bg3);border:1px solid var(--border2);position:relative;z-index:2;box-shadow:0 40px 90px rgba(0,0,0,.5);transform-style:preserve-3d;will-change:transform}
 .toolsec.alt .app{background:var(--bg)}
+.app .glare{position:absolute;inset:0;pointer-events:none;z-index:5;opacity:0;transition:opacity .3s;background:radial-gradient(600px circle at var(--gx,50%) var(--gy,50%),rgba(242,237,228,.05),transparent 45%)}
+.app:hover .glare{opacity:1}
 .app-bar{display:flex;align-items:center;gap:8px;padding:15px 22px;border-bottom:1px solid var(--border)}
 .app-bar .d{width:10px;height:10px;border-radius:50%;background:rgba(242,237,228,.1)}
 .app-bar .d.r{background:rgba(200,37,30,.55)}
@@ -195,6 +254,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .step .n{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--gold);padding-top:3px;letter-spacing:1px;flex-shrink:0}
 .step h4{font-family:'Fraunces',serif;font-size:20px;font-weight:700;margin-bottom:6px}
 .step p{font-size:14.5px;color:var(--mid);line-height:1.65}
+.step p b{color:var(--white);font-weight:500}
 .phone-col{display:flex;flex-direction:column;gap:26px;align-items:center}
 .phone{width:330px;max-width:100%;background:#0a0a0a;border:1px solid var(--border2);border-radius:38px;padding:14px;box-shadow:0 50px 100px rgba(0,0,0,.6),0 0 0 1px rgba(0,0,0,.8);position:relative}
 .phone::before{content:'';position:absolute;top:24px;left:50%;transform:translateX(-50%);width:86px;height:24px;background:#000;border-radius:14px;z-index:3}
@@ -215,7 +275,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .typing i:nth-child(2){animation-delay:.15s}
 .typing i:nth-child(3){animation-delay:.3s}
 @keyframes typ{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
-/* SAMPLE REPORT */
 .report{width:100%;max-width:440px;background:var(--bg3);border:1px solid var(--border2);position:relative}
 .toolsec.alt .report{background:var(--bg)}
 .rep-head{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;border-bottom:1px solid var(--border)}
@@ -287,7 +346,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .gr-ring{width:120px;height:120px;flex-shrink:0;position:relative}
 .gr-ring svg{transform:rotate(-90deg)}
 .gr-ring .track{fill:none;stroke:rgba(242,237,228,.08);stroke-width:7}
-.gr-ring .bar{fill:none;stroke:var(--gold);stroke-width:7;stroke-linecap:butt;stroke-dasharray:339.3;stroke-dashoffset:339.3;transition:stroke-dashoffset .9s cubic-bezier(.22,1,.36,1),stroke .4s}
+.gr-ring .bar{fill:none;stroke:var(--gold);stroke-width:7;stroke-linecap:butt;stroke-dasharray:339.3;stroke-dashoffset:339.3;transition:stroke-dashoffset .9s var(--ease),stroke .4s}
 .gr-ring b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:34px;font-weight:800;letter-spacing:-1px}
 .gr-score-txt b{font-family:'Fraunces',serif;font-size:24px;font-weight:900;display:block;line-height:1.2;margin-bottom:4px}
 .gr-score-txt span{font-size:13px;color:var(--mid)}
@@ -300,12 +359,20 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 @media(max-width:600px){.gq{flex-direction:column;align-items:flex-start;gap:14px}.tog{width:100%}}
 
 /* PRICING */
-.tiers-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-top:64px;position:relative;z-index:2}
+.scarcity{margin-top:50px;display:flex;align-items:center;gap:18px;border:1px solid rgba(240,165,0,.35);background:rgba(240,165,0,.05);padding:18px 24px;position:relative;z-index:2;max-width:760px}
+.scarcity .pulse{width:9px;height:9px;border-radius:50%;background:var(--gold);flex-shrink:0;animation:blink 1.6s infinite}
+.scarcity p{font-size:14.5px;color:var(--white);line-height:1.6}
+.scarcity p b{color:var(--gold);font-weight:600}
+.tiers-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-top:28px;position:relative;z-index:2}
 .tc{background:var(--bg);padding:46px 38px;position:relative;display:flex;flex-direction:column;transition:background .3s;min-width:0}
 .tc:hover{background:var(--bg3)}
-.tc.feat{background:#120d02}
+.tc.feat{background:#120d02;position:relative}
 .tc.feat:hover{background:#161003}
-.tc .tag{position:absolute;top:0;left:50%;transform:translateX(-50%);background:var(--gold);color:var(--bg);font-size:9px;font-weight:700;letter-spacing:2px;padding:5px 16px;text-transform:uppercase;white-space:nowrap}
+.tc.feat::after{content:'';position:absolute;inset:-1px;padding:1px;background:conic-gradient(from var(--ang),transparent 0%,var(--gold) 12%,transparent 26%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spin-border 5s linear infinite;pointer-events:none}
+@keyframes spin-border{to{--ang:360deg}}
+.tc .tag{position:absolute;top:0;left:50%;transform:translateX(-50%);background:var(--gold);color:var(--bg);font-size:9px;font-weight:700;letter-spacing:2px;padding:5px 16px;text-transform:uppercase;white-space:nowrap;z-index:2}
+.tc .slotline{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-top:14px;display:flex;align-items:center;gap:8px}
+.tc .slotline::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--gold);animation:blink 1.6s infinite}
 .tc .step-lab{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);margin-bottom:20px}
 .tc h3{font-family:'Fraunces',serif;font-size:26px;font-weight:900;margin-bottom:10px}
 .tprice{font-family:'Syne',sans-serif;font-size:46px;font-weight:800;letter-spacing:-2px;line-height:1;margin:18px 0 6px;color:var(--white)}
@@ -370,15 +437,22 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 @media(max-width:720px){.faq{padding:90px 20px}}
 
 /* FINAL CTA */
-.final{background:var(--red);padding:96px 52px;position:relative;overflow:hidden}
-.final::after{content:'VYRRAH';position:absolute;bottom:-60px;right:-20px;font-family:'Syne',sans-serif;font-size:240px;font-weight:800;color:rgba(255,255,255,.04);letter-spacing:-12px;pointer-events:none;line-height:1}
-.final .inner{position:relative;z-index:2;display:grid;grid-template-columns:1.4fr auto;gap:50px;align-items:center;max-width:1240px;margin:0 auto}
+.final{background:var(--red);padding:96px 0 0;position:relative;overflow:hidden}
+.final .inner{position:relative;z-index:2;display:grid;grid-template-columns:1.4fr auto;gap:50px;align-items:center;max-width:1240px;margin:0 auto;padding:0 52px 90px}
 .final h2{font-family:'Fraunces',serif;font-size:clamp(34px,4.5vw,62px);font-weight:900;color:#fff;line-height:1.05;letter-spacing:-1px}
 .final h2 em{font-style:italic}
-.final p{color:rgba(255,255,255,.75);font-size:16px;margin-top:18px;max-width:560px}
-.btnw{background:#fff;color:var(--red);font-size:15px;font-weight:700;padding:18px 40px;text-decoration:none;white-space:nowrap;transition:transform .2s,box-shadow .25s;display:inline-flex;align-items:center;gap:10px}
-.btnw:hover{transform:translateY(-3px);box-shadow:0 18px 50px rgba(0,0,0,.3)}
-@media(max-width:980px){.final{padding:80px 20px}.final .inner{grid-template-columns:1fr;gap:36px}}
+.final p{color:rgba(255,255,255,.78);font-size:16px;margin-top:18px;max-width:560px}
+.final p b{color:#fff;font-weight:600}
+.btnw{background:#fff;color:var(--red);font-size:15px;font-weight:700;padding:18px 40px;text-decoration:none;white-space:nowrap;transition:transform .25s var(--ease),box-shadow .25s;display:inline-flex;align-items:center;gap:10px;will-change:transform}
+.btnw:hover{box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.cta-marq{display:block;border-top:1px solid rgba(255,255,255,.25);padding:26px 0;overflow:hidden;text-decoration:none;background:transparent;transition:background .3s;position:relative;z-index:2}
+.cta-marq:hover{background:#fff}
+.cta-marq .track{display:flex;gap:0;width:max-content;animation:marq 18s linear infinite}
+.cta-marq span{font-family:'Syne',sans-serif;font-size:clamp(34px,5vw,64px);font-weight:800;letter-spacing:-2px;color:#fff;white-space:nowrap;padding-right:60px;transition:color .3s}
+.cta-marq span i{font-style:normal;color:rgba(255,255,255,.4);padding:0 26px}
+.cta-marq:hover span{color:var(--red)}
+.cta-marq:hover span i{color:rgba(200,37,30,.4)}
+@media(max-width:980px){.final{padding-top:80px}.final .inner{grid-template-columns:1fr;gap:36px;padding:0 20px 70px}}
 
 /* FOOTER */
 footer{padding:54px 52px;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;border-top:1px solid var(--border)}
@@ -390,10 +464,44 @@ footer .flinks a{font-size:12.5px;color:var(--gray);text-decoration:none;transit
 footer .flinks a:hover{color:var(--gold)}
 @media(max-width:720px){footer{padding:44px 20px;flex-direction:column;text-align:center}}
 
+/* STICKY CLAIM BAR */
+#claim{position:fixed;left:0;right:0;bottom:0;z-index:250;background:rgba(10,10,10,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid rgba(240,165,0,.35);display:flex;align-items:center;justify-content:center;gap:22px;padding:13px 52px;transform:translateY(110%);transition:transform .5s var(--ease)}
+#claim.show{transform:translateY(0)}
+#claim .pulse{width:8px;height:8px;border-radius:50%;background:var(--gold);animation:blink 1.6s infinite;flex-shrink:0}
+#claim p{font-size:13.5px;color:var(--white)}
+#claim p b{color:var(--gold);font-weight:600}
+#claim p span.sub{color:var(--gray);font-size:12.5px}
+#claim .btnr{padding:10px 22px;font-size:13px}
+#claim .x{background:none;border:none;color:var(--gray);font-size:20px;line-height:1;padding:4px 8px;transition:color .2s}
+#claim .x:hover{color:var(--white)}
+@media(max-width:780px){#claim{padding:11px 14px;gap:12px}#claim p span.sub{display:none}#claim p{font-size:12.5px}}
+
+/* EXIT MODAL */
+#exit{position:fixed;inset:0;z-index:450;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(7,7,7,.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#exit.show{display:flex}
+#exit .box{background:var(--bg2);border:1px solid var(--border2);max-width:560px;width:100%;padding:52px 48px;position:relative;overflow:hidden;animation:popin .45s var(--ease)}
+@keyframes popin{from{opacity:0;transform:translateY(26px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+#exit .box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--red),var(--gold))}
+#exit .box::after{content:'62%';position:absolute;bottom:-40px;right:-14px;font-family:'Syne',sans-serif;font-size:170px;font-weight:800;color:rgba(242,237,228,.025);letter-spacing:-8px;line-height:1;pointer-events:none}
+#exit .ey{color:var(--gold)}
+#exit h3{font-family:'Fraunces',serif;font-size:clamp(26px,4vw,36px);font-weight:900;line-height:1.12;margin-bottom:16px}
+#exit h3 em{font-style:italic;color:var(--red2)}
+#exit p{font-size:15px;color:var(--mid);line-height:1.75;margin-bottom:28px;position:relative;z-index:2}
+#exit p b{color:var(--white);font-weight:500}
+#exit .btnr{width:100%;justify-content:center;margin-bottom:14px}
+#exit .skip{display:block;width:100%;background:none;border:none;color:var(--gray);font-size:12.5px;text-align:center;text-decoration:underline;text-underline-offset:3px;transition:color .2s}
+#exit .skip:hover{color:var(--mid)}
+#exit .xx{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--gray);font-size:24px;line-height:1;z-index:3;transition:color .2s}
+#exit .xx:hover{color:var(--white)}
+@media(max-width:600px){#exit .box{padding:38px 26px}}
+
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
   html{scroll-behavior:auto}
-  [data-reveal]{opacity:1!important;transform:none!important}
+  .js [data-reveal]{opacity:1!important;transform:none!important}
+  .lmask>span,.hero h1 .hl>span{transform:none!important}
+  .hero .fade{opacity:1!important;transform:none!important}
+  #loader{display:none!important}
 }
 </style>
 </head>
@@ -401,6 +509,15 @@ footer .flinks a:hover{color:var(--gold)}
 
 <div id="scroll-bar"></div>
 <div id="grain"></div>
+<div id="cur-dot"></div>
+<div id="cur-ring"></div>
+
+<div id="loader" aria-hidden="true">
+  <div class="mark">VYRRAH<span>.</span>LABS</div>
+  <div class="pct" id="loader-pct">0</div>
+  <div class="bar"><i id="loader-bar"></i></div>
+  <div class="tag">Recovering revenue</div>
+</div>
 
 <nav id="nav">
   <a class="nlt" href="#top">Vyrrah<span>.</span>Labs</a>
@@ -416,29 +533,34 @@ footer .flinks a:hover{color:var(--gold)}
 
 <!-- HERO -->
 <header class="hero" id="top">
-  <div class="glow a"></div>
-  <div class="glow b"></div>
-  <div class="hero-ghost">62%</div>
+  <div class="glow a" data-px="30"></div>
+  <div class="glow b" data-px="-20"></div>
+  <div class="hero-ghost" data-px="14">62%</div>
   <div class="hero-grid">
     <div>
-      <div class="htag" data-reveal>Godwin Rayen · Fractional Head of Growth</div>
-      <h1 data-reveal>You <span class="r">miss 6 of every 10</span> calls. I get them back in <span class="g">60 seconds.</span></h1>
-      <p class="hsub" data-reveal>I'm Godwin. I grow local service businesses for a living. My AI texts every missed caller back from <strong>your number</strong>, holds the conversation, and books the job before they dial your competitor. <strong>Try it on your line, free, for one week.</strong></p>
-      <div class="hbtns" data-reveal>
-        <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Start the free week <span class="arr">→</span></a>
-        <a class="btng" href="#calculator">See what missed calls cost you</a>
+      <div class="htag fade f1">Godwin Rayen · Fractional Head of Growth</div>
+      <h1>
+        <span class="hl"><span>You miss <span class="r">6 of 10</span> calls.</span></span>
+        <span class="hl"><span><span class="dim">85% never call back.</span></span></span>
+        <span class="hl"><span>I fix it in <span class="g">60 seconds.</span></span></span>
+      </h1>
+      <p class="hsub fade f2">I'm Godwin. My AI catches every call your business misses, texts the caller back from <strong>your number</strong> inside 60 seconds, and books the job while your competitor's phone is still ringing. <strong>One week on your line, free.</strong> You keep the data either way.</p>
+      <div class="hbtns fade f3">
+        <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Start the free week <span class="arr">→</span></a>
+        <a class="btng" data-mag href="#calculator">What's it costing you?</a>
       </div>
+      <p class="hmicro fade f4">No card. 15 minute setup. Book today and your first report lands <b data-monday>Monday</b>.</p>
     </div>
-    <div class="ticker-shell" data-reveal>
+    <div class="ticker-shell fade f3">
       <div class="ticker-label"><span class="dot"></span> What the tool does · demo</div>
       <div class="ticker" id="ticker"></div>
     </div>
   </div>
   <div class="hstats">
     <div class="hstat" data-reveal><span class="sn"><span data-count="62">0</span><span class="u">%</span></span><span class="sl">of calls to local businesses go unanswered</span></div>
-    <div class="hstat" data-reveal><span class="sn"><span data-count="85">0</span><span class="u">%</span></span><span class="sl">of missed callers never call back</span></div>
-    <div class="hstat" data-reveal><span class="sn">$<span data-count="100">0</span>K<span class="u">+</span></span><span class="sl">lost yearly to missed calls and no-shows</span></div>
-    <div class="hstat" data-reveal><span class="sn"><span data-count="60">0</span><span class="u">s</span></span><span class="sl">until my AI texts your missed caller back</span></div>
+    <div class="hstat" data-reveal data-d="1"><span class="sn"><span data-count="85">0</span><span class="u">%</span></span><span class="sl">of missed callers never call back</span></div>
+    <div class="hstat" data-reveal data-d="2"><span class="sn">$<span data-count="100">0</span>K<span class="u">+</span></span><span class="sl">lost yearly to missed calls and no-shows</span></div>
+    <div class="hstat" data-reveal data-d="3"><span class="sn"><span data-count="60">0</span><span class="u">s</span></span><span class="sl">until my AI texts your missed caller back</span></div>
   </div>
 </header>
 
@@ -454,25 +576,31 @@ footer .flinks a:hover{color:var(--gold)}
   <div class="glow a"></div>
   <div class="wrap">
     <div class="ey r" data-reveal>What actually happens when your phone rings</div>
-    <h2 class="sh" data-reveal>The most expensive sound in your business is a <em class="r">ring that stops.</em></h2>
-    <p class="sb" data-reveal>You're not losing customers to better competitors. You're losing them to faster ones. Here's the sequence, and it runs every single day.</p>
-    <div class="beats">
-      <div class="beat" data-reveal>
-        <div class="num">01</div>
-        <h3>Someone calls you at 2:47 on a Tuesday.</h3>
-        <p>They found you on Google. They have a toothache, a leaking pipe, a court date. They're holding their card. <b>This is the most expensive lead you'll ever get</b>, and you already paid for it.</p>
+    <h2 class="sh" data-reveal>The most expensive sound in your business is <span class="lmask"><span>a <em class="r">ring that stops.</em></span></span></h2>
+    <p class="sb" data-reveal>You're not losing customers to better competitors. You're losing them to faster ones. This sequence ran somewhere today. Probably on your line.</p>
+    <div class="stack">
+      <div class="beat">
+        <div class="num">2:47 PM · TUESDAY</div>
+        <div>
+          <h3>Someone calls you.</h3>
+          <p>They found you on Google. They have a toothache, a leaking pipe, a court date. They're holding their card. <b>This is the most expensive lead you'll ever get</b>, and you already paid for it.</p>
+        </div>
         <div class="big-bg">01</div>
       </div>
-      <div class="beat" data-reveal>
-        <div class="num">02</div>
-        <h3>Nobody picks up.</h3>
-        <p>You're with a customer. Your front desk is at lunch. It's 6:15 PM. Doesn't matter why. <b>Roughly 6 of every 10 calls</b> to local businesses go unanswered. Yours included.</p>
+      <div class="beat">
+        <div class="num">2:47 PM · SAME MINUTE</div>
+        <div>
+          <h3>Nobody picks up.</h3>
+          <p>You're with a customer. Your front desk is at lunch. It's after hours. Doesn't matter why. <b>Roughly 6 of every 10 calls</b> to local businesses ring out. Yours included.</p>
+        </div>
         <div class="big-bg">02</div>
       </div>
-      <div class="beat last" data-reveal>
-        <div class="num">03</div>
-        <h3>They book <em>the next result on Google.</em></h3>
-        <p><b>85% of missed callers never call back.</b> They don't leave a voicemail. They don't try again tomorrow. That money isn't lost. It's transferred, straight to your competitor.</p>
+      <div class="beat last">
+        <div class="num">2:49 PM · TWO MINUTES LATER</div>
+        <div>
+          <h3>They book <em>your competitor.</em></h3>
+          <p><b>85% of missed callers never call back.</b> No voicemail. No second try. That money isn't lost, it's transferred. The next section puts a dollar figure on it. Takes ten seconds.</p>
+        </div>
         <div class="big-bg">03</div>
       </div>
     </div>
@@ -481,14 +609,15 @@ footer .flinks a:hover{color:var(--gold)}
 
 <!-- TOOL 01: CALCULATOR -->
 <section class="toolsec alt" id="calculator">
-  <div class="tool-ghost">01</div>
+  <div class="tool-ghost" data-ghost>01</div>
   <div class="wrap">
     <div class="tool-head">
       <div class="ey g" data-reveal>Try it free · 01 · The missed call calculator</div>
-      <h2 class="sh" data-reveal>Two sliders. <em>Your number.</em></h2>
-      <p class="sb" data-reveal>Set your real call volume and what an average customer is worth. The math runs live. No email, no gate.</p>
+      <h2 class="sh" data-reveal>Two sliders. <span class="lmask"><span><em>Your number.</em></span></span></h2>
+      <p class="sb" data-reveal>Your real call volume, your real customer value. The math runs live. No email, no gate, no sales rep "circling back."</p>
     </div>
-    <div class="app" data-reveal>
+    <div class="app" data-tilt data-reveal>
+      <div class="glare"></div>
       <div class="app-bar"><span class="d r"></span><span class="d g"></span><span class="d"></span><span class="t">missed-call-calculator</span><span class="badge">Live estimate</span></div>
       <div class="calc-body">
         <div class="calc-in">
@@ -513,8 +642,8 @@ footer .flinks a:hover{color:var(--gold)}
         </div>
       </div>
       <div class="calc-foot">
-        <p class="fine">Estimates, not a guarantee. The math: 38% industry missed call rate, 85% of missed callers never calling back, and I only count half of those as real lost jobs to stay conservative. The free week replaces these estimates with your actual numbers.</p>
-        <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Catch them free for a week <span class="arr">→</span></a>
+        <p class="fine">Estimates, not a guarantee. The math: 38% industry missed call rate, 85% of missed callers never calling back, and I only count half of those as real lost jobs to stay conservative. Screenshot this and show your business partner. Then run the free week and replace the estimate with your actual number.</p>
+        <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Stop the bleed, free <span class="arr">→</span></a>
       </div>
     </div>
   </div>
@@ -526,13 +655,13 @@ footer .flinks a:hover{color:var(--gold)}
     <div class="how-grid">
       <div>
         <div class="ey g" data-reveal>The tool · free week, then $500 a month</div>
-        <h2 class="sh" data-reveal>A text in 60 seconds beats a <em>voicemail</em> every time.</h2>
+        <h2 class="sh" data-reveal>A text in 60 seconds beats <span class="lmask"><span>a <em>voicemail</em> every time.</span></span></h2>
         <p class="sb" data-reveal>Nobody calls back a voicemail. Everybody answers a text. Here's the whole system.</p>
         <div class="steps">
           <div class="step" data-reveal><div class="n">01</div><div><h4>A call goes unanswered</h4><p>The system catches it the second it happens. Day, night, weekend, lunch rush.</p></div></div>
           <div class="step" data-reveal><div class="n">02</div><div><h4>Your customer gets a text within 60 seconds</h4><p>From your business number, not some random one. While they're still on your Google listing, before they scroll to the next result.</p></div></div>
           <div class="step" data-reveal><div class="n">03</div><div><h4>The AI holds the conversation</h4><p>It answers questions, offers times, and books the job. Scoped tight. Anything weird gets flagged to a human.</p></div></div>
-          <div class="step" data-reveal><div class="n">04</div><div><h4>Monday morning, you get the report</h4><p>Calls missed, calls recovered, revenue saved. Three numbers. If they're not worth $500, cancel. No lock in.</p></div></div>
+          <div class="step" data-reveal><div class="n">04</div><div><h4>Monday morning, you get the report</h4><p>Calls missed, calls recovered, revenue saved. Three numbers. <b>If the report doesn't pay for the tool, fire it.</b> That's the deal.</p></div></div>
         </div>
       </div>
       <div class="phone-col">
@@ -558,20 +687,21 @@ footer .flinks a:hover{color:var(--gold)}
 
 <!-- TOOL 02: LEAK FINDER -->
 <section class="toolsec alt" id="leak">
-  <div class="tool-ghost">02</div>
+  <div class="tool-ghost" data-ghost>02</div>
   <div class="wrap">
     <div class="tool-head">
       <div class="ey g" data-reveal>Try it free · 02 · The website leak finder</div>
-      <h2 class="sh" data-reveal>Your website is leaking. <em>Find the biggest hole in 20 seconds.</em></h2>
+      <h2 class="sh" data-reveal>Your website is leaking. <span class="lmask"><span><em>Find the biggest hole in 20 seconds.</em></span></span></h2>
       <p class="sb" data-reveal>Drop your URL. I fetch your homepage and run it through the first check of my 9 point conversion audit. You get the single biggest leak and the fix. No email required.</p>
     </div>
-    <div class="app" data-reveal>
+    <div class="app" data-tilt data-reveal>
+      <div class="glare"></div>
       <div class="app-bar"><span class="d r"></span><span class="d g"></span><span class="d"></span><span class="t">leak-finder</span><span class="badge" id="leak-badge">Ready</span></div>
       <div class="leak-body">
         <div id="leak-stage-input">
           <form class="leak-form" id="leak-form">
             <input type="text" id="leak-url" placeholder="yourbusiness.com" autocomplete="url" inputmode="url" aria-label="Your website URL">
-            <button class="btnr" type="submit">Scan my site <span class="arr">→</span></button>
+            <button class="btnr" data-mag type="submit">Scan my site <span class="arr">→</span></button>
           </form>
           <p class="leak-hint">Works on any public website. Takes about 20 seconds.</p>
           <p class="leak-err" id="leak-err"></p>
@@ -589,7 +719,7 @@ footer .flinks a:hover{color:var(--gold)}
           <div class="vfix"><b>The fix</b><p id="v-fix"></p></div>
           <div class="v-cta">
             <p><b>This is 1 of 9 things I check.</b> The other 8 cover your ads, follow up, reviews, and booking flow.</p>
-            <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Want the other 8? <span class="arr">→</span></a>
+            <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Want the other 8? <span class="arr">→</span></a>
             <button class="btng" id="leak-again" type="button">Scan another site</button>
           </div>
         </div>
@@ -611,14 +741,15 @@ footer .flinks a:hover{color:var(--gold)}
 
 <!-- TOOL 03: GRADER -->
 <section class="toolsec" id="gap">
-  <div class="tool-ghost">03</div>
+  <div class="tool-ghost" data-ghost>03</div>
   <div class="wrap">
     <div class="tool-head">
       <div class="ey g" data-reveal>Try it free · 03 · The growth gap grader</div>
-      <h2 class="sh" data-reveal>Five questions. Your growth gap, <em>in dollars.</em></h2>
+      <h2 class="sh" data-reveal>Five questions. <span class="lmask"><span>Your growth gap, <em>in dollars.</em></span></span></h2>
       <p class="sb" data-reveal>These are the five systems I build and run as a fractional head of growth. Answer honestly. Every "no" is money sitting on the table.</p>
     </div>
-    <div class="app" data-reveal>
+    <div class="app" data-tilt data-reveal>
+      <div class="glare"></div>
       <div class="app-bar"><span class="d r"></span><span class="d g"></span><span class="d"></span><span class="t">growth-gap-grader</span><span class="badge">Estimates</span></div>
       <div class="grader-body">
         <div class="gq-col" id="gq-col">
@@ -643,7 +774,7 @@ footer .flinks a:hover{color:var(--gold)}
             <span id="gr-gap-sub">on the table, every month</span>
           </div>
           <p class="gr-note">Each range is an estimate based on what these systems typically produce for a local service business. Your real numbers replace these guesses in week one.</p>
-          <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener" style="align-self:flex-start">This is what I own as your head of growth <span class="arr">→</span></a>
+          <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener" style="align-self:flex-start">This is what I own as your head of growth <span class="arr">→</span></a>
         </div>
       </div>
     </div>
@@ -655,8 +786,12 @@ footer .flinks a:hover{color:var(--gold)}
   <div class="wrap" style="position:relative;z-index:2">
     <div class="tool-head">
       <div class="ey g" data-reveal>Pricing · three steps, no contracts</div>
-      <h2 class="sh" data-reveal>Start free. Stay because <em>the numbers say so.</em></h2>
+      <h2 class="sh" data-reveal>Start free. Stay because <span class="lmask"><span><em>the numbers say so.</em></span></span></h2>
       <p class="sb" data-reveal>Every step pays for itself or you don't take the next one. That's the whole pitch.</p>
+    </div>
+    <div class="scarcity" data-reveal>
+      <span class="pulse"></span>
+      <p>I set up every line myself, so I onboard <b>3 new businesses a month</b>, no exceptions. <b><span data-month>This month</span>: 1 slot left.</b> The next opening is <span data-nextmonth>next month</span>.</p>
     </div>
     <div class="tiers-grid">
       <div class="tc" data-reveal>
@@ -670,9 +805,10 @@ footer .flinks a:hover{color:var(--gold)}
           <li>Runs nights, weekends, lunch rushes</li>
           <li>Ends with a results call: <b>your missed calls, your recovered bookings, your dollars</b></li>
         </ul>
-        <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Start the free week <span class="arr">→</span></a>
+        <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Claim the last <span data-month>June</span> slot <span class="arr">→</span></a>
+        <div class="slotline">1 of 3 <span data-month>June</span> slots left</div>
       </div>
-      <div class="tc feat" data-reveal>
+      <div class="tc feat" data-reveal data-d="1">
         <div class="tag">The tool</div>
         <div class="step-lab">Step 2 · Keep it running</div>
         <h3>Missed call recovery</h3>
@@ -684,9 +820,9 @@ footer .flinks a:hover{color:var(--gold)}
           <li><b>Monday report:</b> calls missed, recovered, revenue saved</li>
           <li>Cancel any month. <b>The report is the retention strategy</b></li>
         </ul>
-        <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book the setup call <span class="arr">→</span></a>
+        <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book the setup call <span class="arr">→</span></a>
       </div>
-      <div class="tc" data-reveal>
+      <div class="tc" data-reveal data-d="2">
         <div class="step-lab">Step 3 · Hand me the number</div>
         <h3>Head of growth</h3>
         <div class="tprice">$5,000<sub>/month</sub></div>
@@ -697,7 +833,7 @@ footer .flinks a:hover{color:var(--gold)}
           <li>One weekly call, straight numbers</li>
           <li>Month to month, <b>no lock in</b></li>
         </ul>
-        <a class="btng" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Talk to me first <span class="arr">→</span></a>
+        <a class="btng" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Talk to me first <span class="arr">→</span></a>
       </div>
     </div>
     <div class="risk" data-reveal>
@@ -718,7 +854,7 @@ footer .flinks a:hover{color:var(--gold)}
     </div>
     <div>
       <div class="ey g" data-reveal>The person you're actually hiring</div>
-      <h2 class="sh" data-reveal>Not an agency. <em>One operator</em> who's seen what works at scale.</h2>
+      <h2 class="sh" data-reveal>Not an agency. <span class="lmask"><span><em>One operator</em> who's seen what works at scale.</span></span></h2>
       <div class="gcreds" data-reveal>
         <span class="gcred">UCLA Statistics '19</span>
         <span class="gcred">Ex VC Analyst</span>
@@ -742,10 +878,10 @@ footer .flinks a:hover{color:var(--gold)}
     <div class="inner">
       <div>
         <div class="ey r" data-reveal>Results</div>
-        <h2 class="sh" data-reveal>The results page is <em class="r">empty.</em> On purpose.</h2>
+        <h2 class="sh" data-reveal>The results page is <span class="lmask"><span><em class="r">empty.</em> On purpose.</span></span></h2>
         <p class="sb" data-reveal>I could fill it with stock photos and first names like everyone else. I won't. Founding clients get their numbers published as they land: calls missed, calls recovered, dollars saved. Real data or nothing.</p>
         <div class="hbtns" style="margin-top:34px" data-reveal>
-          <a class="btng" href="/results">See the open slots <span class="arr">→</span></a>
+          <a class="btng" data-mag href="/results">See the open slots <span class="arr">→</span></a>
         </div>
       </div>
       <div class="slot-mini" data-reveal>
@@ -771,6 +907,10 @@ footer .flinks a:hover{color:var(--gold)}
       <div class="fitem" data-reveal>
         <button class="fq" type="button">How does the free week actually work?</button>
         <div class="fa"><p>We get on a 30 minute call and connect the tool to your existing phone line. Takes about 15 minutes, nothing about your setup changes. It runs for 7 days. Then I show you three numbers: calls you missed, callers we recovered, and what those bookings were worth. <b>No card required.</b> If the numbers are boring, we shake hands and part ways.</p></div>
+      </div>
+      <div class="fitem" data-reveal>
+        <button class="fq" type="button">Why only 3 new businesses a month?</button>
+        <div class="fa"><p>Because I do the setup, the conversation design, and the Monday reports myself. At 4, quality drops. So, 3. It also means when your week starts, <b>you have my full attention</b>, not a junior account manager's.</p></div>
       </div>
       <div class="fitem" data-reveal>
         <button class="fq" type="button">Will the texts come from some weird number?</button>
@@ -800,11 +940,16 @@ footer .flinks a:hover{color:var(--gold)}
 <section class="final">
   <div class="inner">
     <div data-reveal>
-      <h2>Find out what you're losing. <em>It takes 30 minutes.</em></h2>
-      <p>One call. We hook up the free week, and next Monday you see your own missed call money in black and white. Worth a look.</p>
+      <h2>Your phone will ring tomorrow. <em>Decide what happens when you can't answer.</em></h2>
+      <p>One call. We hook up the free week, and your first report lands <b data-monday>Monday</b>. Either it finds money or it finds nothing, and both answers are worth having. <b>1 slot left in <span data-month>June</span>.</b></p>
     </div>
-    <a class="btnw" data-reveal href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book 30 minutes <span class="arr">→</span></a>
+    <a class="btnw" data-mag data-reveal href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book 30 minutes <span class="arr">→</span></a>
   </div>
+  <a class="cta-marq" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener" aria-label="Book 30 minutes">
+    <div class="track" id="cta-track">
+      <span>BOOK 30 MINUTES <i>◆</i> START THE FREE WEEK <i>◆</i> CATCH EVERY CALL <i>◆</i></span>
+    </div>
+  </a>
 </section>
 
 <footer>
@@ -820,42 +965,241 @@ footer .flinks a:hover{color:var(--gold)}
   <p>© 2026 Vyrrah Labs</p>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/motion@11.11.13/dist/motion.js"></script>
+<!-- STICKY CLAIM BAR -->
+<div id="claim" role="complementary">
+  <span class="pulse"></span>
+  <p><b><span data-month>June</span>: 1 founding slot left.</b> <span class="sub">Free week, 15 minute setup, first report <span data-monday>Monday</span>.</span></p>
+  <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Claim it <span class="arr">→</span></a>
+  <button class="x" id="claim-x" aria-label="Dismiss">×</button>
+</div>
+
+<!-- EXIT MODAL -->
+<div id="exit" role="dialog" aria-modal="true" aria-label="Before you go">
+  <div class="box">
+    <button class="xx" id="exit-x" aria-label="Close">×</button>
+    <div class="ey">Before you go</div>
+    <h3>Your phone rang today. <em>Did you catch all of it?</em></h3>
+    <p>6 of 10 calls to local businesses go unanswered, and 85% of those callers <b>never try again</b>. The free week puts a real number on it, measured on your actual line. No card. No contract. 15 minutes to set up, and your first report lands <b data-monday>Monday</b>.</p>
+    <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Start the free week <span class="arr">→</span></a>
+    <button class="skip" id="exit-skip" type="button">No thanks, I'll keep guessing</button>
+  </div>
+</div>
+
 <script>
 (function(){
 "use strict";
 var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-var hasMotion = typeof Motion !== 'undefined' && !reduceMotion;
-if(!hasMotion) document.documentElement.classList.add('no-motion');
-var M = hasMotion ? Motion : null;
+var finePointer = window.matchMedia('(pointer: fine)').matches;
+var desktop = window.innerWidth > 980;
 
-/* NAV + SCROLL BAR */
+/* ---------- DYNAMIC DATES ---------- */
+var now = new Date();
+var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var nextMonday = new Date(now);
+nextMonday.setDate(now.getDate() + ((8 - now.getDay()) % 7 || 7));
+var mondayStr = 'Monday, ' + months[nextMonday.getMonth()] + ' ' + nextMonday.getDate();
+document.querySelectorAll('[data-monday]').forEach(function(el){ el.textContent = mondayStr; });
+document.querySelectorAll('[data-month]').forEach(function(el){ el.textContent = months[now.getMonth()]; });
+document.querySelectorAll('[data-nextmonth]').forEach(function(el){ el.textContent = months[(now.getMonth()+1)%12]; });
+
+/* ---------- PRELOADER ---------- */
+var loader = document.getElementById('loader');
+function finishLoad(){
+  document.documentElement.classList.add('loaded');
+  if(loader){ loader.classList.add('gone'); setTimeout(function(){ loader.remove(); }, 800); }
+}
+if(reduceMotion || sessionStorage.getItem('vy_seen')){
+  if(loader) loader.remove();
+  document.documentElement.classList.add('loaded');
+}else{
+  sessionStorage.setItem('vy_seen','1');
+  var pctEl = document.getElementById('loader-pct'), barEl = document.getElementById('loader-bar');
+  var p = 0, t0 = performance.now(), DUR = 1100;
+  (function tickLoad(ts){
+    var prog = Math.min((ts - t0) / DUR, 1);
+    var e = 1 - Math.pow(1 - prog, 3);
+    p = Math.round(e * 100);
+    pctEl.textContent = p;
+    barEl.style.transform = 'scaleX(' + e + ')';
+    if(prog < 1) requestAnimationFrame(tickLoad);
+    else setTimeout(finishLoad, 120);
+  })(t0);
+  setTimeout(function(){ if(!document.documentElement.classList.contains('loaded')) finishLoad(); }, 2500);
+}
+
+/* ---------- CUSTOM CURSOR ---------- */
+if(finePointer && !reduceMotion){
+  var dot = document.getElementById('cur-dot'), ring = document.getElementById('cur-ring');
+  var mx = -100, my = -100, rx = -100, ry = -100;
+  document.addEventListener('mousemove', function(e){ mx = e.clientX; my = e.clientY; }, {passive:true});
+  (function curLoop(){
+    rx += (mx - rx) * .16; ry += (my - ry) * .16;
+    dot.style.transform = 'translate(' + (mx-3) + 'px,' + (my-3) + 'px)';
+    ring.style.transform = 'translate(' + (rx - ring.offsetWidth/2) + 'px,' + (ry - ring.offsetHeight/2) + 'px)';
+    requestAnimationFrame(curLoop);
+  })();
+  document.querySelectorAll('a,button,input,.tog,.fq').forEach(function(el){
+    el.addEventListener('mouseenter', function(){ ring.classList.add('hot'); });
+    el.addEventListener('mouseleave', function(){ ring.classList.remove('hot'); });
+  });
+}else{
+  var cd = document.getElementById('cur-dot'), cr = document.getElementById('cur-ring');
+  if(cd) cd.remove(); if(cr) cr.remove();
+}
+
+/* ---------- NAV + SCROLL BAR + CLAIM BAR ---------- */
 var nav = document.getElementById('nav');
 var bar = document.getElementById('scroll-bar');
+var claim = document.getElementById('claim');
+var claimDismissed = sessionStorage.getItem('vy_claim_x');
+var lastY = 0;
 function onScroll(){
-  nav.classList.toggle('scrolled', window.scrollY > 40);
+  var y = window.scrollY;
+  nav.classList.toggle('scrolled', y > 40);
+  if(y > 600 && y > lastY + 6) nav.classList.add('hidden');
+  else if(y < lastY - 6 || y < 600) nav.classList.remove('hidden');
+  lastY = y;
   var h = document.documentElement.scrollHeight - window.innerHeight;
-  bar.style.width = (h > 0 ? (window.scrollY / h) * 100 : 0) + '%';
+  bar.style.width = (h > 0 ? (y / h) * 100 : 0) + '%';
+  if(!claimDismissed && claim){
+    var pastHero = y > window.innerHeight * 1.2;
+    var nearEnd = y > h - 700;
+    claim.classList.toggle('show', pastHero && !nearEnd);
+  }
 }
 window.addEventListener('scroll', onScroll, {passive:true});
 onScroll();
+document.getElementById('claim-x').addEventListener('click', function(){
+  claimDismissed = true;
+  sessionStorage.setItem('vy_claim_x','1');
+  claim.classList.remove('show');
+});
 
-/* MARQUEE: duplicate track for loop */
-var mt = document.getElementById('marq-track');
-mt.innerHTML += mt.innerHTML;
-
-/* REVEALS */
-if(M){
-  document.querySelectorAll('[data-reveal]').forEach(function(el){
-    M.inView(el, function(){
-      M.animate(el, {opacity:[0,1], y:[26,0]}, {duration:.75, easing:[.22,1,.36,1]});
-    }, {margin:'0px 0px -8% 0px'});
+/* ---------- EXIT INTENT ---------- */
+var exitEl = document.getElementById('exit');
+var exitShown = sessionStorage.getItem('vy_exit');
+function showExit(){
+  if(exitShown || reduceMotion) return;
+  exitShown = true;
+  sessionStorage.setItem('vy_exit','1');
+  exitEl.classList.add('show');
+}
+function hideExit(){ exitEl.classList.remove('show'); }
+document.getElementById('exit-x').addEventListener('click', hideExit);
+document.getElementById('exit-skip').addEventListener('click', hideExit);
+exitEl.addEventListener('click', function(e){ if(e.target === exitEl) hideExit(); });
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape') hideExit(); });
+if(finePointer){
+  document.addEventListener('mouseout', function(e){
+    if(!e.relatedTarget && e.clientY <= 0) showExit();
   });
 }else{
-  document.querySelectorAll('[data-reveal]').forEach(function(el){ el.style.opacity = 1; });
+  var deepest = 0;
+  window.addEventListener('scroll', function(){
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    var d = h > 0 ? window.scrollY / h : 0;
+    if(d > deepest) deepest = d;
+    if(deepest > .65 && d < deepest - .25) showExit();
+  }, {passive:true});
 }
 
-/* NUMBER FORMAT + COUNTERS */
+/* ---------- MARQUEE: duplicate + velocity skew ---------- */
+var mt = document.getElementById('marq-track');
+mt.innerHTML += mt.innerHTML;
+var ct = document.getElementById('cta-track');
+ct.innerHTML += ct.innerHTML + ct.innerHTML;
+if(!reduceMotion && desktop){
+  var skew = 0, lastSY = window.scrollY;
+  (function skewLoop(){
+    var y = window.scrollY;
+    var v = (y - lastSY) * .18;
+    lastSY = y;
+    skew += (Math.max(-6, Math.min(6, v)) - skew) * .12;
+    mt.style.transform = 'skewX(' + skew + 'deg)';
+    requestAnimationFrame(skewLoop);
+  })();
+}
+
+/* ---------- REVEALS (line masks + fade) ---------- */
+var revIO = new IntersectionObserver(function(entries){
+  entries.forEach(function(en){
+    if(en.isIntersecting){ en.target.classList.add('in'); revIO.unobserve(en.target); }
+  });
+}, {rootMargin:'0px 0px -8% 0px'});
+document.querySelectorAll('[data-reveal]').forEach(function(el){ revIO.observe(el); });
+document.querySelectorAll('.sh').forEach(function(el){ revIO.observe(el); });
+
+/* ---------- HERO MOUSE PARALLAX + GHOST SCROLL ---------- */
+if(finePointer && !reduceMotion && desktop){
+  var hero = document.querySelector('.hero');
+  var pxEls = document.querySelectorAll('[data-px]');
+  var hx = 0, hy = 0, tx = 0, ty = 0;
+  hero.addEventListener('mousemove', function(e){
+    tx = (e.clientX / window.innerWidth - .5);
+    ty = (e.clientY / window.innerHeight - .5);
+  }, {passive:true});
+  (function pxLoop(){
+    hx += (tx - hx) * .05; hy += (ty - hy) * .05;
+    pxEls.forEach(function(el){
+      var f = +el.dataset.px;
+      var extra = el.classList.contains('hero-ghost') ? ' translate(-50%,-50%)' : '';
+      el.style.transform = 'translate(' + (hx*f) + 'px,' + (hy*f) + 'px)' + extra;
+    });
+    requestAnimationFrame(pxLoop);
+  })();
+}
+/* tool ghosts parallax on scroll */
+if(!reduceMotion){
+  var ghosts = document.querySelectorAll('[data-ghost]');
+  var ghostTick = false;
+  window.addEventListener('scroll', function(){
+    if(ghostTick) return; ghostTick = true;
+    requestAnimationFrame(function(){
+      ghosts.forEach(function(g){
+        var r = g.parentElement.getBoundingClientRect();
+        var p = 1 - (r.top + r.height/2) / window.innerHeight;
+        g.style.transform = 'translateY(' + (p * 60 - 30) + 'px)';
+      });
+      ghostTick = false;
+    });
+  }, {passive:true});
+}
+
+/* ---------- MAGNETIC BUTTONS ---------- */
+if(finePointer && !reduceMotion){
+  document.querySelectorAll('[data-mag]').forEach(function(btn){
+    btn.addEventListener('mousemove', function(e){
+      var r = btn.getBoundingClientRect();
+      var dx = e.clientX - (r.left + r.width/2);
+      var dy = e.clientY - (r.top + r.height/2);
+      btn.style.transform = 'translate(' + (dx*.12) + 'px,' + (dy*.22) + 'px)';
+    });
+    btn.addEventListener('mouseleave', function(){
+      btn.style.transition = 'transform .5s cubic-bezier(.22,1,.36,1)';
+      btn.style.transform = 'translate(0,0)';
+      setTimeout(function(){ btn.style.transition = ''; }, 500);
+    });
+  });
+}
+
+/* ---------- APP TILT + GLARE ---------- */
+if(finePointer && !reduceMotion && desktop){
+  document.querySelectorAll('[data-tilt]').forEach(function(app){
+    var glare = app.querySelector('.glare');
+    app.addEventListener('mousemove', function(e){
+      var r = app.getBoundingClientRect();
+      var px = (e.clientX - r.left) / r.width;
+      var py = (e.clientY - r.top) / r.height;
+      app.style.transform = 'perspective(1400px) rotateY(' + ((px - .5) * 1.6) + 'deg) rotateX(' + ((.5 - py) * 1.2) + 'deg)';
+      if(glare){ glare.style.setProperty('--gx', (px*100) + '%'); glare.style.setProperty('--gy', (py*100) + '%'); }
+    });
+    app.addEventListener('mouseleave', function(){
+      app.style.transform = 'perspective(1400px) rotateY(0) rotateX(0)';
+    });
+  });
+}
+
+/* ---------- NUMBER FORMAT + COUNTERS ---------- */
 function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
 function countTo(el, target, dur){
   var start = parseFloat(el.dataset.cur || 0), t0 = null;
@@ -870,7 +1214,6 @@ function countTo(el, target, dur){
   }
   el._raf = requestAnimationFrame(tick);
 }
-/* hero stat counters on view */
 var io = new IntersectionObserver(function(entries){
   entries.forEach(function(en){
     if(en.isIntersecting){
@@ -881,7 +1224,7 @@ var io = new IntersectionObserver(function(entries){
 }, {threshold:.4});
 document.querySelectorAll('[data-count]').forEach(function(el){ io.observe(el); });
 
-/* HERO TICKER */
+/* ---------- HERO TICKER ---------- */
 var tickerEl = document.getElementById('ticker');
 var icoPhone = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
 var icoMiss  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="23" y1="1" x2="17" y2="7"/><line x1="17" y1="1" x2="23" y2="7"/><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
@@ -916,7 +1259,7 @@ if(!reduceMotion){
   setInterval(function(){ if(document.visibilityState === 'visible') pushTick(); }, 2600);
 }else{ pushTick(); pushTick(); }
 
-/* CALCULATOR */
+/* ---------- CALCULATOR ---------- */
 var calls = document.getElementById('calls'), value = document.getElementById('value');
 var callsOut = document.getElementById('calls-out'), valueOut = document.getElementById('value-out');
 var lossEl = document.getElementById('loss'), missedEl = document.getElementById('missed'), goneEl = document.getElementById('gone');
@@ -940,7 +1283,7 @@ calls.addEventListener('input', calc);
 value.addEventListener('input', calc);
 calc();
 
-/* PHONE SMS DEMO LOOP */
+/* ---------- PHONE SMS DEMO LOOP ---------- */
 var msgsEl = document.getElementById('msgs');
 var convo = [
   {t:'sys red', txt:'Missed call · 2:47 PM', d: 900},
@@ -996,7 +1339,7 @@ var phoneIO = new IntersectionObserver(function(entries){
 }, {threshold:.35});
 phoneIO.observe(document.querySelector('.phone'));
 
-/* LEAK FINDER */
+/* ---------- LEAK FINDER ---------- */
 var leakForm = document.getElementById('leak-form');
 var leakUrl = document.getElementById('leak-url');
 var leakErr = document.getElementById('leak-err');
@@ -1036,10 +1379,7 @@ function showVerdict(data){
   document.getElementById('v-title').textContent = data.leak_title;
   document.getElementById('v-impact').textContent = data.impact;
   document.getElementById('v-fix').textContent = data.fix;
-  setTimeout(function(){
-    leakStage('verdict');
-    if(M) M.animate(stVerdict, {opacity:[0,1], y:[18,0]}, {duration:.6, easing:[.22,1,.36,1]});
-  }, 500);
+  setTimeout(function(){ leakStage('verdict'); }, 500);
 }
 leakForm.addEventListener('submit', function(e){
   e.preventDefault();
@@ -1074,7 +1414,6 @@ document.getElementById('leak-again').addEventListener('click', function(){
   leakStage('input');
   leakUrl.focus();
 });
-/* fallback questions */
 var fallAnswers = {};
 stFall.querySelectorAll('.yn').forEach(function(grp){
   grp.querySelectorAll('button').forEach(function(btn){
@@ -1097,7 +1436,7 @@ stFall.querySelectorAll('.yn').forEach(function(grp){
   });
 });
 
-/* GRADER */
+/* ---------- GRADER ---------- */
 var togs = document.querySelectorAll('.tog');
 var grBar = document.getElementById('gr-bar');
 var grGrade = document.getElementById('gr-grade');
@@ -1162,7 +1501,7 @@ togs.forEach(function(t){
   });
 });
 
-/* FAQ */
+/* ---------- FAQ ---------- */
 document.querySelectorAll('.fitem').forEach(function(item){
   var btn = item.querySelector('.fq'), ans = item.querySelector('.fa');
   btn.addEventListener('click', function(){
