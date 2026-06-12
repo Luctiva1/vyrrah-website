@@ -3,12 +3,17 @@
   "routes": [
     { "src": "/admin", "dest": "/admin.html" },
     { "src": "/audit", "dest": "/audit.html" },
+    { "src": "/api/tool/(.*)", "dest": "/api/tool?path=$1" },
     { "src": "/api/(.*)", "dest": "/api/index?path=$1" }
   ],
   "crons": [
     {
       "path": "/api/sequences/process",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/tool/cron-weekly",
+      "schedule": "0 13 * * 1"
     }
   ]
 }
