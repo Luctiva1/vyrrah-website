@@ -46,6 +46,10 @@
     {
       "path": "/api/tool/cron-weekly",
       "schedule": "0 13 * * 1"
+    },
+    {
+      "path": "/api/tool/cron-flush",
+      "schedule": "0 13 * * *"
     }
   ]
 }

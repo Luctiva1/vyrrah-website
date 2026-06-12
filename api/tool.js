@@ -10,11 +10,29 @@ const BRAND = { name: 'Vyrrah Recaller', from: 'Vyrrah Labs' }; // single place 
 
 const VOICE_URL = 'https://vyrrahlabs.com/api/tool/voice';
 const SMS_URL = 'https://vyrrahlabs.com/api/tool/sms';
+const PUBLIC_BASE = 'https://vyrrahlabs.com';
+const SMS_STATUS_CALLBACK = 'https://vyrrahlabs.com/api/tool/sms-status';
+
+// Twilio status callback path used when creating outbound messages
+const SMS_STATUS_PATH = '/api/tool/sms-status';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getTwilioClient() {
   return new twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+}
+
+// Best-effort in-memory rate limiter (per serverless instance). Map<ip, ts[]>.
+const _rateBuckets = new Map();
+function rateLimit(req, { max = 10, windowMs = 60000 } = {}) {
+  const fwd = req.headers['x-forwarded-for'];
+  const ip = (Array.isArray(fwd) ? fwd[0] : (fwd || '')).split(',')[0].trim() ||
+    req.headers['x-real-ip'] || (req.socket && req.socket.remoteAddress) || 'unknown';
+  const now = Date.now();
+  const hits = (_rateBuckets.get(ip) || []).filter((t) => now - t < windowMs);
+  hits.push(now);
+  _rateBuckets.set(ip, hits);
+  return hits.length <= max;
 }
 
 function twiml(res, xmlInner = '') {
@@ -140,8 +158,147 @@ async function callerOptedOut(supabase, clientId, callerPhone) {
 }
 
 async function sendSms(twilioClient, { from, to, body }) {
-  const msg = await twilioClient.messages.create({ from, to, body });
+  const msg = await twilioClient.messages.create({
+    from,
+    to,
+    body,
+    statusCallback: SMS_STATUS_CALLBACK
+  });
   return msg;
+}
+
+// ─── Twilio webhook signature validation ─────────────────────────────────────
+// Matches api/index.js pattern: warn-and-continue, unless STRICT_TWILIO=1 -> 403.
+// Returns true if the request should proceed, false if it was rejected (403 sent).
+function validateTwilioWebhook(req, res) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const signature = req.headers['x-twilio-signature'];
+  // Full URL must match what Twilio signed. We register webhooks against
+  // https://vyrrahlabs.com + the request path (req.url includes ?path=... query
+  // that Vercel rewrites add; strip our internal rewrite query for a clean URL).
+  const fullUrl = PUBLIC_BASE + (req.url || '').split('?')[0];
+  const params = req.body || {};
+  let valid = false;
+  try {
+    valid = !!authToken && twilio.validateRequest(authToken, signature, fullUrl, params);
+  } catch (e) {
+    valid = false;
+  }
+  if (!valid) {
+    console.warn('Invalid/missing Twilio signature on', req.url);
+    if (process.env.STRICT_TWILIO === '1') {
+      res.status(403).end();
+      return false;
+    }
+  }
+  return true;
+}
+
+// ─── TCPA quiet-hours guard ──────────────────────────────────────────────────
+// Fixed UTC offsets for common US zones (DST ignored — "close enough" per spec).
+const TZ_OFFSETS = {
+  'America/New_York': -5,
+  'America/Chicago': -6,
+  'America/Denver': -7,
+  'America/Los_Angeles': -8,
+  'America/Phoenix': -7
+};
+
+// Returns the client's current local hour (0-23) and a helper to convert a
+// local hour to a UTC Date. Tries Intl first, falls back to the offset map.
+function clientLocalClock(client, now = new Date()) {
+  const tz = client.timezone || 'America/New_York';
+  // Try Intl.DateTimeFormat (honours real DST when the runtime has tz data).
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour: 'numeric',
+      hour12: false
+    });
+    const parts = fmt.formatToParts(now);
+    const hourPart = parts.find((p) => p.type === 'hour');
+    if (hourPart) {
+      let hour = parseInt(hourPart.value, 10);
+      if (hour === 24) hour = 0;
+      if (!Number.isNaN(hour)) {
+        return { hour, tz, usedIntl: true };
+      }
+    }
+  } catch (e) {
+    // fall through to offset map
+  }
+  const offset = TZ_OFFSETS[tz] != null ? TZ_OFFSETS[tz] : -5;
+  const localMs = now.getTime() + offset * 3600 * 1000;
+  const hour = new Date(localMs).getUTCHours();
+  return { hour, tz, offset, usedIntl: false };
+}
+
+// quiet 21->8 means quiet hours are [21,24) ∪ [0,8) — i.e. 9pm to 8am.
+function isQuietHour(hour, quietStart, quietEnd) {
+  const qs = Number.isFinite(quietStart) ? quietStart : 21;
+  const qe = Number.isFinite(quietEnd) ? quietEnd : 8;
+  if (qs === qe) return false;
+  if (qs < qe) return hour >= qs && hour < qe; // simple daytime window
+  return hour >= qs || hour < qe;              // overnight wrap
+}
+
+// Compute the next allowed send time (UTC ISO) = upcoming quiet_end hour in
+// client-local time. Returns an ISO string.
+function nextAllowedSendUtc(client, now = new Date()) {
+  const tz = client.timezone || 'America/New_York';
+  const quietEnd = Number.isFinite(client.quiet_end) ? client.quiet_end : 8;
+  const offset = TZ_OFFSETS[tz] != null ? TZ_OFFSETS[tz] : -5;
+  // Build "today at quiet_end" in client local, expressed in UTC via offset.
+  // local time T (client) corresponds to UTC = T - offset.
+  const localNowMs = now.getTime() + offset * 3600 * 1000;
+  const localNow = new Date(localNowMs);
+  const target = new Date(Date.UTC(
+    localNow.getUTCFullYear(),
+    localNow.getUTCMonth(),
+    localNow.getUTCDate(),
+    quietEnd, 0, 0, 0
+  ));
+  // Convert that client-local target back to real UTC.
+  let targetUtcMs = target.getTime() - offset * 3600 * 1000;
+  // If that moment is already in the past (or now), push to next day.
+  if (targetUtcMs <= now.getTime()) targetUtcMs += 24 * 3600 * 1000;
+  return new Date(targetUtcMs).toISOString();
+}
+
+// Send-or-defer wrapper. If currently in the client's quiet hours, persists the
+// message as 'deferred' (no send) and returns { deferred: true }. Otherwise
+// sends via Twilio, persists as queued with the twilio_sid, returns { sid }.
+async function sendOrDefer(supabase, client, { call_id, caller, body, ai_generated }) {
+  const { hour } = clientLocalClock(client);
+  const quiet = isQuietHour(hour, client.quiet_start, client.quiet_end);
+  if (quiet) {
+    const deferred_until = nextAllowedSendUtc(client);
+    const { error } = await supabase.from('tool_messages').insert({
+      client_id: client.id,
+      call_id: call_id || null,
+      caller_phone: caller,
+      direction: 'outbound',
+      body,
+      ai_generated: !!ai_generated,
+      delivery_status: 'deferred',
+      deferred_until
+    });
+    if (error) console.error('defer insert error:', error);
+    return { deferred: true, deferred_until };
+  }
+  const msg = await sendSms(getTwilioClient(), { from: client.twilio_number, to: caller, body });
+  const { error } = await supabase.from('tool_messages').insert({
+    client_id: client.id,
+    call_id: call_id || null,
+    caller_phone: caller,
+    direction: 'outbound',
+    body,
+    ai_generated: !!ai_generated,
+    twilio_sid: msg.sid,
+    delivery_status: 'queued'
+  });
+  if (error) console.error('outbound insert error:', error);
+  return { sid: msg.sid };
 }
 
 async function computeStats(supabase, clientId, days) {
@@ -252,24 +409,43 @@ async function handleClients(req, res) {
 
   if (req.method === 'POST') {
     try {
+      if (!rateLimit(req, { max: 10, windowMs: 60000 })) {
+        return res.status(429).json({ error: 'Too many requests, slow down' });
+      }
+
       const {
         practice_name, owner_name, owner_email, owner_phone, real_line,
         avg_customer_value, business_hours, services, booking_link, area_code
       } = req.body || {};
 
-      if (!practice_name || !real_line) {
+      // ─── Input validation ───
+      const pn = typeof practice_name === 'string' ? practice_name.trim() : '';
+      const rl = typeof real_line === 'string' ? real_line.trim() : '';
+      if (!pn || !rl) {
         return res.status(400).json({ error: 'practice_name and real_line are required' });
+      }
+      if (pn.length > 120) {
+        return res.status(400).json({ error: 'practice_name too long (max 120)' });
+      }
+      if (normalizePhone(rl).length < 10) {
+        return res.status(400).json({ error: 'real_line does not look like a phone number' });
+      }
+      if (owner_email && (typeof owner_email !== 'string' || !owner_email.includes('@'))) {
+        return res.status(400).json({ error: 'owner_email is not a valid email' });
+      }
+      if (services && typeof services === 'string' && services.length > 500) {
+        return res.status(400).json({ error: 'services too long (max 500)' });
       }
 
       const magicToken = crypto.randomBytes(24).toString('hex');
       const { data: client, error } = await supabase
         .from('tool_clients')
         .insert({
-          practice_name,
+          practice_name: pn,
           owner_name: owner_name || null,
           owner_email: owner_email || null,
           owner_phone: owner_phone || null,
-          real_line,
+          real_line: rl,
           avg_customer_value: avg_customer_value || 500,
           business_hours: business_hours || null,
           services: services || null,
@@ -343,6 +519,7 @@ async function handleClientsProvision(req, res) {
 
 async function handleVoice(req, res) {
   try {
+    if (!validateTwilioWebhook(req, res)) return;
     const supabase = getSupabase();
     const to = (req.body && req.body.To) || '';
 
@@ -371,6 +548,7 @@ async function handleVoice(req, res) {
 
 async function handleVoiceStatus(req, res) {
   try {
+    if (!validateTwilioWebhook(req, res)) return;
     const supabase = getSupabase();
     const clientId = req.query.client_id;
     const dialStatus = (req.body && req.body.DialCallStatus) || '';
@@ -431,22 +609,17 @@ async function handleVoiceStatus(req, res) {
       });
 
       try {
-        const msg = await sendSms(getTwilioClient(), {
-          from: client.twilio_number,
-          to: caller,
-          body
-        });
-        await supabase.from('tool_messages').insert({
-          client_id: client.id,
+        const result = await sendOrDefer(supabase, client, {
           call_id: callRow ? callRow.id : null,
-          caller_phone: caller,
-          direction: 'outbound',
+          caller,
           body,
-          ai_generated: aiAvailable(),
-          twilio_sid: msg.sid
+          ai_generated: aiAvailable()
         });
         if (callRow) {
           await supabase.from('tool_calls').update({ textback_sent: true }).eq('id', callRow.id);
+        }
+        if (result.deferred) {
+          return twiml(res, '<Say voice="alice">Sorry we missed you. We\'ll text you first thing in the morning.</Say><Hangup/>');
         }
         return twiml(res, '<Say voice="alice">Sorry we missed you, we just sent you a text.</Say><Hangup/>');
       } catch (smsErr) {
@@ -465,6 +638,7 @@ async function handleVoiceStatus(req, res) {
 
 async function handleSms(req, res) {
   try {
+    if (!validateTwilioWebhook(req, res)) return;
     const supabase = getSupabase();
     const to = (req.body && req.body.To) || '';
     const caller = (req.body && req.body.From) || '';
@@ -555,19 +729,11 @@ async function handleSms(req, res) {
     }
 
     try {
-      const msg = await sendSms(getTwilioClient(), {
-        from: client.twilio_number,
-        to: caller,
-        body: reply
-      });
-      await supabase.from('tool_messages').insert({
-        client_id: client.id,
+      await sendOrDefer(supabase, client, {
         call_id: callRow ? callRow.id : null,
-        caller_phone: caller,
-        direction: 'outbound',
+        caller,
         body: reply,
-        ai_generated: aiAvailable(),
-        twilio_sid: msg.sid
+        ai_generated: aiAvailable()
       });
     } catch (sendErr) {
       console.error('Reply SMS failed:', sendErr);
@@ -693,7 +859,7 @@ async function handleDashboard(req, res) {
     for (const call of recoveredCalls || []) {
       const { data: msgs } = await supabase
         .from('tool_messages')
-        .select('direction, body, created_at')
+        .select('direction, body, created_at, delivery_status, deferred_until')
         .eq('client_id', client.id)
         .eq('caller_phone', call.caller_phone)
         .order('created_at', { ascending: true });
@@ -710,11 +876,124 @@ async function handleDashboard(req, res) {
     return res.status(200).json({
       practice_name: client.practice_name,
       status: client.status,
+      twilio_number: client.twilio_number || null,
+      date_range_days: 30,
       stats,
       recovered_conversations: conversations
     });
   } catch (err) {
     console.error('tool/dashboard error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── POST /api/tool/sms-status — Twilio delivery status callback ─────────────
+// No auth (Twilio webhook). Signature-validated. Always returns 200.
+async function handleSmsStatus(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!validateTwilioWebhook(req, res)) return; // 403 only under STRICT_TWILIO
+  try {
+    const supabase = getSupabase();
+    const sid = (req.body && req.body.MessageSid) || (req.body && req.body.SmsSid) || null;
+    const status = (req.body && req.body.MessageStatus) || (req.body && req.body.SmsStatus) || '';
+    if (!sid) return res.status(200).json({ ok: true, ignored: 'no sid' });
+
+    // Locate the message row by twilio_sid
+    const { data: rows } = await supabase
+      .from('tool_messages')
+      .select('*')
+      .eq('twilio_sid', sid)
+      .limit(1);
+    const row = rows && rows[0];
+
+    if (row) {
+      await supabase
+        .from('tool_messages')
+        .update({ delivery_status: status || row.delivery_status })
+        .eq('id', row.id);
+    }
+
+    // Auto-retry once on hard failure
+    if ((status === 'failed' || status === 'undelivered') && row && (row.retry_count || 0) < 1) {
+      try {
+        const { data: client } = await supabase
+          .from('tool_clients')
+          .select('*')
+          .eq('id', row.client_id)
+          .single();
+        if (client && client.twilio_number && row.caller_phone && row.body) {
+          const msg = await sendSms(getTwilioClient(), {
+            from: client.twilio_number,
+            to: row.caller_phone,
+            body: row.body
+          });
+          await supabase
+            .from('tool_messages')
+            .update({
+              twilio_sid: msg.sid,
+              delivery_status: 'queued',
+              retry_count: (row.retry_count || 0) + 1
+            })
+            .eq('id', row.id);
+        }
+      } catch (retryErr) {
+        console.error('sms-status retry failed:', retryErr);
+      }
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('tool/sms-status error:', err);
+    return res.status(200).json({ ok: true, error: err.message });
+  }
+}
+
+// ─── GET /api/tool/cron-flush — send deferred (quiet-hours) messages ─────────
+// No auth, safe to call anytime. Sends due deferred messages and clears them.
+async function handleCronFlush(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    const nowIso = new Date().toISOString();
+
+    const { data: due, error } = await supabase
+      .from('tool_messages')
+      .select('*')
+      .eq('delivery_status', 'deferred')
+      .lte('deferred_until', nowIso)
+      .limit(200);
+    if (error) throw error;
+
+    const results = [];
+    for (const row of due || []) {
+      try {
+        const { data: client } = await supabase
+          .from('tool_clients')
+          .select('*')
+          .eq('id', row.client_id)
+          .single();
+        if (!client || !client.twilio_number || !row.caller_phone) {
+          results.push({ id: row.id, skipped: 'missing client/number' });
+          continue;
+        }
+        const msg = await sendSms(getTwilioClient(), {
+          from: client.twilio_number,
+          to: row.caller_phone,
+          body: row.body
+        });
+        await supabase
+          .from('tool_messages')
+          .update({ twilio_sid: msg.sid, delivery_status: 'sent', deferred_until: null })
+          .eq('id', row.id);
+        results.push({ id: row.id, sent: true });
+      } catch (e) {
+        console.error('cron-flush send error for msg', row.id, e);
+        results.push({ id: row.id, error: e.message });
+      }
+    }
+    return res.status(200).json({ ok: true, flushed: results.length, results });
+  } catch (err) {
+    console.error('tool/cron-flush error:', err);
     return res.status(500).json({ error: err.message });
   }
 }
@@ -897,9 +1176,11 @@ module.exports = async (req, res) => {
   if (seg0 === 'clients' && !seg1) return handleClients(req, res);
   if (seg0 === 'voice-status') return handleVoiceStatus(req, res);
   if (seg0 === 'voice') return handleVoice(req, res);
+  if (seg0 === 'sms-status') return handleSmsStatus(req, res);
   if (seg0 === 'sms') return handleSms(req, res);
   if (seg0 === 'report') return handleReport(req, res);
   if (seg0 === 'cron-weekly') return handleCronWeekly(req, res);
+  if (seg0 === 'cron-flush') return handleCronFlush(req, res);
   if (seg0 === 'dashboard') return handleDashboard(req, res);
   if (seg0 === 'dodo-webhook') return handleDodoWebhook(req, res);
   if (seg0 === 'pay') return handlePay(req, res);

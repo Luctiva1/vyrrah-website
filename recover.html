@@ -51,6 +51,23 @@
   .stamp{display:block;margin-top:5px;font-size:10px;color:var(--muted)}
   .empty{color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:14px;padding:26px;text-align:center;font-size:14px}
 
+  .dot-status{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .dot-status.ok{background:var(--green);box-shadow:0 0 6px rgba(47,191,113,.6)}
+  .dot-status.fail{background:var(--red);box-shadow:0 0 6px rgba(200,37,30,.6)}
+  .dot-status.pending{background:var(--muted)}
+  .defer-note{color:var(--gold);font-style:italic}
+
+  .numbercard{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px}
+  .numbercard .ncn{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .numbercard .nbig{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:var(--gold);letter-spacing:.02em}
+  .numbercard .nhint{font-size:13px;color:var(--muted);max-width:340px;line-height:1.5}
+
+  .howcard{background:linear-gradient(135deg,rgba(47,191,113,.08),rgba(47,191,113,.02));border:1px solid rgba(47,191,113,.28);border-radius:14px;padding:20px;margin-bottom:26px}
+  .howcard h3{font-family:'Fraunces',serif;font-weight:900;font-size:17px;margin-bottom:10px}
+  .howcard ol{margin:0;padding-left:20px;color:var(--muted);font-size:14px;line-height:1.7}
+  .howcard ol b{color:var(--text);font-weight:500}
+  .rangenote{font-size:12px;color:var(--muted);margin:-12px 0 18px;letter-spacing:.03em}
+
   .state{text-align:center;padding:90px 20px;display:none}
   .state h1{font-family:'Fraunces',serif;font-weight:900;font-size:30px;margin-bottom:14px}
   .state p{color:var(--muted);font-size:15px;line-height:1.6}
@@ -89,6 +106,25 @@
       </div>
     </header>
 
+    <div class="numbercard" id="numberCard" style="display:none">
+      <div>
+        <div class="ncn">Your Vyrrah number</div>
+        <div class="nbig" id="vyrrahNumber"></div>
+      </div>
+      <div class="nhint">Want to see it live? Call your practice line from a phone and don't pick up — within seconds this number texts the caller back automatically.</div>
+    </div>
+
+    <div class="howcard">
+      <h3>How it's working for you</h3>
+      <ol>
+        <li>A caller can't reach you, so the call rolls to <b>your Vyrrah number</b>.</li>
+        <li>We instantly text them back as your front desk and start a real conversation.</li>
+        <li>When they want to book, <b>you get a heads-up text</b> and it shows up below — recovered.</li>
+      </ol>
+    </div>
+
+    <div class="rangenote">Showing activity from the last 30 days.</div>
+
     <div class="stats">
       <div class="stat"><div class="num" id="statMissed">0</div><div class="lbl">Calls missed &amp; caught</div></div>
       <div class="stat"><div class="num" id="statRecovered">0</div><div class="lbl">Conversations recovered</div></div>
@@ -106,7 +142,10 @@
   </div>
 </div>
 
-<footer>Vyrrah Recaller · a Vyrrah Labs product · <a href="mailto:godwin@vyrrahlabs.com">godwin@vyrrahlabs.com</a></footer>
+<footer>
+  Vyrrah Recaller · a Vyrrah Labs product · <a href="mailto:godwin@vyrrahlabs.com">godwin@vyrrahlabs.com</a><br>
+  Questions? Text or call Godwin directly: <a href="tel:+15108519627">+1 (510) 851-9627</a>
+</footer>
 
 <script>
 (function(){
@@ -152,6 +191,14 @@
     pill.className = 'pill ' + (st==='trial' ? 'trial' : st==='active' ? 'active' : 'other');
     document.getElementById('trialBanner').style.display = st==='trial' ? 'flex' : 'none';
 
+    var numCard = document.getElementById('numberCard');
+    if(data.twilio_number){
+      document.getElementById('vyrrahNumber').textContent = data.twilio_number;
+      numCard.style.display = 'flex';
+    } else {
+      numCard.style.display = 'none';
+    }
+
     var s = data.stats || {};
     countUp(document.getElementById('statMissed'), s.missed || 0);
     countUp(document.getElementById('statRecovered'), s.recovered || 0);
@@ -166,7 +213,22 @@
       box.innerHTML = convos.map(function(c){
         var msgs = (c.messages || []).map(function(m){
           var cls = m.direction === 'inbound' ? 'in' : 'out';
-          return '<div class="bubble '+cls+'">'+esc(m.body)+'<span class="stamp">'+esc(fmtTime(m.created_at))+'</span></div>';
+          var statusHtml = '';
+          if(m.direction !== 'inbound'){
+            var ds = (m.delivery_status || '').toLowerCase();
+            if(ds === 'deferred'){
+              statusHtml = '<span class="defer-note">scheduled for morning</span>';
+            } else if(ds === 'delivered' || ds === 'sent'){
+              statusHtml = '<span class="dot-status ok" title="delivered"></span>delivered';
+            } else if(ds === 'failed' || ds === 'undelivered'){
+              statusHtml = '<span class="dot-status fail" title="failed"></span>failed';
+            } else if(ds){
+              statusHtml = '<span class="dot-status pending" title="'+esc(ds)+'"></span>sending';
+            }
+          }
+          return '<div class="bubble '+cls+'">'+esc(m.body)+
+            '<span class="stamp">'+esc(fmtTime(m.created_at))+
+            (statusHtml ? ' · '+statusHtml : '')+'</span></div>';
         }).join('');
         return '<div class="convo"><div class="convo-head"><span class="caller">'+esc(c.caller)+
           (c.booked ? '<span class="tag">BOOKED</span>' : '')+
