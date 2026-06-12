@@ -61,6 +61,21 @@
   .testbox{background:linear-gradient(135deg,rgba(47,191,113,.1),rgba(47,191,113,.03));border:1px solid rgba(47,191,113,.4);border-radius:12px;padding:18px;margin-top:22px;font-size:14px;line-height:1.6}
   .testbox b{font-family:'Fraunces',serif;font-weight:900;color:var(--green);display:block;margin-bottom:6px;font-size:16px}
 
+  /* live verification widget */
+  .verify{margin-top:22px;border-radius:14px;padding:22px;text-align:center;border:1px solid rgba(240,165,0,.4);background:rgba(240,165,0,.06)}
+  .verify .vtitle{font-family:'Fraunces',serif;font-weight:900;font-size:18px;color:var(--gold);margin-bottom:8px}
+  .verify .vsub{font-size:13.5px;line-height:1.6;color:var(--muted)}
+  .verify .pulse{display:inline-flex;align-items:center;gap:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;color:var(--gold);margin-bottom:8px}
+  .verify .pdot{width:11px;height:11px;border-radius:50%;background:var(--gold);animation:pulse 1.3s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.25)}}
+  .verify.done{border-color:rgba(47,191,113,.55);background:linear-gradient(135deg,rgba(47,191,113,.16),rgba(240,165,0,.06));position:relative;overflow:hidden}
+  .verify.done .vtitle{color:var(--green);font-size:22px}
+  .verify .check{font-size:42px;margin-bottom:6px;display:inline-block;animation:pop .5s cubic-bezier(.18,.89,.32,1.6)}
+  @keyframes pop{0%{transform:scale(0) rotate(-25deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+  /* tasteful gold/red confetti */
+  .conf{position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;opacity:0;animation:fall 2.4s ease-in forwards}
+  @keyframes fall{0%{opacity:1;transform:translateY(-10px) rotate(0)}100%{opacity:0;transform:translateY(220px) rotate(540deg)}}
+
   .confetti{text-align:center;font-size:44px;margin-bottom:10px}
   .center{text-align:center}
   .gold-note{background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.4);border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.6;margin-top:20px}
@@ -168,7 +183,13 @@
 
       <div class="testbox">
         <b>Test it now</b>
-        Call your main line from another phone and don't pick up. You should get our text within 60 seconds. If it arrives — you're live.
+        Once forwarding is set, prove it works in 15 seconds: call your main line from your mobile, let it ring out, then hang up. We'll detect the forwarded call live.
+      </div>
+
+      <div class="verify" id="verifyBox">
+        <div class="pulse"><span class="pdot"></span>WAITING FOR YOUR TEST CALL…</div>
+        <div class="vtitle">Let's confirm forwarding is on</div>
+        <div class="vsub">Call your main line from your mobile, let it ring out, then hang up. This page updates the moment the call reaches your recovery number.</div>
       </div>
     </div>
 
@@ -217,6 +238,41 @@
 
   function v(id){ return document.getElementById(id).value.trim(); }
 
+  // ─── Live forwarding verification ───
+  var verifyTimer = null;
+  function fireConfetti(box){
+    var colors = ['#f0a500','#c8251e','#2fbf71','#f2ede4'];
+    for(var i=0;i<28;i++){
+      var c = document.createElement('span');
+      c.className = 'conf';
+      c.style.left = (Math.random()*100) + '%';
+      c.style.background = colors[i % colors.length];
+      c.style.animationDelay = (Math.random()*0.5) + 's';
+      box.appendChild(c);
+    }
+  }
+  function showVerified(box){
+    if(verifyTimer){ clearInterval(verifyTimer); verifyTimer = null; }
+    box.classList.add('done');
+    box.innerHTML = '<div class="check">✓</div>' +
+      '<div class="vtitle">Forwarding confirmed! You\'re live.</div>' +
+      '<div class="vsub">We just caught your test call. Every missed call from here on gets texted back automatically.</div>';
+    fireConfetti(box);
+  }
+  function startVerifyPolling(token){
+    if(!token) return;
+    var box = document.getElementById('verifyBox');
+    if(!box) return;
+    function poll(){
+      fetch('/api/tool/verify-status?token=' + encodeURIComponent(token))
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d && d.verified){ showVerified(box); } })
+        .catch(function(){ /* keep polling */ });
+    }
+    poll();
+    verifyTimer = setInterval(poll, 3000);
+  }
+
   document.getElementById('form').addEventListener('submit', function(e){
     e.preventDefault();
     var btn = document.getElementById('submitBtn');
@@ -255,6 +311,7 @@
         document.getElementById('twilioNumber').textContent = num;
         document.getElementById('gsmCode').textContent = '*004*' + num + '#';
         document.querySelectorAll('.fwdNum').forEach(function(el){ el.textContent = num; });
+        startVerifyPolling(state.client && state.client.magic_token);
       }
       showStep(2);
     })

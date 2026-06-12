@@ -346,7 +346,66 @@ async function computeStats(supabase, clientId, days) {
   };
 }
 
+// Try to assign an available number from number_pool instantly (no Twilio call).
+// Prefers a matching area_code, else any available row. Returns the updated
+// client on success, or null if the pool had nothing to give.
+async function assignFromPool(supabase, client, areaCode) {
+  try {
+    let row = null;
+    if (areaCode) {
+      const { data } = await supabase
+        .from('number_pool')
+        .select('*')
+        .eq('status', 'available')
+        .eq('area_code', areaCode)
+        .limit(1);
+      row = data && data[0];
+    }
+    if (!row) {
+      const { data } = await supabase
+        .from('number_pool')
+        .select('*')
+        .eq('status', 'available')
+        .limit(1);
+      row = data && data[0];
+    }
+    if (!row) return null;
+
+    // Claim the pool row (guard against double-assign via status filter).
+    const { data: claimed, error: claimErr } = await supabase
+      .from('number_pool')
+      .update({ status: 'assigned', assigned_client_id: client.id })
+      .eq('id', row.id)
+      .eq('status', 'available')
+      .select()
+      .single();
+    if (claimErr || !claimed) return null;
+
+    const { data: updated, error } = await supabase
+      .from('tool_clients')
+      .update({ twilio_number: claimed.phone_number, twilio_number_sid: claimed.number_sid })
+      .eq('id', client.id)
+      .select()
+      .single();
+    if (error) {
+      // Roll the pool row back so it isn't stranded.
+      await supabase.from('number_pool')
+        .update({ status: 'available', assigned_client_id: null })
+        .eq('id', claimed.id);
+      throw error;
+    }
+    return updated;
+  } catch (e) {
+    console.error('assignFromPool error:', e);
+    return null;
+  }
+}
+
 async function provisionTwilioNumber(supabase, client, areaCode) {
+  // Pool first — instant, no Twilio API call (webhooks already set at refill).
+  const fromPool = await assignFromPool(supabase, client, areaCode);
+  if (fromPool) return fromPool;
+
   const tw = getTwilioClient();
   let numbers = [];
   try {
@@ -377,6 +436,22 @@ async function provisionTwilioNumber(supabase, client, areaCode) {
     .single();
   if (error) throw error;
   return updated;
+}
+
+// Mark that an inbound call hit this client's tool number. First-ever inbound
+// also proves call-forwarding works -> flip forwarding_verified true.
+async function markInbound(supabase, client) {
+  try {
+    const now = new Date().toISOString();
+    const patch = { last_inbound_at: now };
+    if (!client.forwarding_verified) {
+      patch.forwarding_verified = true;
+      patch.verified_at = now;
+    }
+    await supabase.from('tool_clients').update(patch).eq('id', client.id);
+  } catch (e) {
+    console.error('markInbound error:', e);
+  }
 }
 
 function forwardingInstructions(number) {
@@ -539,6 +614,9 @@ async function handleVoice(req, res) {
     if (!client || !client.real_line) {
       return twiml(res, '<Say voice="alice">This number is not configured.</Say><Hangup/>');
     }
+
+    // ANY inbound call proves forwarding works — record it.
+    await markInbound(supabase, client);
 
     const action = `/api/tool/voice-status?client_id=${encodeURIComponent(client.id)}`;
     return twiml(
@@ -1102,6 +1180,17 @@ async function handleDodoWebhook(req, res) {
       .eq('id', client.id);
     if (error) console.error('dodo-webhook: status update failed', error);
 
+    // On churn, best-effort release any pooled number back to availability.
+    if (churn) {
+      try {
+        await supabase.from('number_pool')
+          .update({ status: 'available', assigned_client_id: null })
+          .eq('assigned_client_id', client.id);
+      } catch (relErr) {
+        console.error('dodo-webhook: pool release failed', relErr);
+      }
+    }
+
     return res.status(200).json({ ok: true, client_id: client.id, status });
   } catch (err) {
     console.error('tool/dodo-webhook error:', err);
@@ -1167,6 +1256,201 @@ async function handlePay(req, res) {
   }
 }
 
+// ─── GET /api/tool/verify-status?token=MAGIC — live forwarding check ─────────
+// No auth (magic token). Polled by start.html during onboarding.
+async function handleVerifyStatus(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    const token = req.query.token;
+    if (!token) return res.status(400).json({ error: 'token required' });
+
+    const { data: client } = await supabase
+      .from('tool_clients')
+      .select('forwarding_verified, verified_at, twilio_number, last_inbound_at')
+      .eq('magic_token', token)
+      .single();
+    if (!client) return res.status(404).json({ error: 'Invalid token' });
+
+    return res.status(200).json({
+      verified: !!client.forwarding_verified,
+      verified_at: client.verified_at || null,
+      twilio_number: client.twilio_number || null,
+      last_inbound_at: client.last_inbound_at || null
+    });
+  } catch (err) {
+    console.error('tool/verify-status error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── Number pool ─────────────────────────────────────────────────────────────
+
+// GET /api/tool/pool — counts + list (admin)
+async function handlePool(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    const { data: rows, error } = await supabase
+      .from('number_pool')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    const list = rows || [];
+    const available = list.filter((r) => r.status === 'available').length;
+    const assigned = list.filter((r) => r.status === 'assigned').length;
+    return res.status(200).json({ available, assigned, total: list.length, numbers: list });
+  } catch (err) {
+    console.error('tool/pool error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// POST /api/tool/pool/refill { count, area_code } — buy & stock numbers (admin)
+async function handlePoolRefill(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    let count = parseInt((req.body && req.body.count) || 1, 10);
+    if (!Number.isFinite(count) || count < 1) count = 1;
+    if (count > 10) count = 10; // hard cap
+    const areaCode = (req.body && req.body.area_code) || null;
+
+    const tw = getTwilioClient();
+    const bought = [];
+    const errors = [];
+    for (let i = 0; i < count; i++) {
+      try {
+        let avail = await tw
+          .availablePhoneNumbers('US')
+          .local.list(areaCode ? { areaCode, limit: 1 } : { limit: 1 });
+        if ((!avail || !avail.length) && areaCode) {
+          avail = await tw.availablePhoneNumbers('US').local.list({ limit: 1 });
+        }
+        if (!avail || !avail.length) { errors.push('no available numbers'); break; }
+
+        const purchased = await tw.incomingPhoneNumbers.create({
+          phoneNumber: avail[0].phoneNumber,
+          voiceUrl: VOICE_URL,
+          voiceMethod: 'POST',
+          smsUrl: SMS_URL,
+          smsMethod: 'POST'
+        });
+
+        const { data: row, error } = await supabase
+          .from('number_pool')
+          .insert({
+            phone_number: purchased.phoneNumber,
+            number_sid: purchased.sid,
+            area_code: areaCode || null,
+            status: 'available'
+          })
+          .select()
+          .single();
+        if (error) { errors.push(error.message); continue; }
+        bought.push(row);
+      } catch (e) {
+        console.error('pool refill buy error:', e);
+        errors.push(e.message);
+      }
+    }
+    return res.status(200).json({ ok: true, added: bought.length, numbers: bought, errors });
+  } catch (err) {
+    console.error('tool/pool/refill error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── GET /api/tool/admin-overview — command center data (admin) ──────────────
+async function handleAdminOverview(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    const { data: clients, error } = await supabase
+      .from('tool_clients')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    const out = [];
+    for (const c of clients || []) {
+      let s7 = null, s30 = null;
+      try { s7 = await computeStats(supabase, c.id, 7); } catch (e) { console.error('overview s7', c.id, e); }
+      try { s30 = await computeStats(supabase, c.id, 30); } catch (e) { console.error('overview s30', c.id, e); }
+
+      const lastIn = c.last_inbound_at ? new Date(c.last_inbound_at).getTime() : 0;
+      const sinceIn = lastIn ? now - lastIn : Infinity;
+      const trialMs = c.trial_started_at ? new Date(c.trial_started_at).getTime() : 0;
+      const trialEndsMs = trialMs ? trialMs + 7 * DAY : 0;
+      const trialDaysLeft = trialEndsMs ? Math.ceil((trialEndsMs - now) / DAY) : null;
+
+      let health;
+      if (!c.forwarding_verified) health = 'unverified';
+      else if (sinceIn <= 7 * DAY) health = 'healthy';
+      else if (sinceIn <= 14 * DAY) health = 'quiet';
+      else health = 'at_risk';
+      if (c.status === 'trial' && trialDaysLeft != null && trialDaysLeft < 2) health = 'at_risk';
+
+      const slim = (s) => s ? {
+        calls: s.total_calls, missed: s.missed, recovered: s.recovered,
+        booked: s.booked, est_revenue_saved: s.est_revenue_saved
+      } : null;
+
+      out.push({
+        id: c.id,
+        practice_name: c.practice_name,
+        status: c.status,
+        twilio_number: c.twilio_number || null,
+        magic_token: c.magic_token || null,
+        forwarding_verified: !!c.forwarding_verified,
+        created_at: c.created_at,
+        trial_started_at: c.trial_started_at || null,
+        trial_days_left: c.status === 'trial' ? trialDaysLeft : null,
+        last_inbound_at: c.last_inbound_at || null,
+        health,
+        stats_7d: slim(s7),
+        stats_30d: slim(s30)
+      });
+    }
+
+    // sort: at_risk + unverified float to top
+    const prio = { at_risk: 0, unverified: 1, quiet: 2, healthy: 3 };
+    out.sort((a, b) => (prio[a.health] - prio[b.health]) || (new Date(b.created_at) - new Date(a.created_at)));
+
+    let pool = { available: 0, assigned: 0, total: 0 };
+    try {
+      const { data: prows } = await supabase.from('number_pool').select('status');
+      const pl = prows || [];
+      pool = {
+        available: pl.filter((r) => r.status === 'available').length,
+        assigned: pl.filter((r) => r.status === 'assigned').length,
+        total: pl.length
+      };
+    } catch (e) { console.error('overview pool', e); }
+
+    const active = out.filter((c) => c.status === 'active').length;
+    const trial = out.filter((c) => c.status === 'trial').length;
+    const totals = {
+      total_clients: out.length,
+      active,
+      trial,
+      mrr: active * 500 + trial * 0,
+      total_revenue_recovered: out.reduce((sum, c) => sum + ((c.stats_30d && c.stats_30d.est_revenue_saved) || 0), 0),
+      pool_available: pool.available
+    };
+
+    return res.status(200).json({ totals, pool, clients: out });
+  } catch (err) {
+    console.error('tool/admin-overview error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 module.exports = async (req, res) => {
@@ -1181,6 +1465,10 @@ module.exports = async (req, res) => {
 
   if (seg0 === 'clients' && seg1 === 'provision') return handleClientsProvision(req, res);
   if (seg0 === 'clients' && !seg1) return handleClients(req, res);
+  if (seg0 === 'verify-status') return handleVerifyStatus(req, res);
+  if (seg0 === 'pool' && seg1 === 'refill') return handlePoolRefill(req, res);
+  if (seg0 === 'pool' && !seg1) return handlePool(req, res);
+  if (seg0 === 'admin-overview') return handleAdminOverview(req, res);
   if (seg0 === 'voice-status') return handleVoiceStatus(req, res);
   if (seg0 === 'voice') return handleVoice(req, res);
   if (seg0 === 'sms-status') return handleSmsStatus(req, res);

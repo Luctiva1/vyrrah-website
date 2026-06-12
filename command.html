@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vyrrah Recaller — Command Center</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070707; --panel:#0f0f0f; --text:#f2ede4; --muted:rgba(242,237,228,.55);
+    --red:#c8251e; --gold:#f0a500; --green:#2fbf71; --line:rgba(242,237,228,.09);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh}
+  a{color:var(--gold);text-decoration:none}
+  .wrap{width:100%;max-width:1100px;margin:0 auto;padding:26px 18px 70px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;letter-spacing:.04em}
+  .wordmark .dot{color:var(--red)}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:26px;margin:14px 0 2px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:24px}
+  .refresh{font-size:11px;color:var(--muted)}
+
+  .btn{background:var(--red);color:var(--text);border:none;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.05em;padding:11px 16px;border-radius:9px}
+  .btn:hover{filter:brightness(1.12)}
+  .btn[disabled]{opacity:.5;cursor:wait}
+  .btn.gold{background:var(--gold);color:#070707}
+
+  /* metric bar */
+  .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px}
+  @media(max-width:760px){.metrics{grid-template-columns:repeat(2,1fr)}}
+  .metric{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .metric .mv{font-family:'Syne',sans-serif;font-weight:800;font-size:24px}
+  .metric .ml{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+  .metric .mv.gold{color:var(--gold)} .metric .mv.green{color:var(--green)}
+
+  /* client cards */
+  .clients{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.clients{grid-template-columns:1fr}}
+  .c{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;position:relative}
+  .c.attn{border-color:rgba(200,37,30,.5)}
+  .chead{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .hdot{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+  .hdot.healthy{background:var(--green)} .hdot.quiet{background:var(--gold)}
+  .hdot.at_risk{background:var(--red)} .hdot.unverified{background:rgba(242,237,228,.4)}
+  .cname{font-family:'Fraunces',serif;font-weight:900;font-size:18px;line-height:1.2}
+  .pill{font-family:'Syne',sans-serif;font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+  .pill.active{color:var(--green);border-color:rgba(47,191,113,.5)}
+  .pill.trial{color:var(--gold);border-color:rgba(240,165,0,.5)}
+  .pill.churned{color:var(--red);border-color:rgba(200,37,30,.5)}
+  .num{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--text);margin:8px 0 2px}
+  .num.none{color:var(--muted);font-weight:400;font-style:italic}
+  .hflag{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .cstats{display:flex;gap:18px;border-top:1px solid var(--line);padding-top:12px;margin-top:10px}
+  .cstat .sv{font-family:'Syne',sans-serif;font-weight:800;font-size:18px}
+  .cstat .sl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .cstat .sv.green{color:var(--green)} .cstat .sv.gold{color:var(--gold)}
+  .clinks{display:flex;gap:14px;margin-top:12px;font-size:12px}
+  .trial-left{font-size:11px;color:var(--gold);margin-top:6px}
+  .err{display:none;background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4);border-radius:10px;padding:12px 14px;font-size:14px;margin:14px 0}
+  .empty{color:var(--muted);text-align:center;padding:40px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="wordmark">VYRRAH RECALLER<span class="dot">.</span> · COMMAND</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span class="refresh" id="refresh">—</span>
+      <button class="btn gold" id="refillBtn">Refill pool (+5)</button>
+    </div>
+  </div>
+  <h1>Command Center</h1>
+  <p class="sub">Every client, every signal. At-risk and unverified float to the top.</p>
+
+  <div class="err" id="err"></div>
+  <div class="metrics" id="metrics"></div>
+  <div class="clients" id="clients"><div class="empty">Loading…</div></div>
+</div>
+
+<script>
+(function(){
+  function fmtMoney(n){ return '$' + Math.round(Number(n)||0).toLocaleString(); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  function metricCard(v, l, cls){
+    return '<div class="metric"><div class="mv ' + (cls||'') + '">' + v + '</div><div class="ml">' + l + '</div></div>';
+  }
+
+  function clientCard(c){
+    var s7 = c.stats_7d || {};
+    var attn = (c.health === 'at_risk' || c.health === 'unverified') ? ' attn' : '';
+    var hlabel = { healthy:'Healthy', quiet:'Quiet 7–14d', at_risk:'At risk', unverified:'Forwarding unverified' }[c.health] || c.health;
+    var pill = '<span class="pill ' + esc(c.status) + '">' + esc(c.status) + '</span>';
+    var num = c.twilio_number
+      ? '<div class="num">' + esc(c.twilio_number) + '</div>'
+      : '<div class="num none">no number yet</div>';
+    var trial = (c.status === 'trial' && c.trial_days_left != null)
+      ? '<div class="trial-left">' + (c.trial_days_left <= 0 ? 'Trial ended' : c.trial_days_left + ' day(s) left in trial') + '</div>'
+      : '';
+    var links = '';
+    if (c.magic_token) links += '<a href="/recaller?token=' + encodeURIComponent(c.magic_token) + '" target="_blank">Dashboard ↗</a>';
+    links += '<a href="/api/tool/report?client_id=' + encodeURIComponent(c.id) + '&days=7" target="_blank">Report ↗</a>';
+
+    return '<div class="c' + attn + '">' +
+      '<div class="chead"><span class="hdot ' + esc(c.health) + '"></span>' +
+        '<span class="cname">' + esc(c.practice_name) + '</span>' + pill + '</div>' +
+      '<div class="hflag">' + esc(hlabel) + '</div>' +
+      num + trial +
+      '<div class="cstats">' +
+        '<div class="cstat"><div class="sv green">' + (s7.recovered || 0) + '</div><div class="sl">Recovered 7d</div></div>' +
+        '<div class="cstat"><div class="sv gold">' + fmtMoney(s7.est_revenue_saved) + '</div><div class="sl">Saved 7d</div></div>' +
+        '<div class="cstat"><div class="sv">' + (s7.missed || 0) + '</div><div class="sl">Missed 7d</div></div>' +
+      '</div>' +
+      '<div class="clinks">' + links + '</div>' +
+    '</div>';
+  }
+
+  function render(d){
+    var t = d.totals || {};
+    document.getElementById('metrics').innerHTML =
+      metricCard(t.total_clients || 0, 'Total clients') +
+      metricCard((t.active||0) + ' / ' + (t.trial||0), 'Active / Trial') +
+      metricCard(fmtMoney(t.mrr), 'MRR', 'green') +
+      metricCard(fmtMoney(t.total_revenue_recovered), 'Recovered (30d)', 'gold') +
+      metricCard(t.pool_available || 0, 'Pool available', 'gold');
+
+    var list = d.clients || [];
+    document.getElementById('clients').innerHTML = list.length
+      ? list.map(clientCard).join('')
+      : '<div class="empty">No clients yet.</div>';
+    document.getElementById('refresh').textContent = 'updated ' + new Date().toLocaleTimeString();
+  }
+
+  function load(){
+    fetch('/api/tool/admin-overview')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.error) throw new Error(d.error);
+        document.getElementById('err').style.display = 'none';
+        render(d);
+      })
+      .catch(function(e){
+        var el = document.getElementById('err');
+        el.textContent = 'Failed to load: ' + e.message;
+        el.style.display = 'block';
+      });
+  }
+
+  document.getElementById('refillBtn').addEventListener('click', function(){
+    var btn = this;
+    btn.disabled = true; btn.textContent = 'Buying…';
+    fetch('/api/tool/pool/refill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count: 5 })
+    })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        btn.textContent = d.added != null ? ('Added ' + d.added) : 'Done';
+        load();
+        setTimeout(function(){ btn.disabled = false; btn.textContent = 'Refill pool (+5)'; }, 2500);
+      })
+      .catch(function(e){
+        var el = document.getElementById('err');
+        el.textContent = 'Refill failed: ' + e.message; el.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Refill pool (+5)';
+      });
+  });
+
+  load();
+  setInterval(load, 30000);
+})();
+</script>
+</body>
+</html>

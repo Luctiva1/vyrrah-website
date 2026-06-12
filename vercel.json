@@ -26,6 +26,10 @@
       "dest": "/start.html"
     },
     {
+      "src": "/command",
+      "dest": "/command.html"
+    },
+    {
       "src": "/api/analyze",
       "dest": "/api/analyze"
     },
