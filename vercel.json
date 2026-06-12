@@ -4,6 +4,8 @@
     { "src": "/admin", "dest": "/admin.html" },
     { "src": "/audit", "dest": "/audit.html" },
     { "src": "/results", "dest": "/results.html" },
+    { "src": "/recover", "dest": "/recover.html" },
+    { "src": "/start", "dest": "/start.html" },
     { "src": "/api/analyze", "dest": "/api/analyze" },
     { "src": "/api/tool/(.*)", "dest": "/api/tool?path=$1" },
     { "src": "/api/(.*)", "dest": "/api/index?path=$1" }

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Front Desk AI — Get Set Up</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070707; --panel:#0f0f0f; --text:#f2ede4; --muted:rgba(242,237,228,.55);
+    --red:#c8251e; --gold:#f0a500; --green:#2fbf71; --line:rgba(242,237,228,.09);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column}
+  a{color:var(--gold)}
+  .wrap{width:100%;max-width:680px;margin:0 auto;padding:28px 20px 60px;flex:1}
+  .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:.04em;text-align:center}
+  .wordmark .dot{color:var(--red)}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:30px;text-align:center;margin:22px 0 6px}
+  .sub{text-align:center;color:var(--muted);font-size:14px;margin-bottom:30px}
+
+  /* progress rail */
+  .rail{display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:34px}
+  .rstep{display:flex;align-items:center}
+  .dot2{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--muted)}
+  .rlbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-left:8px;display:none}
+  .rline{width:54px;height:1px;background:var(--line);margin:0 10px}
+  .rstep.on .dot2{border-color:var(--red);background:var(--red);color:var(--text)}
+  .rstep.done .dot2{border-color:var(--gold);color:var(--gold)}
+  @media(min-width:560px){.rlbl{display:inline}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px}
+  label{display:block;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px}
+  label:first-child{margin-top:0}
+  input{width:100%;background:#161616;border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none}
+  input:focus{border-color:rgba(240,165,0,.55)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:480px){.row{grid-template-columns:1fr}}
+  .hint{font-size:12px;color:var(--muted);margin-top:5px}
+  .btn{display:inline-block;width:100%;background:var(--red);color:var(--text);border:none;cursor:pointer;text-align:center;text-decoration:none;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;letter-spacing:.06em;padding:15px 22px;border-radius:10px;margin-top:24px}
+  .btn:hover{filter:brightness(1.12)}
+  .btn[disabled]{opacity:.5;cursor:wait}
+  .err{display:none;background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4);border-radius:10px;padding:12px 14px;font-size:14px;margin-top:16px}
+
+  .bignum{font-family:'Syne',sans-serif;font-weight:800;font-size:36px;text-align:center;color:var(--gold);letter-spacing:.02em;background:#161616;border:1px solid rgba(240,165,0,.35);border-radius:14px;padding:22px;margin-bottom:8px;word-break:break-all}
+  .pending{font-family:'Fraunces',serif;font-weight:900;font-size:20px;text-align:center;color:var(--gold);background:rgba(240,165,0,.08);border:1px dashed rgba(240,165,0,.4);border-radius:14px;padding:26px;margin-bottom:8px}
+  .pending small{display:block;font-family:'DM Sans',sans-serif;font-weight:400;font-size:13px;color:var(--muted);margin-top:10px}
+
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 14px}
+  .tab{flex:1;min-width:120px;background:#161616;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:11px 8px;cursor:pointer;text-align:center}
+  .tab.on{border-color:var(--red);color:var(--text);background:rgba(200,37,30,.12)}
+  .pane{display:none;background:#121212;border:1px solid var(--line);border-radius:12px;padding:18px;font-size:14px;line-height:1.65}
+  .pane.on{display:block}
+  .pane code{display:inline-block;font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--gold);background:#0a0a0a;border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:6px 0}
+  .pane ol{padding-left:20px}
+  .pane li{margin-bottom:6px}
+
+  .testbox{background:linear-gradient(135deg,rgba(47,191,113,.1),rgba(47,191,113,.03));border:1px solid rgba(47,191,113,.4);border-radius:12px;padding:18px;margin-top:22px;font-size:14px;line-height:1.6}
+  .testbox b{font-family:'Fraunces',serif;font-weight:900;color:var(--green);display:block;margin-bottom:6px;font-size:16px}
+
+  .confetti{text-align:center;font-size:44px;margin-bottom:10px}
+  .center{text-align:center}
+  .gold-note{background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.4);border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.6;margin-top:20px}
+  #step2,#step3{display:none}
+  footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;font-size:13px;color:var(--muted)}
+  footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="wordmark">FRONT DESK AI<span class="dot">.</span></div>
+  <h1>Never miss a patient again</h1>
+  <p class="sub">Three steps. About five minutes. Your free week starts today.</p>
+
+  <div class="rail">
+    <div class="rstep on" id="r1"><div class="dot2">1</div><span class="rlbl">Practice details</span></div>
+    <div class="rline"></div>
+    <div class="rstep" id="r2"><div class="dot2">2</div><span class="rlbl">Forwarding</span></div>
+    <div class="rline"></div>
+    <div class="rstep" id="r3"><div class="dot2">3</div><span class="rlbl">You're live</span></div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="card" id="step1">
+    <form id="form">
+      <label for="practice_name">Practice name *</label>
+      <input id="practice_name" required placeholder="Smile Dental Studio">
+      <div class="row">
+        <div>
+          <label for="owner_name">Owner name</label>
+          <input id="owner_name" placeholder="Dr. Jane Smith">
+        </div>
+        <div>
+          <label for="owner_email">Owner email</label>
+          <input id="owner_email" type="email" placeholder="jane@smiledental.com">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="owner_phone">Owner mobile</label>
+          <input id="owner_phone" type="tel" placeholder="+1 555 010 0123">
+        </div>
+        <div>
+          <label for="real_line">Practice main line *</label>
+          <input id="real_line" type="tel" required placeholder="+1 555 010 0456">
+          <div class="hint">The number patients call today.</div>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="avg_customer_value">Average customer value ($)</label>
+          <input id="avg_customer_value" type="number" min="1" value="500">
+        </div>
+        <div>
+          <label for="area_code">Preferred area code (optional)</label>
+          <input id="area_code" maxlength="3" pattern="[0-9]{3}" placeholder="415">
+        </div>
+      </div>
+      <label for="services">Services (one line)</label>
+      <input id="services" placeholder="General dentistry, cleanings, whitening, implants">
+      <label for="booking_link">Booking link (optional)</label>
+      <input id="booking_link" type="url" placeholder="https://yourbookingpage.com">
+      <button class="btn" id="submitBtn" type="submit">Create my Front Desk AI →</button>
+      <div class="err" id="formErr"></div>
+    </form>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="card" id="step2">
+    <div id="numberBlock">
+      <p class="sub" style="margin-bottom:14px">Your new recovery number</p>
+      <div class="bignum" id="twilioNumber"></div>
+      <p class="hint center">Patients never see this number change anything — your main line stays the same.</p>
+    </div>
+    <div id="pendingBlock" style="display:none">
+      <div class="pending">Number pending — we'll text you setup steps shortly.<small>Your account is created and safe. Godwin will finish the number setup and send your forwarding code within the hour.</small></div>
+    </div>
+
+    <div id="forwarding">
+      <h2 style="font-family:'Fraunces',serif;font-weight:900;font-size:20px;margin:24px 0 4px">Turn on missed-call forwarding</h2>
+      <p class="hint">This only kicks in when nobody answers or the line is busy. Normal calls ring exactly like before.</p>
+      <div class="tabs">
+        <div class="tab on" data-pane="gsm">Most mobiles (GSM)</div>
+        <div class="tab" data-pane="phone">iPhone / Android setting</div>
+        <div class="tab" data-pane="voip">VoIP / desk system</div>
+      </div>
+      <div class="pane on" id="pane-gsm">
+        On the phone that owns your main line, open the dialer and call:
+        <br><code id="gsmCode">*004*+1XXXXXXXXXX#</code><br>
+        Press call. You'll see a confirmation message. This sets <b>forward-when-unanswered and forward-when-busy</b> to your new recovery number — answered calls are untouched.
+      </div>
+      <div class="pane" id="pane-phone">
+        <ol>
+          <li>Open <b>Settings → Phone → Call Forwarding</b> (on Android: Phone app → Settings → Calls → Call Forwarding).</li>
+          <li>Choose <b>conditional</b> forwarding: "When unanswered" and "When busy".</li>
+          <li>Enter your recovery number: <code class="fwdNum">…</code></li>
+          <li>Leave "Always forward" OFF — you still want to answer calls normally.</li>
+        </ol>
+      </div>
+      <div class="pane" id="pane-voip">
+        Using RingCentral, Weave, or an office PBX? In your phone system admin, set <b>No-Answer forwarding</b> (sometimes "call handling → when unanswered") to:
+        <br><code class="fwdNum">…</code><br>
+        Not sure where that lives? Forward this page to your IT person — it's a two-minute change.
+      </div>
+
+      <div class="testbox">
+        <b>Test it now</b>
+        Call your main line from another phone and don't pick up. You should get our text within 60 seconds. If it arrives — you're live.
+      </div>
+    </div>
+
+    <button class="btn" id="toStep3">All set — continue →</button>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="card center" id="step3">
+    <div class="confetti">🥂</div>
+    <h2 style="font-family:'Fraunces',serif;font-weight:900;font-size:24px;margin-bottom:10px">You're live.</h2>
+    <p style="color:var(--muted);font-size:15px;line-height:1.6">Every missed call now gets caught, texted back, and tracked. Watch it happen on your dashboard:</p>
+    <a class="btn" id="dashLink" href="#" style="background:var(--gold);color:#070707">Open my dashboard →</a>
+    <div class="gold-note">Your free week starts now. <b>Godwin will call you in 7 days with your numbers.</b> No card needed until you've seen the results.</div>
+  </div>
+</div>
+
+<footer>Front Desk AI · a Vyrrah Labs product · <a href="mailto:godwin@vyrrahlabs.com">godwin@vyrrahlabs.com</a></footer>
+
+<script>
+(function(){
+  var state = { client: null };
+
+  function setRail(n){
+    [1,2,3].forEach(function(i){
+      var el = document.getElementById('r'+i);
+      el.className = 'rstep' + (i<n ? ' done' : i===n ? ' on' : '');
+    });
+  }
+  function showStep(n){
+    [1,2,3].forEach(function(i){
+      document.getElementById('step'+i).style.display = i===n ? 'block' : 'none';
+    });
+    setRail(n);
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  // tabs
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(x){ x.classList.remove('on'); });
+      document.querySelectorAll('.pane').forEach(function(x){ x.classList.remove('on'); });
+      t.classList.add('on');
+      document.getElementById('pane-' + t.dataset.pane).classList.add('on');
+    });
+  });
+
+  function v(id){ return document.getElementById(id).value.trim(); }
+
+  document.getElementById('form').addEventListener('submit', function(e){
+    e.preventDefault();
+    var btn = document.getElementById('submitBtn');
+    var err = document.getElementById('formErr');
+    err.style.display = 'none';
+    btn.disabled = true; btn.textContent = 'Setting up…';
+
+    var payload = {
+      practice_name: v('practice_name'),
+      owner_name: v('owner_name') || null,
+      owner_email: v('owner_email') || null,
+      owner_phone: v('owner_phone') || null,
+      real_line: v('real_line'),
+      avg_customer_value: Number(v('avg_customer_value')) || 500,
+      services: v('services') || null,
+      booking_link: v('booking_link') || null,
+      area_code: v('area_code') || null
+    };
+
+    fetch('/api/tool/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); })
+    .then(function(res){
+      if(!res.ok || res.data.error){ throw new Error(res.data.error || 'Something went wrong'); }
+      state.client = res.data.client;
+      var num = state.client && state.client.twilio_number;
+      if(res.data.twilio_error || !num){
+        // soft-fail: client created, number pending
+        document.getElementById('numberBlock').style.display = 'none';
+        document.getElementById('forwarding').style.display = 'none';
+        document.getElementById('pendingBlock').style.display = 'block';
+      } else {
+        document.getElementById('twilioNumber').textContent = num;
+        document.getElementById('gsmCode').textContent = '*004*' + num + '#';
+        document.querySelectorAll('.fwdNum').forEach(function(el){ el.textContent = num; });
+      }
+      showStep(2);
+    })
+    .catch(function(e2){
+      err.textContent = e2.message + ' — try again, or email godwin@vyrrahlabs.com';
+      err.style.display = 'block';
+    })
+    .finally(function(){
+      btn.disabled = false; btn.textContent = 'Create my Front Desk AI →';
+    });
+  });
+
+  document.getElementById('toStep3').addEventListener('click', function(){
+    var token = state.client && state.client.magic_token;
+    document.getElementById('dashLink').href = token ? ('/recover?token=' + encodeURIComponent(token)) : '#';
+    showStep(3);
+  });
+})();
+</script>
+</body>
+</html>

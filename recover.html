@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Front Desk AI — Your Recovery Dashboard</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070707; --panel:#0f0f0f; --text:#f2ede4; --muted:rgba(242,237,228,.55);
+    --red:#c8251e; --gold:#f0a500; --green:#2fbf71; --line:rgba(242,237,228,.09);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column}
+  a{color:var(--gold)}
+  .wrap{width:100%;max-width:880px;margin:0 auto;padding:28px 20px 60px;flex:1}
+
+  header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--line)}
+  .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:.04em}
+  .wordmark .dot{color:var(--red)}
+  .who{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .practice{font-family:'Fraunces',serif;font-weight:900;font-size:22px}
+  .pill{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.14em;padding:5px 12px;border-radius:999px;border:1px solid}
+  .pill.trial{color:var(--gold);border-color:rgba(240,165,0,.45);background:rgba(240,165,0,.08)}
+  .pill.active{color:var(--green);border-color:rgba(47,191,113,.45);background:rgba(47,191,113,.08)}
+  .pill.other{color:var(--muted);border-color:var(--line)}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:26px 0}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 16px}
+  .stat .num{font-family:'Syne',sans-serif;font-weight:800;font-size:34px;line-height:1.05}
+  .stat .num.money{color:var(--gold)}
+  .stat .lbl{margin-top:8px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+
+  .banner{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:linear-gradient(135deg,rgba(240,165,0,.14),rgba(240,165,0,.05));border:1px solid rgba(240,165,0,.4);border-radius:14px;padding:18px 20px;margin-bottom:26px}
+  .banner p{font-family:'Fraunces',serif;font-weight:900;font-size:17px;color:var(--gold)}
+  .btn{display:inline-block;background:var(--red);color:var(--text);text-decoration:none;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.06em;padding:12px 22px;border-radius:10px;white-space:nowrap}
+  .btn:hover{filter:brightness(1.12)}
+
+  h2{font-family:'Fraunces',serif;font-weight:900;font-size:22px;margin:8px 0 16px}
+  .convo{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  .convo-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .caller{font-family:'Syne',sans-serif;font-weight:700;font-size:14px}
+  .meta{font-size:12px;color:var(--muted)}
+  .tag{font-size:10px;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.12em;color:var(--green);border:1px solid rgba(47,191,113,.4);border-radius:999px;padding:3px 9px;margin-left:8px}
+  .bubble{max-width:78%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.45;margin-bottom:8px}
+  .in{background:#181818;border:1px solid var(--line);border-bottom-left-radius:4px;margin-right:auto}
+  .out{background:rgba(200,37,30,.16);border:1px solid rgba(200,37,30,.35);border-bottom-right-radius:4px;margin-left:auto}
+  .stamp{display:block;margin-top:5px;font-size:10px;color:var(--muted)}
+  .empty{color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:14px;padding:26px;text-align:center;font-size:14px}
+
+  .state{text-align:center;padding:90px 20px;display:none}
+  .state h1{font-family:'Fraunces',serif;font-weight:900;font-size:30px;margin-bottom:14px}
+  .state p{color:var(--muted);font-size:15px;line-height:1.6}
+  #loading .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--red);border-radius:50%;margin:0 auto 18px;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;font-size:13px;color:var(--muted)}
+  footer a{color:var(--muted)}
+  #app{display:none}
+  @media(max-width:640px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .stat .num{font-size:28px}
+    .practice{font-size:18px}
+    .bubble{max-width:90%}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="loading" class="state" style="display:block">
+    <div class="spin"></div>
+    <p>Loading your numbers…</p>
+  </div>
+
+  <div id="error" class="state">
+    <h1>This link isn't valid</h1>
+    <p>It may have expired or been copied incorrectly.<br>Contact <a href="mailto:godwin@vyrrahlabs.com">godwin@vyrrahlabs.com</a> and we'll sort it out.</p>
+  </div>
+
+  <div id="app">
+    <header>
+      <div class="wordmark">FRONT DESK AI<span class="dot">.</span></div>
+      <div class="who">
+        <span class="practice" id="practiceName"></span>
+        <span class="pill" id="statusPill"></span>
+      </div>
+    </header>
+
+    <div class="stats">
+      <div class="stat"><div class="num" id="statMissed">0</div><div class="lbl">Calls missed &amp; caught</div></div>
+      <div class="stat"><div class="num" id="statRecovered">0</div><div class="lbl">Conversations recovered</div></div>
+      <div class="stat"><div class="num" id="statBooked">0</div><div class="lbl">Bookings captured</div></div>
+      <div class="stat"><div class="num money" id="statRevenue">$0</div><div class="lbl">Est. revenue saved</div></div>
+    </div>
+
+    <div class="banner" id="trialBanner" style="display:none">
+      <p>Your free week is running. Like what you see? Lock it in.</p>
+      <a class="btn" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book a call</a>
+    </div>
+
+    <h2>Recent recovered conversations</h2>
+    <div id="convos"></div>
+  </div>
+</div>
+
+<footer>Front Desk AI · a Vyrrah Labs product · <a href="mailto:godwin@vyrrahlabs.com">godwin@vyrrahlabs.com</a></footer>
+
+<script>
+(function(){
+  var token = new URLSearchParams(location.search).get('token');
+  var firstLoad = true;
+
+  function show(id){
+    ['loading','error','app'].forEach(function(x){
+      document.getElementById(x).style.display = x===id ? 'block' : 'none';
+    });
+  }
+
+  function esc(s){
+    var d = document.createElement('div'); d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  function fmtTime(iso){
+    if(!iso) return '';
+    var d = new Date(iso);
+    return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' · ' +
+           d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+  }
+
+  function countUp(el, target, prefix){
+    prefix = prefix || '';
+    if(!firstLoad){ el.textContent = prefix + target.toLocaleString(); return; }
+    var start = performance.now(), dur = 1100;
+    function tick(now){
+      var p = Math.min((now-start)/dur, 1);
+      var eased = 1 - Math.pow(1-p, 3);
+      el.textContent = prefix + Math.round(target*eased).toLocaleString();
+      if(p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function render(data){
+    document.getElementById('practiceName').textContent = data.practice_name || '';
+    var pill = document.getElementById('statusPill');
+    var st = (data.status || '').toLowerCase();
+    pill.textContent = st.toUpperCase();
+    pill.className = 'pill ' + (st==='trial' ? 'trial' : st==='active' ? 'active' : 'other');
+    document.getElementById('trialBanner').style.display = st==='trial' ? 'flex' : 'none';
+
+    var s = data.stats || {};
+    countUp(document.getElementById('statMissed'), s.missed || 0);
+    countUp(document.getElementById('statRecovered'), s.recovered || 0);
+    countUp(document.getElementById('statBooked'), s.booked || 0);
+    countUp(document.getElementById('statRevenue'), Math.round(s.est_revenue_saved || 0), '$');
+
+    var convos = data.recovered_conversations || [];
+    var box = document.getElementById('convos');
+    if(!convos.length){
+      box.innerHTML = '<div class="empty">No recovered conversations yet — as soon as we catch a missed call and the caller texts back, it shows up here.</div>';
+    } else {
+      box.innerHTML = convos.map(function(c){
+        var msgs = (c.messages || []).map(function(m){
+          var cls = m.direction === 'inbound' ? 'in' : 'out';
+          return '<div class="bubble '+cls+'">'+esc(m.body)+'<span class="stamp">'+esc(fmtTime(m.created_at))+'</span></div>';
+        }).join('');
+        return '<div class="convo"><div class="convo-head"><span class="caller">'+esc(c.caller)+
+          (c.booked ? '<span class="tag">BOOKED</span>' : '')+
+          '</span><span class="meta">'+esc(fmtTime(c.created_at))+'</span></div>'+msgs+'</div>';
+      }).join('');
+    }
+    show('app');
+    firstLoad = false;
+  }
+
+  function load(){
+    if(!token){ show('error'); return; }
+    fetch('/api/tool/dashboard?token=' + encodeURIComponent(token))
+      .then(function(r){ if(!r.ok) throw new Error('bad'); return r.json(); })
+      .then(render)
+      .catch(function(){ if(firstLoad) show('error'); });
+  }
+
+  load();
+  setInterval(load, 60000);
+})();
+</script>
+</body>
+</html>

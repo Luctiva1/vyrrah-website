@@ -706,6 +706,168 @@ async function handleDashboard(req, res) {
   }
 }
 
+// ─── 9. POST /api/tool/dodo-webhook — Dodo Payments events ──────────────────
+
+// Standard Webhooks spec: signature = base64(HMAC-SHA256(secret, `${id}.${timestamp}.${rawBody}`))
+function verifyDodoSignature(req, rawBody) {
+  const secret = process.env.DODO_WEBHOOK_SECRET;
+  if (!secret) {
+    console.warn('dodo-webhook: DODO_WEBHOOK_SECRET not set — accepting unverified');
+    return true;
+  }
+  try {
+    const id = req.headers['webhook-id'] || '';
+    const timestamp = req.headers['webhook-timestamp'] || '';
+    const sigHeader = req.headers['webhook-signature'] || '';
+    if (!id || !timestamp || !sigHeader) return false;
+
+    // Standard Webhooks secrets are often prefixed "whsec_" and base64-encoded
+    let key;
+    if (secret.startsWith('whsec_')) {
+      key = Buffer.from(secret.slice(6), 'base64');
+    } else {
+      key = Buffer.from(secret, 'utf8');
+    }
+    const expected = crypto
+      .createHmac('sha256', key)
+      .update(`${id}.${timestamp}.${rawBody}`)
+      .digest('base64');
+
+    // Header may contain space-separated, version-prefixed signatures: "v1,<base64>"
+    return sigHeader.split(' ').some((part) => {
+      const sig = part.includes(',') ? part.split(',')[1] : part;
+      try {
+        return crypto.timingSafeEqual(Buffer.from(sig || '', 'utf8'), Buffer.from(expected, 'utf8'));
+      } catch (e) {
+        return false;
+      }
+    });
+  } catch (e) {
+    console.error('dodo-webhook signature check error:', e);
+    return false;
+  }
+}
+
+async function handleDodoWebhook(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    // Vercel parses JSON bodies; reconstruct raw body best-effort for HMAC
+    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+    const event = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+
+    if (!verifyDodoSignature(req, rawBody)) {
+      console.error('dodo-webhook: signature verification failed');
+      return res.status(200).json({ ok: true, ignored: 'bad signature' });
+    }
+
+    const type = event.type || event.event_type || '';
+    const data = event.data || {};
+    const metadata = data.metadata || {};
+    const email =
+      (data.customer && data.customer.email) || data.customer_email || data.email || null;
+
+    const activate = ['subscription.active', 'payment.succeeded'].includes(type);
+    const churn = ['subscription.cancelled', 'subscription.expired'].includes(type);
+    if (!activate && !churn) {
+      return res.status(200).json({ ok: true, ignored: type || 'unknown event' });
+    }
+
+    const supabase = getSupabase();
+    let client = null;
+
+    if (metadata.client_id) {
+      const { data: byId } = await supabase
+        .from('tool_clients')
+        .select('*')
+        .eq('id', metadata.client_id)
+        .single();
+      client = byId || null;
+    }
+    if (!client && email) {
+      const { data: byEmail } = await supabase
+        .from('tool_clients')
+        .select('*')
+        .eq('owner_email', email)
+        .limit(1);
+      client = (byEmail && byEmail[0]) || null;
+    }
+    if (!client) {
+      console.error('dodo-webhook: no matching client for event', type, metadata.client_id, email);
+      return res.status(200).json({ ok: true, matched: false });
+    }
+
+    const status = activate ? 'active' : 'churned';
+    const { error } = await supabase
+      .from('tool_clients')
+      .update({ status })
+      .eq('id', client.id);
+    if (error) console.error('dodo-webhook: status update failed', error);
+
+    return res.status(200).json({ ok: true, client_id: client.id, status });
+  } catch (err) {
+    console.error('tool/dodo-webhook error:', err);
+    return res.status(200).json({ ok: true, error: err.message }); // always 200
+  }
+}
+
+// ─── 10. GET /api/tool/pay?client_id=X — create Dodo checkout link (admin) ──
+
+async function handlePay(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    if (!process.env.DODO_API_KEY) {
+      return res.status(200).json({ manual: true, message: 'Dodo not connected — invoice manually' });
+    }
+    const clientId = req.query.client_id;
+    if (!clientId) return res.status(400).json({ error: 'client_id required' });
+
+    const supabase = getSupabase();
+    const { data: client } = await supabase
+      .from('tool_clients')
+      .select('*')
+      .eq('id', clientId)
+      .single();
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+
+    try {
+      const r = await fetch('https://live.dodopayments.com/subscriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.DODO_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          product_id: process.env.DODO_PRODUCT_ID,
+          quantity: 1,
+          payment_link: true,
+          customer: {
+            email: client.owner_email,
+            name: client.owner_name || client.practice_name
+          },
+          billing: { country: 'US', state: '', city: '', street: '', zipcode: '' },
+          metadata: { client_id: String(client.id) }
+        })
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        return res.status(200).json({ error: `Dodo API ${r.status}`, detail: body });
+      }
+      return res.status(200).json({
+        link: body.payment_link || body.link || body.url || null,
+        subscription_id: body.subscription_id || body.id || null,
+        raw: body
+      });
+    } catch (apiErr) {
+      console.error('tool/pay Dodo API error:', apiErr);
+      return res.status(200).json({ error: apiErr.message });
+    }
+  } catch (err) {
+    console.error('tool/pay error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 module.exports = async (req, res) => {
@@ -726,6 +888,8 @@ module.exports = async (req, res) => {
   if (seg0 === 'report') return handleReport(req, res);
   if (seg0 === 'cron-weekly') return handleCronWeekly(req, res);
   if (seg0 === 'dashboard') return handleDashboard(req, res);
+  if (seg0 === 'dodo-webhook') return handleDodoWebhook(req, res);
+  if (seg0 === 'pay') return handlePay(req, res);
 
   return res.status(404).json({ error: 'Route not found' });
 };
