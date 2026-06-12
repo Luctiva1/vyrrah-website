@@ -35,8 +35,7 @@ body{background:var(--bg);color:var(--white);font-family:'DM Sans',sans-serif;fo
 img{max-width:100%;display:block}
 a{color:inherit}
 button{font-family:inherit;cursor:pointer}
-.wrap{max-width:1240px;margin:0 auto;padding:0 52px}
-@media(max-width:720px){.wrap{padding:0 20px}}
+.wrap{max-width:1240px;margin:0 auto}
 
 /* ATMOSPHERE */
 #grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:97;opacity:.05;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");animation:grain 7s steps(8) infinite}
@@ -161,8 +160,9 @@ nav.scrolled{background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backd
 .app-bar .d.r{background:rgba(200,37,30,.55)}
 .app-bar .d.g{background:rgba(240,165,0,.55)}
 .app-bar .t{margin-left:12px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gray)}
-.app-bar .badge{margin-left:auto;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);border:1px solid rgba(240,165,0,.3);padding:4px 10px}
+.app-bar .badge{margin-left:auto;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);border:1px solid rgba(240,165,0,.3);padding:4px 10px;white-space:nowrap}
 @media(max-width:980px){.toolsec{padding:90px 20px}}
+@media(max-width:600px){.app-bar{padding:13px 16px}.app-bar .t{font-size:9px;letter-spacing:1px}.app-bar .d{width:8px;height:8px}}
 
 /* CALCULATOR */
 .calc-body{display:grid;grid-template-columns:1fr 1.1fr;gap:0}
@@ -297,10 +297,11 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .gr-gap span{font-size:13px;color:var(--gray)}
 .gr-note{font-size:12px;color:var(--gray);line-height:1.6;margin-bottom:28px}
 @media(max-width:980px){.grader-body{grid-template-columns:1fr}.gq-col{border-right:none;border-bottom:1px solid var(--border)}.gq{padding:20px 22px}.gr-out{padding:34px 22px}}
+@media(max-width:600px){.gq{flex-direction:column;align-items:flex-start;gap:14px}.tog{width:100%}}
 
 /* PRICING */
 .tiers-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-top:64px;position:relative;z-index:2}
-.tc{background:var(--bg);padding:46px 38px;position:relative;display:flex;flex-direction:column;transition:background .3s}
+.tc{background:var(--bg);padding:46px 38px;position:relative;display:flex;flex-direction:column;transition:background .3s;min-width:0}
 .tc:hover{background:var(--bg3)}
 .tc.feat{background:#120d02}
 .tc.feat:hover{background:#161003}
@@ -451,7 +452,7 @@ footer .flinks a:hover{color:var(--gold)}
 <!-- STORY -->
 <section class="story">
   <div class="glow a"></div>
-  <div class="wrap" style="padding:0 52px">
+  <div class="wrap">
     <div class="ey r" data-reveal>What actually happens when your phone rings</div>
     <h2 class="sh" data-reveal>The most expensive sound in your business is a <em class="r">ring that stops.</em></h2>
     <p class="sb" data-reveal>You're not losing customers to better competitors. You're losing them to faster ones. Here's the sequence, and it runs every single day.</p>
@@ -481,7 +482,7 @@ footer .flinks a:hover{color:var(--gold)}
 <!-- TOOL 01: CALCULATOR -->
 <section class="toolsec alt" id="calculator">
   <div class="tool-ghost">01</div>
-  <div class="wrap" style="padding:0 52px">
+  <div class="wrap">
     <div class="tool-head">
       <div class="ey g" data-reveal>Try it free · 01 · The missed call calculator</div>
       <h2 class="sh" data-reveal>Two sliders. <em>Your number.</em></h2>
@@ -521,7 +522,7 @@ footer .flinks a:hover{color:var(--gold)}
 
 <!-- HOW THE TOOL WORKS -->
 <section class="toolsec" id="tool">
-  <div class="wrap" style="padding:0 52px">
+  <div class="wrap">
     <div class="how-grid">
       <div>
         <div class="ey g" data-reveal>The tool · free week, then $500 a month</div>
@@ -558,7 +559,7 @@ footer .flinks a:hover{color:var(--gold)}
 <!-- TOOL 02: LEAK FINDER -->
 <section class="toolsec alt" id="leak">
   <div class="tool-ghost">02</div>
-  <div class="wrap" style="padding:0 52px">
+  <div class="wrap">
     <div class="tool-head">
       <div class="ey g" data-reveal>Try it free · 02 · The website leak finder</div>
       <h2 class="sh" data-reveal>Your website is leaking. <em>Find the biggest hole in 20 seconds.</em></h2>
@@ -611,7 +612,7 @@ footer .flinks a:hover{color:var(--gold)}
 <!-- TOOL 03: GRADER -->
 <section class="toolsec" id="gap">
   <div class="tool-ghost">03</div>
-  <div class="wrap" style="padding:0 52px">
+  <div class="wrap">
     <div class="tool-head">
       <div class="ey g" data-reveal>Try it free · 03 · The growth gap grader</div>
       <h2 class="sh" data-reveal>Five questions. Your growth gap, <em>in dollars.</em></h2>
@@ -651,7 +652,7 @@ footer .flinks a:hover{color:var(--gold)}
 
 <!-- PRICING -->
 <section class="toolsec alt" id="pricing">
-  <div class="wrap" style="padding:0 52px;position:relative;z-index:2">
+  <div class="wrap" style="position:relative;z-index:2">
     <div class="tool-head">
       <div class="ey g" data-reveal>Pricing · three steps, no contracts</div>
       <h2 class="sh" data-reveal>Start free. Stay because <em>the numbers say so.</em></h2>
@@ -737,7 +738,7 @@ footer .flinks a:hover{color:var(--gold)}
 
 <!-- RESULTS TEASER -->
 <section class="res-tease">
-  <div class="wrap" style="padding:0 52px">
+  <div class="wrap">
     <div class="inner">
       <div>
         <div class="ey r" data-reveal>Results</div>
@@ -763,7 +764,7 @@ footer .flinks a:hover{color:var(--gold)}
 
 <!-- FAQ -->
 <section class="faq" id="faq">
-  <div class="wrap" style="padding:0 52px">
+  <div class="wrap">
     <div class="ey g" data-reveal>Questions I get on every call</div>
     <h2 class="sh" data-reveal>Asked and <em>answered.</em></h2>
     <div class="faq-list">
