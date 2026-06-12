@@ -286,19 +286,26 @@ async function sendOrDefer(supabase, client, { call_id, caller, body, ai_generat
     if (error) console.error('defer insert error:', error);
     return { deferred: true, deferred_until };
   }
-  const msg = await sendSms(getTwilioClient(), { from: client.twilio_number, to: caller, body });
-  const { error } = await supabase.from('tool_messages').insert({
+  // Log the row FIRST so a send failure is always traceable, then send.
+  const { data: row, error } = await supabase.from('tool_messages').insert({
     client_id: client.id,
     call_id: call_id || null,
     caller_phone: caller,
     direction: 'outbound',
     body,
     ai_generated: !!ai_generated,
-    twilio_sid: msg.sid,
     delivery_status: 'queued'
-  });
+  }).select().single();
   if (error) console.error('outbound insert error:', error);
-  return { sid: msg.sid };
+  try {
+    const msg = await sendSms(getTwilioClient(), { from: client.twilio_number, to: caller, body });
+    if (row) await supabase.from('tool_messages').update({ twilio_sid: msg.sid }).eq('id', row.id);
+    return { sid: msg.sid };
+  } catch (sendErr) {
+    console.error('SMS send failed:', sendErr.message);
+    if (row) await supabase.from('tool_messages').update({ delivery_status: 'failed' }).eq('id', row.id);
+    return { error: sendErr.message };
+  }
 }
 
 async function computeStats(supabase, clientId, days) {
