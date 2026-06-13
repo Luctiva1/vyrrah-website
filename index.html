@@ -578,12 +578,13 @@ footer .flinks a:hover{color:var(--gold)}
 }
 
 /* CONNECTOR TICK between tool sections */
-.bridge-strip{padding:0 52px;position:relative;z-index:3;margin-top:-30px}
-.bridge-strip .inner{max-width:1240px;margin:0 auto;border-left:2px solid var(--gold);padding:6px 0 6px 26px;max-width:720px}
+.bridge-strip{padding:0 52px;position:relative;z-index:3;margin-top:-66px}
+.bridge-strip + .toolsec{padding-top:48px}
+.bridge-strip .inner{border-left:2px solid var(--gold);padding:4px 0 4px 26px;max-width:760px}
 .bridge-strip .lab{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
 .bridge-strip p{font-size:16px;color:var(--white);line-height:1.6;font-family:'Fraunces',serif}
 .bridge-strip p span{color:var(--mid);font-family:'DM Sans',sans-serif;font-size:15px}
-@media(max-width:980px){.bridge-strip{padding:0 20px;margin-top:-10px}}
+@media(max-width:980px){.bridge-strip{padding:0 20px;margin-top:-46px}.bridge-strip + .toolsec{padding-top:34px}}
 
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
@@ -805,10 +806,10 @@ footer .flinks a:hover{color:var(--gold)}
 
 <!-- BRIDGE: TOOL -> AUDIT -->
 <div class="bridge-strip">
-  <div class="inner">
+  <div class="wrap"><div class="inner">
     <div class="lab">Step 1 plugs one leak · step 2 finds the rest</div>
     <p>The phone is the leak you can see. <span>It's almost never the only one. Before you spend another dollar sending people to a site that drops them, you find every other place money slips out. That's the audit, and it starts with the scan below.</span></p>
-  </div>
+  </div></div>
 </div>
 
 <!-- TOOL 02: LEAK FINDER / THE AUDIT -->
@@ -867,10 +868,10 @@ footer .flinks a:hover{color:var(--gold)}
 
 <!-- BRIDGE: AUDIT -> RETAINER -->
 <div class="bridge-strip">
-  <div class="inner">
+  <div class="wrap"><div class="inner">
     <div class="lab">The audit is the list · the retainer is me doing it</div>
     <p>A list of leaks is just homework. <span>Someone has to actually run the ads, fix the follow-up, build the systems. That someone is me. Here's what I'd own, and what it's worth.</span></p>
-  </div>
+  </div></div>
 </div>
 
 <!-- TOOL 03: GRADER / THE RETAINER -->
