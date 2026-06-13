@@ -71,6 +71,69 @@ function isNonTextableCaller(phone) {
   return tollFree.includes(area);
 }
 
+// ─── #3 Spam / robocall detection ────────────────────────────────────────────
+// Conservative pattern check on the raw digits (no DB). Returns true only on
+// clearly-bogus shapes to avoid false positives on real callers.
+function looksLikeSpamNumber(phone) {
+  let d = normalizePhone(phone);
+  if (!d) return true;
+  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
+  if (d.length !== 10) return false; // unusual length — let other checks decide
+  // All-same digits e.g. 1111111111.
+  if (/^(\d)\1{9}$/.test(d)) return true;
+  // Strictly sequential ascending/descending (e.g. 1234567890 / 0123456789).
+  if (d === '1234567890' || d === '0123456789' || d === '9876543210') return true;
+  // Obvious test/fake ranges.
+  if (/^555555/.test(d)) return true;
+  return false;
+}
+
+// Full spam check (DB-aware). Returns true if the caller should NOT get a textback.
+async function isLikelySpam(supabase, client, callerPhone) {
+  try {
+    const digits = normalizePhone(callerPhone);
+    // 1) Blocklist for this client.
+    try {
+      const { data: blocked } = await supabase
+        .from('tool_blocklist')
+        .select('id')
+        .eq('client_id', client.id)
+        .eq('phone', digits)
+        .limit(1);
+      if (blocked && blocked[0]) return true;
+    } catch (e) { /* ignore */ }
+    // 2) Non-textable (toll-free / short code).
+    if (isNonTextableCaller(callerPhone)) return true;
+    // 3) Obvious bogus number shapes.
+    if (looksLikeSpamNumber(callerPhone)) return true;
+    // 4) Repeat-no-engagement robocaller: >=4 missed calls AND zero inbound messages ever.
+    try {
+      const missedOutcomes = ['missed', 'busy', 'failed', 'voicemail'];
+      const { data: priorCalls } = await supabase
+        .from('tool_calls')
+        .select('outcome')
+        .eq('client_id', client.id)
+        .eq('caller_phone', callerPhone)
+        .limit(50);
+      const missedCount = (priorCalls || []).filter((c) => missedOutcomes.includes(c.outcome)).length;
+      if (missedCount >= 4) {
+        const { data: inbound } = await supabase
+          .from('tool_messages')
+          .select('id')
+          .eq('client_id', client.id)
+          .eq('caller_phone', callerPhone)
+          .eq('direction', 'inbound')
+          .limit(1);
+        if (!inbound || !inbound[0]) return true;
+      }
+    } catch (e) { /* ignore */ }
+    return false;
+  } catch (e) {
+    console.error('isLikelySpam error:', e);
+    return false; // fail-open: never block a real caller on error
+  }
+}
+
 async function sendEmail({ to, toName, subject, body }) {
   const apiKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'godwin@vyrrahlabs.com';
@@ -93,17 +156,21 @@ async function sendEmail({ to, toName, subject, body }) {
   return { status: r.status };
 }
 
-// AI message generation — Anthropic (Claude) preferred, OpenAI fallback, templates if neither
+// AI message generation — OpenAI gpt-5-nano preferred, Anthropic (Claude) fallback, templates if neither
 function aiAvailable() {
   return !!(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY);
 }
-async function generateAiMessage({ client, history = [], purpose, fallback }) {
+async function generateAiMessage({ client, history = [], purpose, fallback, contactName = null }) {
   if (!aiAvailable()) return fallback;
-  const system =
+  let system =
     `You are the friendly front-desk assistant for ${client.practice_name}, a local practice. ` +
     `Services: ${client.services || 'general services'}. ` +
     `Business hours: ${client.business_hours || 'standard business hours'}. ` +
-    (client.booking_link ? `Booking link: ${client.booking_link}. ` : '') +
+    (client.booking_link ? `Booking link: ${client.booking_link}. ` : '');
+  if (contactName) {
+    system += `The caller's name is ${contactName}, use it naturally. `;
+  }
+  system +=
     `Write as the practice itself in a warm, human tone. ${purpose} ` +
     `Keep it to 1-2 short sentences suitable for SMS. No emojis, no sign-offs.`;
 
@@ -116,34 +183,96 @@ async function generateAiMessage({ client, history = [], purpose, fallback }) {
   }
 
   try {
-    if (process.env.ANTHROPIC_API_KEY) {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
+    if (process.env.OPENAI_API_KEY) {
+      // Primary: OpenAI gpt-5-nano (standard /v1/chat/completions shape).
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'x-api-key': process.env.ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 100, system, messages: turns })
+        headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-5-nano', max_tokens: 120, messages: [{ role: 'system', content: system }, ...turns] })
       });
-      if (!r.ok) { console.error('Anthropic error', r.status, await r.text()); return fallback; }
+      if (!r.ok) { console.error('OpenAI error', r.status, await r.text()); return fallback; }
       const data = await r.json();
-      const text = (data?.content || []).map(b => b.text || '').join('').trim();
-      return text || fallback;
+      return data?.choices?.[0]?.message?.content?.trim() || fallback;
     }
-    // OpenAI fallback
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Secondary fallback: Anthropic Claude.
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 100, messages: [{ role: 'system', content: system }, ...turns] })
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 120, system, messages: turns })
     });
-    if (!r.ok) { console.error('OpenAI error', r.status, await r.text()); return fallback; }
+    if (!r.ok) { console.error('Anthropic error', r.status, await r.text()); return fallback; }
     const data = await r.json();
-    return data?.choices?.[0]?.message?.content?.trim() || fallback;
+    const text = (data?.content || []).map(b => b.text || '').join('').trim();
+    return text || fallback;
   } catch (err) {
     console.error('AI call failed:', err);
     return fallback;
   }
+}
+
+// ─── #2 Contact name capture ─────────────────────────────────────────────────
+async function getContactName(supabase, clientId, phone) {
+  try {
+    const digits = normalizePhone(phone);
+    if (!digits) return null;
+    const { data } = await supabase
+      .from('tool_contacts')
+      .select('name')
+      .eq('client_id', clientId)
+      .eq('phone', digits)
+      .limit(1);
+    const row = data && data[0];
+    return (row && row.name) ? row.name : null;
+  } catch (e) {
+    console.error('getContactName error:', e);
+    return null;
+  }
+}
+
+async function saveContactName(supabase, clientId, phone, name) {
+  try {
+    const digits = normalizePhone(phone);
+    const clean = (name || '').trim().slice(0, 80);
+    if (!digits || !clean) return;
+    await supabase.from('tool_contacts').upsert({
+      client_id: clientId,
+      phone: digits,
+      name: clean,
+      first_seen: new Date().toISOString()
+    }, { onConflict: 'client_id,phone' });
+  } catch (e) {
+    console.error('saveContactName error:', e);
+  }
+}
+
+// Heuristic name extraction from an inbound reply. Returns a name string or null.
+// `askedForName` should be true if our last outbound asked for the caller's name.
+const _BOOKING_WORDS = /\b(yes|yeah|yep|sure|ok|okay|book|booking|appointment|appt|schedule|reschedule|cancel|availab|slot|time|today|tomorrow|morning|afternoon|evening|stop|help|call|details)\b/i;
+function extractName(body, askedForName) {
+  const raw = (body || '').trim();
+  if (!raw) return null;
+  // Explicit patterns first: "it's John", "this is John", "I'm John", "my name is John".
+  const m = /\b(?:it'?s|this is|i'?m|i am|my name is|name'?s)\s+([A-Za-z][A-Za-z'-]{1,30})(?:\s+([A-Za-z][A-Za-z'-]{1,30}))?/i.exec(raw);
+  if (m) {
+    const name = [m[1], m[2]].filter(Boolean).join(' ');
+    if (!_BOOKING_WORDS.test(name)) return titleCaseName(name);
+  }
+  // If we just asked for the name and the reply is short & not a command/booking word.
+  if (askedForName) {
+    const words = raw.split(/\s+/);
+    if (words.length <= 4 && !_BOOKING_WORDS.test(raw) && !/\d/.test(raw) && /[A-Za-z]/.test(raw)) {
+      const cleaned = raw.replace(/[^A-Za-z'\- ]/g, '').trim();
+      if (cleaned && cleaned.length <= 40) return titleCaseName(cleaned);
+    }
+  }
+  return null;
+}
+function titleCaseName(s) {
+  return s.split(/\s+/).map((w) => w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w).join(' ').slice(0, 80);
 }
 
 // Has this caller opted out (STOP) for this client?
@@ -155,6 +284,58 @@ async function callerOptedOut(supabase, clientId, callerPhone) {
     .eq('caller_phone', callerPhone)
     .eq('direction', 'inbound');
   return (data || []).some((m) => /^\s*(stop|unsubscribe)\s*$/i.test(m.body || ''));
+}
+
+// ─── #10 Error alerting to Godwin (throttled) ────────────────────────────────
+const GODWIN_EMAIL = 'godwin@vyrrahlabs.com';
+async function alertGodwin(supabase, kind, detail) {
+  try {
+    const detailStr = (typeof detail === 'string' ? detail : (detail && detail.message) || JSON.stringify(detail || {})).slice(0, 500);
+    // Throttle: max 1 alert per kind per 60 min.
+    try {
+      const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { data: recent } = await supabase
+        .from('tool_alerts')
+        .select('id')
+        .eq('kind', kind)
+        .gte('created_at', cutoff)
+        .limit(1);
+      if (recent && recent[0]) return; // already alerted recently
+    } catch (e) { /* if throttle check fails, still try to alert once */ }
+
+    // Record the alert first so concurrent calls throttle.
+    try {
+      await supabase.from('tool_alerts').insert({ kind, detail: detailStr, created_at: new Date().toISOString() });
+    } catch (e) { console.error('alertGodwin insert error:', e); }
+
+    const godwinPhone = process.env.GODWIN_PHONE || '+918778974646';
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    if (fromNumber && godwinPhone) {
+      try {
+        await getTwilioClient().messages.create({
+          from: fromNumber,
+          to: godwinPhone,
+          body: `Vyrrah alert [${kind}]: ${detailStr}`
+        });
+      } catch (e) { console.error('alertGodwin SMS failed:', e); }
+    }
+    try {
+      await sendEmail({
+        to: GODWIN_EMAIL,
+        toName: 'Godwin',
+        subject: `Vyrrah Recaller alert: ${kind}`,
+        body: `Kind: ${kind}\n\nDetail:\n${detailStr}\n\nTime: ${new Date().toISOString()}`
+      });
+    } catch (e) { console.error('alertGodwin email failed:', e); }
+  } catch (err) {
+    console.error('alertGodwin fatal (ignored):', err);
+  }
+}
+
+// Detect a systemic (account-level) Twilio failure vs a per-number issue.
+function isSystemicTwilioError(err) {
+  const msg = String((err && err.message) || err || '').toLowerCase();
+  return /authenticate|not enabled|unverified|permission|forbidden|credentials/.test(msg);
 }
 
 async function sendSms(twilioClient, { from, to, body }) {
@@ -401,10 +582,84 @@ async function assignFromPool(supabase, client, areaCode) {
   }
 }
 
+// ─── #9 Number-pool auto-refill ──────────────────────────────────────────────
+// Buy `count` numbers (cap 10), wire webhooks, insert as available pool rows.
+// Returns { added, numbers, errors }. Shared by handlePoolRefill + ensurePoolStock.
+async function buyPoolNumbers(supabase, count, areaCode) {
+  let n = parseInt(count, 10);
+  if (!Number.isFinite(n) || n < 1) n = 1;
+  if (n > 10) n = 10; // hard cap — never buy more than 10 in one pass
+  const tw = getTwilioClient();
+  const bought = [];
+  const errors = [];
+  for (let i = 0; i < n; i++) {
+    try {
+      let avail = await tw
+        .availablePhoneNumbers('US')
+        .local.list(areaCode ? { areaCode, limit: 1 } : { limit: 1 });
+      if ((!avail || !avail.length) && areaCode) {
+        avail = await tw.availablePhoneNumbers('US').local.list({ limit: 1 });
+      }
+      if (!avail || !avail.length) { errors.push('no available numbers'); break; }
+
+      const purchased = await tw.incomingPhoneNumbers.create({
+        phoneNumber: avail[0].phoneNumber,
+        voiceUrl: VOICE_URL,
+        voiceMethod: 'POST',
+        smsUrl: SMS_URL,
+        smsMethod: 'POST'
+      });
+
+      const { data: row, error } = await supabase
+        .from('number_pool')
+        .insert({
+          phone_number: purchased.phoneNumber,
+          number_sid: purchased.sid,
+          area_code: areaCode || null,
+          status: 'available'
+        })
+        .select()
+        .single();
+      if (error) { errors.push(error.message); continue; }
+      bought.push(row);
+    } catch (e) {
+      console.error('buyPoolNumbers buy error:', e);
+      errors.push(e.message);
+    }
+  }
+  return { added: bought.length, numbers: bought, errors };
+}
+
+// Top up the pool if available stock dips below `minAvailable`. Best-effort.
+async function ensurePoolStock(supabase, minAvailable = 3, buyCount = 5) {
+  try {
+    const { data: rows, error } = await supabase
+      .from('number_pool')
+      .select('status')
+      .eq('status', 'available');
+    if (error) throw error;
+    const available = (rows || []).length;
+    if (available >= minAvailable) return { ok: true, available, bought: 0 };
+    const result = await buyPoolNumbers(supabase, Math.min(buyCount, 10), null);
+    if (result.errors && result.errors.length && result.added === 0) {
+      await alertGodwin(supabase, 'pool_refill_failed', `ensurePoolStock bought 0; errors: ${result.errors.join('; ')}`);
+    }
+    return { ok: true, available, bought: result.added, errors: result.errors };
+  } catch (e) {
+    console.error('ensurePoolStock error:', e);
+    await alertGodwin(supabase, 'pool_refill_failed', e);
+    return { ok: false, error: e.message };
+  }
+}
+
 async function provisionTwilioNumber(supabase, client, areaCode) {
   // Pool first — instant, no Twilio API call (webhooks already set at refill).
   const fromPool = await assignFromPool(supabase, client, areaCode);
-  if (fromPool) return fromPool;
+  if (fromPool) {
+    // #9 Proactively refill the pool (fire-and-forget) since we just consumed one.
+    try { ensurePoolStock(supabase, 3, 5).catch((e) => console.error('proactive ensurePoolStock error:', e)); } catch (e) { /* ignore */ }
+    return fromPool;
+  }
 
   const tw = getTwilioClient();
   let numbers = [];
@@ -1137,15 +1392,29 @@ async function handleVoiceStatus(req, res) {
       (client.owner_phone && callerDigits === normalizePhone(client.owner_phone));
     const optedOut = await callerOptedOut(supabase, client.id, caller);
 
-    if (!skipSelf && !isNonTextableCaller(caller) && !optedOut && client.twilio_number) {
+    // #3 Spam / robocall filter — log the call (done above) but skip the textback,
+    // and don't alert the owner. Tag the call row best-effort.
+    let spam = false;
+    if (!skipSelf) {
+      spam = await isLikelySpam(supabase, client, caller);
+      if (spam && callRow) {
+        // Tag without altering `outcome` (keeps missed stats intact). `spam` column optional.
+        try { await supabase.from('tool_calls').update({ spam: true }).eq('id', callRow.id); } catch (e) { /* column optional — ignore */ }
+      }
+    }
+
+    if (!spam && !skipSelf && !isNonTextableCaller(caller) && !optedOut && client.twilio_number) {
       const fallback =
         `Hi! This is ${client.practice_name}. Sorry we missed your call! ` +
         `Are you looking to book an appointment? Reply here and we'll get you sorted.` +
         (client.booking_link ? ` Or book directly: ${client.booking_link}` : '');
 
+      const knownName = await getContactName(supabase, client.id, caller);
       const body = await generateAiMessage({
         client,
-        purpose: 'The practice just missed this person\'s call. Apologize warmly for missing them and ask if they would like to book an appointment.',
+        contactName: knownName,
+        purpose: 'The practice just missed this person\'s call. Apologize warmly for missing them and ask if they would like to book an appointment.' +
+          (knownName ? '' : " If it feels natural, ask for their name once (\"...and what's your name so I can note it for the doctor?\")."),
         fallback
       });
 
@@ -1165,6 +1434,9 @@ async function handleVoiceStatus(req, res) {
         return twiml(res, '<Say voice="alice">Sorry we missed you, we just sent you a text.</Say><Hangup/>');
       } catch (smsErr) {
         console.error('Text-back send failed:', smsErr);
+        if (isSystemicTwilioError(smsErr)) {
+          await alertGodwin(supabase, 'twilio_send_systemic', `textback: ${smsErr.message}`);
+        }
       }
     }
 
@@ -1236,6 +1508,46 @@ async function handleSms(req, res) {
       return twiml(res);
     }
 
+    // ── #6 Owner commands: only the owner's own number, texting the tool number. ──
+    // CALL → text owner the most recent lead's number + name. DETAILS → last inbound msg.
+    if (client.owner_phone && normalizePhone(caller) === normalizePhone(client.owner_phone)) {
+      const cmd = /^\s*(call|details)\s*$/i.exec(body || '');
+      if (cmd) {
+        try {
+          const which = cmd[1].toLowerCase();
+          // Most recent lead = most recent inbound message from a non-owner caller.
+          const { data: recentInbound } = await supabase
+            .from('tool_messages')
+            .select('caller_phone, body, created_at')
+            .eq('client_id', client.id)
+            .eq('direction', 'inbound')
+            .order('created_at', { ascending: false })
+            .limit(50);
+          const ownerDigits = normalizePhone(client.owner_phone);
+          const lead = (recentInbound || []).find((m) => m.caller_phone && normalizePhone(m.caller_phone) !== ownerDigits);
+          let replyBody;
+          if (!lead) {
+            replyBody = `${BRAND.name}: no recent leads to show yet.`;
+          } else if (which === 'call') {
+            const nm = await getContactName(supabase, client.id, lead.caller_phone);
+            replyBody = `${BRAND.name}: most recent lead${nm ? ' ' + nm : ''} — ${lead.caller_phone}`;
+          } else {
+            const nm = await getContactName(supabase, client.id, lead.caller_phone);
+            replyBody = `${BRAND.name}: last msg from ${nm || maskPhone(lead.caller_phone)}: "${(lead.body || '').slice(0, 300)}"`;
+          }
+          if (client.twilio_number) {
+            try {
+              await sendSms(getTwilioClient(), { from: client.twilio_number, to: client.owner_phone, body: replyBody });
+            } catch (e) {
+              console.error('owner command reply failed:', e);
+              if (isSystemicTwilioError(e)) await alertGodwin(supabase, 'twilio_send_systemic', `owner cmd: ${e.message}`);
+            }
+          }
+        } catch (e) { console.error('owner command error:', e); }
+        return twiml(res);
+      }
+    }
+
     // Suppress all outbound if caller previously opted out
     if (await callerOptedOut(supabase, client.id, caller)) return twiml(res);
 
@@ -1272,6 +1584,23 @@ async function handleSms(req, res) {
       .order('created_at', { ascending: false })
       .limit(6);
     const history = (histDesc || []).reverse();
+
+    // ── #2 Caller name capture ──
+    let contactName = await getContactName(supabase, client.id, caller);
+    // Did our most recent outbound ask for the caller's name?
+    const lastOutbound = [...history].reverse().find((m) => m.direction === 'outbound');
+    const askedForName = !!(lastOutbound && /what'?s your name|your name so/i.test(lastOutbound.body || ''));
+    if (!contactName) {
+      const extracted = extractName(body, askedForName);
+      if (extracted) {
+        await saveContactName(supabase, client.id, caller, extracted);
+        contactName = extracted;
+      }
+    }
+    // If we still don't know the name, instruct the AI to ask for it once.
+    const namePrompt = contactName
+      ? ''
+      : " If it feels natural, also ask for their name once (\"...and what's your name so I can note it for the doctor?\").";
 
     const trimmed = (body || '').trim();
 
@@ -1321,7 +1650,7 @@ async function handleSms(req, res) {
           try {
             const { appointment, label } = await createBooking(supabase, client, {
               caller_phone: caller,
-              caller_name: null,
+              caller_name: contactName,
               start_at: chosen.start_at,
               end_at: chosen.end_at,
               service: null,
@@ -1376,13 +1705,15 @@ async function handleSms(req, res) {
       // Notify the practice owner (still fires under human takeover)
       if (client.owner_phone) {
         try {
+          const who = contactName || maskPhone(caller);
           await sendSms(getTwilioClient(), {
             from: client.twilio_number,
             to: client.owner_phone,
-            body: `${BRAND.name}: ${caller} wants to book! Their msg: "${body}". Reply to them directly or call back.`
+            body: `${BRAND.name}: ${who} wants to book! Their msg: "${body}". Reply CALL to get their number texted to you, or DETAILS for the full conversation.`
           });
         } catch (notifyErr) {
           console.error('Owner notify SMS failed:', notifyErr);
+          if (isSystemicTwilioError(notifyErr)) await alertGodwin(supabase, 'twilio_send_systemic', `owner notify: ${notifyErr.message}`);
         }
       }
     }
@@ -1405,12 +1736,14 @@ async function handleSms(req, res) {
         stashOffer(client.id, caller, slots);
         const list = slots.map((s, i) => `${i + 1}) ${s.label}`).join('  ');
         reply = `Great! I can get you in: ${list} — just reply with the number.`;
+        if (!contactName) reply += ` And what's your name so I can note it for the doctor?`;
       } else {
         // No open slots — fall back to a warm human-callback message.
         reply = await generateAiMessage({
           client,
           history,
-          purpose: 'The person wants to book but we have no open slots in the next few days. Apologize warmly and say someone will call them shortly to find a time.',
+          contactName,
+          purpose: 'The person wants to book but we have no open slots in the next few days. Apologize warmly and say someone will call them shortly to find a time.' + namePrompt,
           fallback: `Thanks! We're fully booked for the next few days — someone from ${client.practice_name} will call you shortly to find a time.`
         });
         if (callRow) await supabase.from('tool_calls').update({ booked: true }).eq('id', callRow.id);
@@ -1421,9 +1754,10 @@ async function handleSms(req, res) {
       reply = await generateAiMessage({
         client,
         history,
-        purpose: link
+        contactName,
+        purpose: (link
           ? `The person wants to book. Warmly invite them to grab a time at this link: ${link}`
-          : 'The person wants to book. Warmly confirm that someone will call them shortly to set a time.',
+          : 'The person wants to book. Warmly confirm that someone will call them shortly to set a time.') + namePrompt,
         fallback: link
           ? `Great! Grab a time that works for you here: ${link}`
           : `Great! Someone from ${client.practice_name} will call you shortly to confirm a time. Talk soon!`
@@ -1432,14 +1766,16 @@ async function handleSms(req, res) {
       reply = await generateAiMessage({
         client,
         history,
-        purpose: 'The person wants to book. Confirm warmly that someone from the practice will call them shortly to confirm a time.',
+        contactName,
+        purpose: 'The person wants to book. Confirm warmly that someone from the practice will call them shortly to confirm a time.' + namePrompt,
         fallback: `Great! Someone from ${client.practice_name} will call you shortly to confirm a time. Talk soon!`
       });
     } else {
       reply = await generateAiMessage({
         client,
         history,
-        purpose: 'Reply helpfully to the person\'s latest message as the practice front desk. If appropriate, gently invite them to book.',
+        contactName,
+        purpose: 'Reply helpfully to the person\'s latest message as the practice front desk. If appropriate, gently invite them to book.' + namePrompt,
         fallback: `Thanks for your message! Someone from ${client.practice_name} will get back to you shortly. If you'd like to book, just reply YES.`
       });
     }
@@ -2068,7 +2404,70 @@ async function handleCronFlush(req, res) {
       console.error('reactivation cron query error:', e);
     }
 
-    return res.status(200).json({ ok: true, flushed: results.length, results, trial_lifecycle, reminders, reviews, reactivation });
+    // ── #4 Monthly ROI email (anti-churn) ──
+    const monthly_reports = [];
+    try {
+      const { data: monClients } = await supabase
+        .from('tool_clients')
+        .select('*')
+        .in('status', ['trial', 'active']);
+      for (const client of monClients || []) {
+        try {
+          if (!client.owner_email) continue;
+          // Need >=14 days of history (use trial_started_at or created_at as the start).
+          const startTs = new Date(client.trial_started_at || client.created_at || Date.now()).getTime();
+          const daysOfHistory = (Date.now() - startTs) / 86400000;
+          if (daysOfHistory < 14) continue;
+          // Due if never sent OR >=28 days ago.
+          const last = client.last_monthly_report ? new Date(client.last_monthly_report).getTime() : 0;
+          const daysSince = last ? (Date.now() - last) / 86400000 : Infinity;
+          if (daysSince < 28) continue;
+
+          const insights = await buildInsights(supabase, client, 30);
+          const roi = insights.headline_roi;
+          const lines = [
+            `Hi ${client.owner_name || 'there'},`,
+            '',
+            `We recovered ~$${roi.revenue_saved} this month. Your invoice was $500. That's ${roi.roi_multiple}x your money.`,
+            '',
+            `- Calls caught: ${insights.peak_missed ? 'peak ' + insights.peak_missed.label : 'tracked all month'}`,
+            `- Conversations recovered: ${insights.recovery_rate.current_pct}% recovery rate`,
+            `- Bookings: ${insights.booking_rate.booked}`,
+            `- Lapsed patients rebooked: ${insights.reactivation.rebooked} (~$${insights.reactivation.est_revenue})`,
+            ''
+          ];
+          const topRec = (insights.recommendations || [])[0];
+          if (topRec) lines.push(`Top recommendation: ${topRec}`, '');
+          lines.push(`Keep it running: ${PUBLIC_BASE}/recaller?token=${client.magic_token}`, '', `— ${BRAND.from}`);
+
+          await sendEmail({
+            to: client.owner_email,
+            toName: client.owner_name,
+            subject: `${client.practice_name}: what ${BRAND.name} made you this month`,
+            body: lines.join('\n')
+          });
+          await supabase.from('tool_clients')
+            .update({ last_monthly_report: new Date().toISOString().slice(0, 10) })
+            .eq('id', client.id);
+          monthly_reports.push({ client_id: client.id, sent: true, roi_multiple: roi.roi_multiple });
+        } catch (e) {
+          console.error('monthly report error for client', client.id, e);
+          monthly_reports.push({ client_id: client.id, error: e.message });
+        }
+      }
+    } catch (e) {
+      console.error('monthly report query error:', e);
+    }
+
+    // ── #9 Daily pool top-up ──
+    let pool_refill = null;
+    try {
+      pool_refill = await ensurePoolStock(supabase, 3, 5);
+    } catch (e) {
+      console.error('cron ensurePoolStock error:', e);
+    }
+
+    return res.status(200).json({ ok: true, flushed: results.length, results, trial_lifecycle, reminders, reviews, reactivation, monthly_reports, pool_refill });
   } catch (err) {
     console.error('tool/cron-flush error:', err);
     return res.status(500).json({ error: err.message });
@@ -2126,6 +2525,7 @@ async function handleDodoWebhook(req, res) {
 
     if (!verifyDodoSignature(req, rawBody)) {
       console.error('dodo-webhook: signature verification failed');
+      try { await alertGodwin(getSupabase(), 'dodo_signature_fail', `webhook-id=${req.headers['webhook-id'] || 'none'}`); } catch (e) { /* ignore */ }
       return res.status(200).json({ ok: true, ignored: 'bad signature' });
     }
 
@@ -2329,52 +2729,60 @@ async function handlePoolRefill(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
     const supabase = getSupabase();
-    let count = parseInt((req.body && req.body.count) || 1, 10);
-    if (!Number.isFinite(count) || count < 1) count = 1;
-    if (count > 10) count = 10; // hard cap
+    const count = (req.body && req.body.count) || 1;
     const areaCode = (req.body && req.body.area_code) || null;
-
-    const tw = getTwilioClient();
-    const bought = [];
-    const errors = [];
-    for (let i = 0; i < count; i++) {
-      try {
-        let avail = await tw
-          .availablePhoneNumbers('US')
-          .local.list(areaCode ? { areaCode, limit: 1 } : { limit: 1 });
-        if ((!avail || !avail.length) && areaCode) {
-          avail = await tw.availablePhoneNumbers('US').local.list({ limit: 1 });
-        }
-        if (!avail || !avail.length) { errors.push('no available numbers'); break; }
-
-        const purchased = await tw.incomingPhoneNumbers.create({
-          phoneNumber: avail[0].phoneNumber,
-          voiceUrl: VOICE_URL,
-          voiceMethod: 'POST',
-          smsUrl: SMS_URL,
-          smsMethod: 'POST'
-        });
-
-        const { data: row, error } = await supabase
-          .from('number_pool')
-          .insert({
-            phone_number: purchased.phoneNumber,
-            number_sid: purchased.sid,
-            area_code: areaCode || null,
-            status: 'available'
-          })
-          .select()
-          .single();
-        if (error) { errors.push(error.message); continue; }
-        bought.push(row);
-      } catch (e) {
-        console.error('pool refill buy error:', e);
-        errors.push(e.message);
-      }
-    }
-    return res.status(200).json({ ok: true, added: bought.length, numbers: bought, errors });
+    const { added, numbers, errors } = await buyPoolNumbers(supabase, count, areaCode);
+    return res.status(200).json({ ok: true, added, numbers, errors });
   } catch (err) {
     console.error('tool/pool/refill error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── #3 POST /api/tool/block & /unblock — caller blocklist (magic OR admin) ──
+async function handleBlock(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const { token, client_id, phone, reason } = req.body || {};
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const digits = normalizePhone(phone);
+    if (!digits) return res.status(400).json({ error: 'phone required' });
+    const { error } = await supabase.from('tool_blocklist').insert({
+      client_id: client.id,
+      phone: digits,
+      reason: (reason && String(reason).slice(0, 200)) || null,
+      created_at: new Date().toISOString()
+    });
+    if (error) throw error;
+    return res.status(200).json({ ok: true, blocked: maskPhone(digits) });
+  } catch (err) {
+    console.error('tool/block error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function handleUnblock(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const { token, client_id, phone } = req.body || {};
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const digits = normalizePhone(phone);
+    if (!digits) return res.status(400).json({ error: 'phone required' });
+    const { error } = await supabase
+      .from('tool_blocklist')
+      .delete()
+      .eq('client_id', client.id)
+      .eq('phone', digits);
+    if (error) throw error;
+    return res.status(200).json({ ok: true, unblocked: maskPhone(digits) });
+  } catch (err) {
+    console.error('tool/unblock error:', err);
     return res.status(500).json({ error: err.message });
   }
 }
@@ -3555,39 +3963,51 @@ module.exports = async (req, res) => {
   const seg0 = route[0];
   const seg1 = route[1];
 
-  if (seg0 === 'clients' && seg1 === 'provision') return handleClientsProvision(req, res);
-  if (seg0 === 'clients' && !seg1) return handleClients(req, res);
-  if (seg0 === 'verify-status') return handleVerifyStatus(req, res);
-  if (seg0 === 'pool' && seg1 === 'refill') return handlePoolRefill(req, res);
-  if (seg0 === 'pool' && !seg1) return handlePool(req, res);
-  if (seg0 === 'admin-overview') return handleAdminOverview(req, res);
-  if (seg0 === 'voice-status') return handleVoiceStatus(req, res);
-  if (seg0 === 'voice') return handleVoice(req, res);
-  if (seg0 === 'sms-status') return handleSmsStatus(req, res);
-  if (seg0 === 'sms') return handleSms(req, res);
-  if (seg0 === 'report') return handleReport(req, res);
-  if (seg0 === 'cron-weekly') return handleCronWeekly(req, res);
-  if (seg0 === 'cron-flush') return handleCronFlush(req, res);
-  if (seg0 === 'dashboard') return handleDashboard(req, res);
-  if (seg0 === 'inbox') return handleInbox(req, res);
-  if (seg0 === 'checkout') return handleCheckout(req, res);
-  if (seg0 === 'dodo-webhook') return handleDodoWebhook(req, res);
-  if (seg0 === 'pay') return handlePay(req, res);
-  if (seg0 === 'reply') return handleReply(req, res);
-  if (seg0 === 'admin-action') return handleAdminAction(req, res);
-  if (seg0 === 'availability') return handleAvailability(req, res);
-  if (seg0 === 'appointments' && seg1 === 'cancel') return handleAppointmentsCancel(req, res);
-  if (seg0 === 'appointments') return handleAppointments(req, res);
-  if (seg0 === 'config') return handleConfig(req, res);
-  if (seg0 === 'google' && seg1 === 'connect') return handleGoogleConnect(req, res);
-  if (seg0 === 'google' && seg1 === 'callback') return handleGoogleCallback(req, res);
-  if (seg0 === 'patients' && seg1 === 'import') return handlePatientsImport(req, res);
-  if (seg0 === 'patients' && !seg1) return handlePatients(req, res);
-  if (seg0 === 'reactivation' && seg1 === 'run') return handleReactivationRun(req, res);
-  if (seg0 === 'reactivation' && seg1 === 'toggle') return handleReactivationToggle(req, res);
-  if (seg0 === 'reviews' && seg1 === 'mark') return handleReviewsMark(req, res);
-  if (seg0 === 'reviews' && !seg1) return handleReviews(req, res);
-  if (seg0 === 'insights') return handleInsights(req, res);
+  try {
+  if (seg0 === 'clients' && seg1 === 'provision') return await handleClientsProvision(req, res);
+  if (seg0 === 'clients' && !seg1) return await handleClients(req, res);
+  if (seg0 === 'verify-status') return await handleVerifyStatus(req, res);
+  if (seg0 === 'pool' && seg1 === 'refill') return await handlePoolRefill(req, res);
+  if (seg0 === 'pool' && !seg1) return await handlePool(req, res);
+  if (seg0 === 'block') return await handleBlock(req, res);
+  if (seg0 === 'unblock') return await handleUnblock(req, res);
+  if (seg0 === 'admin-overview') return await handleAdminOverview(req, res);
+  if (seg0 === 'voice-status') return await handleVoiceStatus(req, res);
+  if (seg0 === 'voice') return await handleVoice(req, res);
+  if (seg0 === 'sms-status') return await handleSmsStatus(req, res);
+  if (seg0 === 'sms') return await handleSms(req, res);
+  if (seg0 === 'report') return await handleReport(req, res);
+  if (seg0 === 'cron-weekly') return await handleCronWeekly(req, res);
+  if (seg0 === 'cron-flush') return await handleCronFlush(req, res);
+  if (seg0 === 'dashboard') return await handleDashboard(req, res);
+  if (seg0 === 'inbox') return await handleInbox(req, res);
+  if (seg0 === 'checkout') return await handleCheckout(req, res);
+  if (seg0 === 'dodo-webhook') return await handleDodoWebhook(req, res);
+  if (seg0 === 'pay') return await handlePay(req, res);
+  if (seg0 === 'reply') return await handleReply(req, res);
+  if (seg0 === 'admin-action') return await handleAdminAction(req, res);
+  if (seg0 === 'availability') return await handleAvailability(req, res);
+  if (seg0 === 'appointments' && seg1 === 'cancel') return await handleAppointmentsCancel(req, res);
+  if (seg0 === 'appointments') return await handleAppointments(req, res);
+  if (seg0 === 'config') return await handleConfig(req, res);
+  if (seg0 === 'google' && seg1 === 'connect') return await handleGoogleConnect(req, res);
+  if (seg0 === 'google' && seg1 === 'callback') return await handleGoogleCallback(req, res);
+  if (seg0 === 'patients' && seg1 === 'import') return await handlePatientsImport(req, res);
+  if (seg0 === 'patients' && !seg1) return await handlePatients(req, res);
+  if (seg0 === 'reactivation' && seg1 === 'run') return await handleReactivationRun(req, res);
+  if (seg0 === 'reactivation' && seg1 === 'toggle') return await handleReactivationToggle(req, res);
+  if (seg0 === 'reviews' && seg1 === 'mark') return await handleReviewsMark(req, res);
+  if (seg0 === 'reviews' && !seg1) return await handleReviews(req, res);
+  if (seg0 === 'insights') return await handleInsights(req, res);
 
   return res.status(404).json({ error: 'Route not found' });
+  } catch (err) {
+    console.error('router unhandled error:', err);
+    try { await alertGodwin(getSupabase(), 'router_500', err); } catch (e) { /* ignore */ }
+    if (!res.headersSent) {
+      // Webhook routes expect TwiML/200; everything else gets a JSON 500.
+      if (seg0 === 'voice' || seg0 === 'voice-status' || seg0 === 'sms') return twiml(res);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
 };
