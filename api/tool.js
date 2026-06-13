@@ -2407,10 +2407,11 @@ async function handleCronFlush(req, res) {
     // ── #4 Monthly ROI email (anti-churn) ──
     const monthly_reports = [];
     try {
-      const { data: monClients } = await supabase
+      const { data: monClients, error: monErr } = await supabase
         .from('tool_clients')
         .select('*')
         .in('status', ['trial', 'active']);
+      monthly_reports.push({ debug: 'query', count: (monClients || []).length, err: monErr ? monErr.message : null, ids: (monClients || []).map(c => c.id.slice(0,8)) });
       for (const client of monClients || []) {
         try {
           if (!client.owner_email) { monthly_reports.push({ client_id: client.id, skip: 'no_email' }); continue; }
