@@ -80,6 +80,26 @@
   .center{text-align:center}
   .gold-note{background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.4);border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.6;margin-top:20px}
   #step2,#step3{display:none}
+
+  /* #8 free-trial front door */
+  .nocard{display:inline-block;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--green);border:1px solid rgba(47,191,113,.45);background:rgba(47,191,113,.08);border-radius:999px;padding:5px 13px;margin-top:14px}
+  .howstrip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0 30px}
+  .howstep{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 14px}
+  .howstep .hn{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--gold)}
+  .howstep .ht{font-size:13px;line-height:1.5;color:var(--muted);margin-top:8px}
+  .howstep .ht b{color:var(--text);font-weight:500}
+  @media(max-width:560px){.howstrip{grid-template-columns:1fr;gap:10px}.howstep{display:flex;align-items:baseline;gap:12px}.howstep .ht{margin-top:0}}
+
+  /* #7 live demo widget */
+  .demo{background:radial-gradient(120% 140% at 0% 0%,rgba(200,37,30,.14),transparent 55%),var(--panel);border:1px solid rgba(200,37,30,.4);border-radius:16px;padding:24px;margin-bottom:30px}
+  .demo h2{font-family:'Fraunces',serif;font-weight:900;font-size:22px;margin-bottom:6px}
+  .demo p{font-size:13.5px;color:var(--muted);line-height:1.55;margin-bottom:16px}
+  .demorow{display:flex;gap:10px;flex-wrap:wrap}
+  .demorow input{flex:1;min-width:180px}
+  .demorow .btn{width:auto;margin-top:0;white-space:nowrap;padding:13px 20px}
+  .demomsg{display:none;margin-top:14px;font-size:14px;line-height:1.5;border-radius:10px;padding:12px 14px}
+  .demomsg.ok{display:block;color:var(--green);background:rgba(47,191,113,.1);border:1px solid rgba(47,191,113,.4)}
+  .demomsg.bad{display:block;color:var(--text);background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4)}
   footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;font-size:13px;color:var(--muted)}
   footer a{color:var(--muted)}
 </style>
@@ -87,8 +107,26 @@
 <body>
 <div class="wrap">
   <div class="wordmark">VYRRAH RECALLER<span class="dot">.</span></div>
-  <h1>Never miss a patient again</h1>
-  <p class="sub">Three steps. About five minutes. Your free week starts today.</p>
+  <h1>Start your free week. No card.</h1>
+  <p class="sub">See your missed calls turn into booked patients — risk-free for 7 days.</p>
+  <div class="center"><span class="nocard">No credit card · Cancel anytime</span></div>
+
+  <div class="howstrip">
+    <div class="howstep"><div class="hn">1</div><div class="ht">We give you a <b>dedicated recovery number</b>.</div></div>
+    <div class="howstep"><div class="hn">2</div><div class="ht">You <b>forward missed calls</b> to it — a 2-minute setting.</div></div>
+    <div class="howstep"><div class="hn">3</div><div class="ht">Watch us <b>recover them</b> — free for 7 days.</div></div>
+  </div>
+
+  <!-- #7 LIVE DEMO -->
+  <div class="demo">
+    <h2>See it work in 10 seconds</h2>
+    <p>Enter your number and we'll text you the exact message your missed callers would get — within 60 seconds, from your number.</p>
+    <div class="demorow">
+      <input id="demoPhone" type="tel" placeholder="+1 555 010 0123" autocomplete="tel">
+      <button class="btn" id="demoBtn" type="button">Text me the demo</button>
+    </div>
+    <div class="demomsg" id="demoMsg"></div>
+  </div>
 
   <div class="rail">
     <div class="rstep on" id="r1"><div class="dot2">1</div><span class="rlbl">Practice details</span></div>
@@ -138,7 +176,7 @@
       <input id="services" placeholder="General dentistry, cleanings, whitening, implants">
       <label for="booking_link">Booking link (optional)</label>
       <input id="booking_link" type="url" placeholder="https://yourbookingpage.com">
-      <button class="btn" id="submitBtn" type="submit">Create my Vyrrah Recaller →</button>
+      <button class="btn" id="submitBtn" type="submit">Start Free Week →</button>
       <div class="err" id="formErr"></div>
     </form>
   </div>
@@ -244,6 +282,40 @@
 
   function v(id){ return document.getElementById(id).value.trim(); }
 
+  // ─── #7 Live demo ───
+  document.getElementById('demoBtn').addEventListener('click', function(){
+    var btn = this;
+    var msg = document.getElementById('demoMsg');
+    var phone = document.getElementById('demoPhone').value.trim();
+    msg.className = 'demomsg';
+    if(!phone || phone.replace(/\D/g,'').length < 10){
+      msg.className = 'demomsg bad';
+      msg.textContent = 'Please enter a valid phone number with area code.';
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Sending…';
+    fetch('/api/tool/demo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: phone })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d && d.ok){
+        msg.className = 'demomsg ok';
+        msg.textContent = 'Sent! Check your phone in ~30 seconds 📲';
+      } else {
+        msg.className = 'demomsg bad';
+        msg.textContent = (d && d.error) || 'Could not send the demo just now. Please try again.';
+      }
+    })
+    .catch(function(){
+      msg.className = 'demomsg bad';
+      msg.textContent = 'Could not send the demo just now. Please try again.';
+    })
+    .finally(function(){ btn.disabled = false; btn.textContent = 'Text me the demo'; });
+  });
+
   // ─── Live forwarding verification ───
   var verifyTimer = null;
   function fireConfetti(box){
@@ -326,7 +398,7 @@
       err.style.display = 'block';
     })
     .finally(function(){
-      btn.disabled = false; btn.textContent = 'Create my Vyrrah Recaller →';
+      btn.disabled = false; btn.textContent = 'Start Free Week →';
     });
   });
 

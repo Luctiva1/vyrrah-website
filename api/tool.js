@@ -3951,6 +3951,74 @@ async function handleInsights(req, res) {
   }
 }
 
+// ─── #7 Live demo (public, abuse-guarded) ─────────────────────────────────────
+function clientIp(req) {
+  const fwd = req.headers['x-forwarded-for'];
+  return (Array.isArray(fwd) ? fwd[0] : (fwd || '')).split(',')[0].trim() ||
+    req.headers['x-real-ip'] || (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+
+const DEMO_BODY = "👋 This is a demo from Vyrrah Recaller. THIS is the text your missed callers would get within 60 seconds — except it'd be from YOUR number, booking them in. Imagine never losing a patient to voicemail again. — Godwin, vyrrahlabs.com";
+
+// POST /api/tool/demo  { phone }  — NO auth. Sends ONE demo SMS. Always 200.
+async function handleDemo(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const digits = normalizePhone((req.body || {}).phone);
+    if (!digits || digits.length < 10) {
+      return res.status(200).json({ ok: false, error: 'Please enter a valid phone number with area code.' });
+    }
+    if (isNonTextableCaller(digits)) {
+      return res.status(200).json({ ok: false, error: "That number can't receive texts. Try a mobile number." });
+    }
+    const ip = clientIp(req);
+    const now = Date.now();
+    const dayAgo = new Date(now - 24 * 3600 * 1000).toISOString();
+    const hourAgo = new Date(now - 3600 * 1000).toISOString();
+    const startOfDay = new Date(now - 24 * 3600 * 1000).toISOString();
+
+    // Guard 1: max 1 send per phone per 24h.
+    const { data: phoneHits } = await supabase
+      .from('tool_demo_log').select('id').eq('phone', digits).gte('created_at', dayAgo).limit(1);
+    if (phoneHits && phoneHits[0]) {
+      return res.status(200).json({ ok: false, error: "We already texted this number today. Check your phone 📲" });
+    }
+    // Guard 2: max 5 per IP / hour.
+    const { data: ipHour } = await supabase
+      .from('tool_demo_log').select('id').eq('ip', ip).gte('created_at', hourAgo);
+    if ((ipHour || []).length >= 5) {
+      return res.status(200).json({ ok: false, error: 'Too many demo requests right now. Try again later.' });
+    }
+    // Guard 3: max 20 per IP / day.
+    const { data: ipDay } = await supabase
+      .from('tool_demo_log').select('id').eq('ip', ip).gte('created_at', dayAgo);
+    if ((ipDay || []).length >= 20) {
+      return res.status(200).json({ ok: false, error: 'Daily demo limit reached. Try again tomorrow.' });
+    }
+    // Guard 4: global cap 200/day — protect the Twilio bill.
+    const { count: globalCount } = await supabase
+      .from('tool_demo_log').select('id', { count: 'exact', head: true }).gte('created_at', startOfDay);
+    if ((globalCount || 0) >= 200) {
+      return res.status(200).json({ ok: false, error: 'Demo line is busy today. Please reach out and we’ll show you live.' });
+    }
+
+    const from = process.env.DEMO_NUMBER || '+15108519627';
+    const to = '+' + (digits.length === 10 ? '1' + digits : digits);
+    const client = getTwilioClient();
+    await sendSms(client, { from, to, body: DEMO_BODY });
+
+    try {
+      await supabase.from('tool_demo_log').insert({ phone: digits, ip, created_at: new Date().toISOString() });
+    } catch (e) { console.error('demo log insert error', e); }
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('tool/demo error:', err);
+    return res.status(200).json({ ok: false, error: 'Could not send the demo just now. Please try again.' });
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 module.exports = async (req, res) => {
@@ -3999,6 +4067,7 @@ module.exports = async (req, res) => {
   if (seg0 === 'reviews' && seg1 === 'mark') return await handleReviewsMark(req, res);
   if (seg0 === 'reviews' && !seg1) return await handleReviews(req, res);
   if (seg0 === 'insights') return await handleInsights(req, res);
+  if (seg0 === 'demo') return await handleDemo(req, res);
 
   return res.status(404).json({ error: 'Route not found' });
   } catch (err) {

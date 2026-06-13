@@ -68,6 +68,21 @@
   .howcard ol b{color:var(--text);font-weight:500}
   .rangenote{font-size:12px;color:var(--muted);margin:-12px 0 18px;letter-spacing:.03em}
 
+  /* #5 ROI proof hero */
+  .hero{position:relative;overflow:hidden;border:1px solid rgba(240,165,0,.38);border-radius:20px;padding:38px 32px 30px;margin:26px 0 8px;background:radial-gradient(120% 140% at 50% 0%,rgba(240,165,0,.16),rgba(240,165,0,.03) 55%,transparent),var(--panel);display:none}
+  .hero .hkick{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+  .hero .hbig{font-family:'Syne',sans-serif;font-weight:800;font-size:84px;line-height:.92;color:var(--gold);letter-spacing:-.01em;text-shadow:0 2px 40px rgba(240,165,0,.25)}
+  .hero .hbig span{font-size:46px;vertical-align:.06em}
+  .hero .hsub{font-family:'Fraunces',serif;font-weight:900;font-size:20px;margin-top:18px;max-width:560px;line-height:1.35}
+  .hero .hsub b{color:var(--gold)}
+  .hero .hrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:22px}
+  .hero .hshare{background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--gold);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;padding:11px 18px;border-radius:10px;cursor:pointer}
+  .hero .hshare:hover{filter:brightness(1.12)}
+  .hero .hhint{font-size:12px;color:var(--muted);letter-spacing:.03em}
+  .hero.building{border-color:rgba(47,191,113,.32);background:radial-gradient(120% 140% at 50% 0%,rgba(47,191,113,.12),rgba(47,191,113,.02) 55%,transparent),var(--panel)}
+  .hero.building .hbig{color:var(--green);font-size:38px;font-family:'Fraunces',serif;font-weight:900;text-shadow:none}
+  .hero.building .hbig span{display:none}
+
   .state{text-align:center;padding:90px 20px;display:none}
   .state h1{font-family:'Fraunces',serif;font-weight:900;font-size:30px;margin-bottom:14px}
   .state p{color:var(--muted);font-size:15px;line-height:1.6}
@@ -112,6 +127,11 @@
     .bubble{max-width:90%}
     .inbox{grid-template-columns:1fr}
     .convolist{max-height:300px}
+    .hero{padding:28px 20px 24px;border-radius:16px}
+    .hero .hbig{font-size:58px}
+    .hero .hbig span{font-size:32px}
+    .hero.building .hbig{font-size:28px}
+    .hero .hsub{font-size:17px}
   }
 </style>
 </head>
@@ -142,6 +162,16 @@
     </div>
 
     <div id="viewOverview" style="display:block">
+    <div class="hero" id="roiHero">
+      <div class="hkick" id="heroKick">Your return this month</div>
+      <div class="hbig" id="heroBig">0<span>×</span></div>
+      <div class="hsub" id="heroSub"></div>
+      <div class="hrow">
+        <button class="hshare" id="heroShare">Copy summary</button>
+        <span class="hhint">Screenshot this — it's the kind of number worth showing your partner.</span>
+      </div>
+    </div>
+
     <div class="numbercard" id="numberCard" style="display:none">
       <div>
         <div class="ncn">Your Vyrrah number</div>
@@ -232,6 +262,65 @@
     requestAnimationFrame(tick);
   }
 
+  var heroFirst = true;
+  var heroSummaryText = '';
+
+  function countUpNum(el, target, fmt){
+    if(!heroFirst){ el.innerHTML = fmt(target); return; }
+    var start = performance.now(), dur = 1300;
+    function tick(now){
+      var p = Math.min((now-start)/dur, 1);
+      var eased = 1 - Math.pow(1-p, 3);
+      el.innerHTML = fmt(target*eased);
+      if(p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function renderHero(d, practice){
+    var hero = document.getElementById('roiHero');
+    var roi = (d && d.headline_roi) || {};
+    var saved = Math.round(roi.revenue_saved || 0);
+    var cost = Math.round(roi.cost || 0);
+    var mult = Number(roi.roi_multiple || 0);
+    var big = document.getElementById('heroBig');
+    var sub = document.getElementById('heroSub');
+
+    // New/low account → warm "building" state instead of a sad $0.
+    if(saved < 100 || mult < 1){
+      hero.classList.add('building');
+      document.getElementById('heroKick').textContent = 'Your numbers are building';
+      big.textContent = "Here's this week so far";
+      sub.innerHTML = "We've started catching your missed calls. As recovered bookings come in, your return shows up right here — usually within the first few days.";
+      heroSummaryText = practice + ' — Vyrrah Recaller is live and catching missed calls. Recovery numbers are building this week.';
+    } else {
+      hero.classList.remove('building');
+      document.getElementById('heroKick').textContent = 'Your return this month';
+      countUpNum(big, mult, function(v){ return Math.round(v) + '<span>×</span>'; });
+      sub.innerHTML = 'We recovered an estimated <b>$' + saved.toLocaleString() +
+        '</b> for you this month. Your plan is $' + cost.toLocaleString() + '.';
+      heroSummaryText = practice + ' — Vyrrah Recaller recovered an estimated $' + saved.toLocaleString() +
+        ' this month for a $' + cost.toLocaleString() + ' plan. That\'s a ' + Math.round(mult) + '× return.';
+    }
+    hero.style.display = 'block';
+    heroFirst = false;
+  }
+
+  document.getElementById('heroShare').addEventListener('click', function(){
+    var btn = this;
+    function done(){ var o=btn.textContent; btn.textContent='Copied ✓'; setTimeout(function(){btn.textContent=o;},1800); }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(heroSummaryText).then(done, function(){ window.prompt('Copy this summary:', heroSummaryText); });
+    } else { window.prompt('Copy this summary:', heroSummaryText); }
+  });
+
+  function loadInsights(practice){
+    fetch('/api/tool/insights?token=' + encodeURIComponent(token))
+      .then(function(r){ if(!r.ok) throw new Error('bad'); return r.json(); })
+      .then(function(d){ renderHero(d.insights || {}, d.practice_name || practice || ''); })
+      .catch(function(){ document.getElementById('roiHero').style.display = 'none'; });
+  }
+
   function render(data){
     document.getElementById('practiceName').textContent = data.practice_name || '';
     var pill = document.getElementById('statusPill');
@@ -285,6 +374,7 @@
       }).join('');
     }
     show('app');
+    if(firstLoad) loadInsights(data.practice_name);
     firstLoad = false;
   }
 
