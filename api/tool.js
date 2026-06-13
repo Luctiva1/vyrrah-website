@@ -2413,15 +2413,15 @@ async function handleCronFlush(req, res) {
         .in('status', ['trial', 'active']);
       for (const client of monClients || []) {
         try {
-          if (!client.owner_email) continue;
+          if (!client.owner_email) { monthly_reports.push({ client_id: client.id, skip: 'no_email' }); continue; }
           // Need >=14 days of history (use trial_started_at or created_at as the start).
           const startTs = new Date(client.trial_started_at || client.created_at || Date.now()).getTime();
           const daysOfHistory = (Date.now() - startTs) / 86400000;
-          if (daysOfHistory < 14) continue;
+          if (daysOfHistory < 14) { monthly_reports.push({ client_id: client.id, skip: 'young', days: Math.round(daysOfHistory) }); continue; }
           // Due if never sent OR >=28 days ago.
           const last = client.last_monthly_report ? new Date(client.last_monthly_report).getTime() : 0;
           const daysSince = last ? (Date.now() - last) / 86400000 : Infinity;
-          if (daysSince < 28) continue;
+          if (daysSince < 28) { monthly_reports.push({ client_id: client.id, skip: 'recent_report' }); continue; }
 
           const insights = await buildInsights(supabase, client, 30);
           const roi = insights.headline_roi;
