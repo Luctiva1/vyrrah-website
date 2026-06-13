@@ -57,14 +57,6 @@ button{font-family:inherit;cursor:pointer}
 #loader .bar i{position:absolute;inset:0;background:linear-gradient(90deg,var(--red),var(--gold));transform:scaleX(0);transform-origin:left}
 #loader .tag{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gray)}
 
-/* CUSTOM CURSOR */
-#cur-dot,#cur-ring{position:fixed;top:0;left:0;pointer-events:none;z-index:400;border-radius:50%;display:none}
-@media(pointer:fine){
-  .js #cur-dot{display:block;width:6px;height:6px;background:var(--gold);transform:translate(-50%,-50%)}
-  .js #cur-ring{display:block;width:34px;height:34px;border:1px solid rgba(240,165,0,.5);transform:translate(-50%,-50%);transition:width .25s,height .25s,border-color .25s,background .25s}
-  .js #cur-ring.hot{width:58px;height:58px;border-color:rgba(240,165,0,.9);background:rgba(240,165,0,.08)}
-}
-
 /* NAV */
 nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:18px 52px;transition:background .35s,border-color .35s,padding .35s,transform .45s var(--ease);border-bottom:1px solid transparent}
 nav.scrolled{background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom-color:var(--border);padding:13px 52px}
@@ -495,6 +487,96 @@ footer .flinks a:hover{color:var(--gold)}
 #exit .xx:hover{color:var(--white)}
 @media(max-width:600px){#exit .box{padding:38px 26px}}
 
+/* DRAWN UNDERLINE on emphasized heading words */
+.sh em{background-image:linear-gradient(var(--gold),var(--gold));background-repeat:no-repeat;background-position:0 92%;background-size:0% 2px}
+.sh em.r{background-image:linear-gradient(var(--red2),var(--red2))}
+.js .sh em{transition:background-size 1s var(--ease) .35s}
+.js .sh.in em{background-size:100% 2px}
+
+/* SYSTEM FLOW DIAGRAM */
+.flowsec{padding:118px 52px;position:relative;overflow:hidden;border-top:1px solid var(--border);background:var(--bg2)}
+.flowsec .glow.a{width:560px;height:560px;background:rgba(240,165,0,.06);top:-200px;left:50%;margin-left:-280px}
+.flowsec .glow.b{width:420px;height:420px;background:rgba(200,37,30,.07);bottom:-180px;right:-120px}
+.flow-head{max-width:760px;position:relative;z-index:2;margin-bottom:60px}
+.flow{position:relative;max-width:1100px;margin:0 auto;z-index:2}
+.flow-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible}
+.flow-track{fill:none;stroke:rgba(242,237,228,.1);stroke-width:2;stroke-dasharray:2 7;stroke-linecap:round}
+.flow-signal{fill:var(--gold2)}
+.flow-glow{fill:none;stroke:var(--gold);stroke-width:3;stroke-linecap:round;filter:drop-shadow(0 0 6px rgba(245,192,48,.8));opacity:.9}
+.flow-nodes{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:stretch;gap:16px}
+.flow-node{flex:1;background:var(--bg3);border:1px solid var(--border);padding:26px 20px 24px;text-align:center;position:relative;transition:border-color .45s var(--ease),background .45s,transform .45s var(--ease)}
+.flow-node .ic{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;background:var(--bg2);color:var(--gray);transition:background .45s,color .45s,box-shadow .45s,transform .45s var(--ease)}
+.flow-node .ic svg{width:21px;height:21px}
+.flow-node b{display:block;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;letter-spacing:.2px;margin-bottom:6px;color:var(--white)}
+.flow-node small{font-size:11.5px;color:var(--gray);line-height:1.5;display:block}
+.flow-node .stamp{position:absolute;top:13px;right:15px;font-size:10px;letter-spacing:.5px;color:var(--gray);font-variant-numeric:tabular-nums;opacity:0;transition:opacity .4s}
+.flow-node.lit{border-color:rgba(240,165,0,.45);transform:translateY(-5px)}
+.flow-node.lit .ic{background:rgba(240,165,0,.16);color:var(--gold);box-shadow:0 0 0 6px rgba(240,165,0,.06);transform:scale(1.06)}
+.flow-node.lit .stamp{opacity:1}
+.flow-node.miss.lit{border-color:rgba(224,48,48,.5)}
+.flow-node.miss.lit .ic{background:rgba(224,48,48,.16);color:var(--red2);box-shadow:0 0 0 6px rgba(224,48,48,.07)}
+.flow-node.book.lit{border-color:rgba(245,192,48,.6)}
+.flow-node.book.lit .ic{background:rgba(245,192,48,.2);color:var(--gold2);box-shadow:0 0 0 7px rgba(245,192,48,.08)}
+.flow-cap{margin-top:44px;display:flex;align-items:center;justify-content:center;gap:14px;font-size:14px;color:var(--mid);position:relative;z-index:2;text-align:center;flex-wrap:wrap}
+.flow-cap b{color:var(--gold);font-weight:600}
+@media(max-width:860px){
+  .flowsec{padding:84px 20px}
+  .flow-nodes{flex-direction:column;gap:12px}
+  .flow-node{display:flex;align-items:center;gap:18px;text-align:left;padding:18px 22px}
+  .flow-node .ic{margin:0;flex-shrink:0}
+  .flow-node .stamp{position:static;margin-left:auto;opacity:1;flex-shrink:0}
+  .flow-node .txt{flex:1}
+}
+
+/* OFFER LADDER — vertical ascending journey */
+.ladder{position:relative;margin-top:30px}
+.ladder-spine{position:absolute;left:31px;width:2px;background:rgba(242,237,228,.1);z-index:0}
+.ladder-fill{position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(180deg,var(--red),var(--gold));transform:scaleY(0);transform-origin:top;box-shadow:0 0 8px rgba(240,165,0,.4)}
+.rung{position:relative;display:grid;grid-template-columns:64px 1fr;align-items:start}
+.rung-mark{position:relative;z-index:2;display:flex;justify-content:center}
+.rung-dot{width:18px;height:18px;border-radius:50%;background:var(--bg2);border:2px solid var(--border2);margin-top:46px;transition:border-color .45s,background .45s,box-shadow .45s,transform .45s var(--ease)}
+.rung.active .rung-dot{border-color:var(--gold);background:var(--gold);box-shadow:0 0 0 6px rgba(240,165,0,.12);transform:scale(1.1)}
+.rung.feat.active .rung-dot{box-shadow:0 0 0 7px rgba(240,165,0,.16)}
+.rung-card{background:var(--bg);border:1px solid var(--border);padding:36px 40px;transition:border-color .45s,transform .45s var(--ease);position:relative;overflow:hidden}
+.rung.active .rung-card{border-color:var(--border2)}
+.rung.feat .rung-card{background:#120d02}
+.rung-card .rstep{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rung-card .rstep .pill{font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--bg);background:var(--gold);padding:3px 9px;border-radius:2px}
+.rung-top{display:flex;justify-content:space-between;align-items:baseline;gap:20px;flex-wrap:wrap;margin-bottom:14px}
+.rung-card h3{font-family:'Fraunces',serif;font-size:clamp(24px,2.6vw,32px);font-weight:900;line-height:1.1}
+.rung-card h3 em{font-style:italic;color:var(--gold)}
+.rprice{font-family:'Syne',sans-serif;font-size:34px;font-weight:800;letter-spacing:-1.5px;color:var(--white);white-space:nowrap;font-variant-numeric:tabular-nums}
+.rung.feat .rprice{color:var(--gold)}
+.rprice sub{font-size:13px;font-weight:400;color:var(--gray);letter-spacing:0;vertical-align:baseline;font-family:'DM Sans',sans-serif}
+.rprice .free{font-size:13px;color:var(--gold);letter-spacing:0;font-family:'DM Sans',sans-serif;font-weight:500;display:block;text-align:right;margin-top:2px}
+.rung-card .rdesc{font-size:15px;color:var(--mid);line-height:1.75;max-width:660px;margin-bottom:22px}
+.rung-card .rdesc b{color:var(--white);font-weight:500}
+.rfeat{display:flex;flex-wrap:wrap;gap:8px 10px;margin-bottom:26px}
+.rfeat span{font-size:12px;color:var(--mid);border:1px solid var(--border);padding:7px 13px;display:inline-flex;align-items:center;gap:7px}
+.rfeat span::before{content:'';width:8px;height:5px;border-left:2px solid var(--gold);border-bottom:2px solid var(--gold);transform:rotate(-45deg);flex-shrink:0}
+.rung-card .slotline{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-top:16px;display:flex;align-items:center;gap:8px}
+.rung-card .slotline::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--gold);animation:blink 1.6s infinite}
+.bridge{display:grid;grid-template-columns:64px 1fr;align-items:center}
+.bridge .b-mark{display:flex;justify-content:center;color:var(--gold);font-size:18px}
+.bridge .b-txt{font-size:14.5px;color:var(--mid);line-height:1.7;padding:18px 0 18px 4px;max-width:680px}
+.bridge .b-txt b{color:var(--white);font-weight:500}
+.bridge .b-txt em{font-style:italic;color:var(--gold);background:none}
+@media(max-width:720px){
+  .ladder-spine{left:19px}
+  .rung,.bridge{grid-template-columns:40px 1fr}
+  .rung-dot{width:14px;height:14px;margin-top:40px}
+  .rung-card{padding:28px 22px}
+  .bridge .b-txt{padding:14px 0 14px 0}
+}
+
+/* CONNECTOR TICK between tool sections */
+.bridge-strip{padding:0 52px;position:relative;z-index:3;margin-top:-30px}
+.bridge-strip .inner{max-width:1240px;margin:0 auto;border-left:2px solid var(--gold);padding:6px 0 6px 26px;max-width:720px}
+.bridge-strip .lab{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
+.bridge-strip p{font-size:16px;color:var(--white);line-height:1.6;font-family:'Fraunces',serif}
+.bridge-strip p span{color:var(--mid);font-family:'DM Sans',sans-serif;font-size:15px}
+@media(max-width:980px){.bridge-strip{padding:0 20px;margin-top:-10px}}
+
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
   html{scroll-behavior:auto}
@@ -502,6 +584,9 @@ footer .flinks a:hover{color:var(--gold)}
   .lmask>span,.hero h1 .hl>span{transform:none!important}
   .hero .fade{opacity:1!important;transform:none!important}
   #loader{display:none!important}
+  .js .sh em{background-size:100% 2px!important}
+  .ladder-fill{transform:scaleY(1)!important}
+  .rung{opacity:1!important}
 }
 </style>
 </head>
@@ -509,8 +594,6 @@ footer .flinks a:hover{color:var(--gold)}
 
 <div id="scroll-bar"></div>
 <div id="grain"></div>
-<div id="cur-dot"></div>
-<div id="cur-ring"></div>
 
 <div id="loader" aria-hidden="true">
   <div class="mark">VYRRAH<span>.</span>LABS</div>
@@ -607,6 +690,33 @@ footer .flinks a:hover{color:var(--gold)}
   </div>
 </section>
 
+<!-- SYSTEM FLOW DIAGRAM -->
+<section class="flowsec" id="how-flow">
+  <div class="glow a"></div>
+  <div class="glow b"></div>
+  <div class="wrap">
+    <div class="flow-head">
+      <div class="ey g" data-reveal>The fix · sixty seconds, start to finish</div>
+      <h2 class="sh" data-reveal>Watch a missed call <span class="lmask"><span>turn into a <em>booking.</em></span></span></h2>
+      <p class="sb" data-reveal>This runs the second your phone goes unanswered. Day, night, weekend, lunch rush. Here is the whole loop, automatic.</p>
+    </div>
+    <div class="flow" id="flow">
+      <svg class="flow-svg" id="flow-svg" preserveAspectRatio="none" aria-hidden="true">
+        <path class="flow-track" id="flow-track"></path>
+        <path class="flow-glow" id="flow-glow"></path>
+        <circle class="flow-signal" id="flow-signal" r="5" style="opacity:0"></circle>
+      </svg>
+      <div class="flow-nodes">
+        <div class="flow-node" data-reveal><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><div class="txt"><b>Call comes in</b><small>A customer found you on Google and dialed.</small></div><span class="stamp">2:47 PM</span></div>
+        <div class="flow-node miss" data-reveal data-d="1"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="23" y1="1" x2="17" y2="7"/><line x1="17" y1="1" x2="23" y2="7"/><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div><div class="txt"><b>Nobody answers</b><small>You're mid-job. It rings out, like 6 in 10 do.</small></div><span class="stamp">2:47 PM</span></div>
+        <div class="flow-node" data-reveal data-d="2"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div><div class="txt"><b>My AI texts back</b><small>From your number, before they scroll on.</small></div><span class="stamp">+58 sec</span></div>
+        <div class="flow-node book" data-reveal data-d="3"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"/></svg></div><div class="txt"><b>Booked, not bounced</b><small>The job lands on your calendar instead of theirs.</small></div><span class="stamp">+3 min</span></div>
+      </div>
+    </div>
+    <div class="flow-cap" data-reveal>The gap between <b>ring-out</b> and <b>text-back</b> is where your money leaks. <b>The tool closes it.</b></div>
+  </div>
+</section>
+
 <!-- TOOL 01: CALCULATOR -->
 <section class="toolsec alt" id="calculator">
   <div class="tool-ghost" data-ghost>01</div>
@@ -685,14 +795,22 @@ footer .flinks a:hover{color:var(--gold)}
   </div>
 </section>
 
-<!-- TOOL 02: LEAK FINDER -->
+<!-- BRIDGE: TOOL -> AUDIT -->
+<div class="bridge-strip">
+  <div class="inner">
+    <div class="lab">Step 1 plugs one leak · step 2 finds the rest</div>
+    <p>The phone is the leak you can see. <span>It's almost never the only one. Before you spend another dollar sending people to a site that drops them, you find every other place money slips out. That's the audit, and it starts with the scan below.</span></p>
+  </div>
+</div>
+
+<!-- TOOL 02: LEAK FINDER / THE AUDIT -->
 <section class="toolsec alt" id="leak">
   <div class="tool-ghost" data-ghost>02</div>
   <div class="wrap">
     <div class="tool-head">
-      <div class="ey g" data-reveal>Try it free · 02 · The website leak finder</div>
-      <h2 class="sh" data-reveal>Your website is leaking. <span class="lmask"><span><em>Find the biggest hole in 20 seconds.</em></span></span></h2>
-      <p class="sb" data-reveal>Drop your URL. I fetch your homepage and run it through the first check of my 9 point conversion audit. You get the single biggest leak and the fix. No email required.</p>
+      <div class="ey g" data-reveal>Service 2 · The audit · find every other leak</div>
+      <h2 class="sh" data-reveal>The phone was leak one. <span class="lmask"><span>Here's <em>where else</em> you're bleeding.</span></span></h2>
+      <p class="sb" data-reveal>Drop your URL. I pull your homepage and run the first of my 9 conversion checks live, right here. The full audit maps the other 8 across your ads, follow-up, reviews and booking flow. No email required.</p>
     </div>
     <div class="app" data-tilt data-reveal>
       <div class="glare"></div>
@@ -739,14 +857,22 @@ footer .flinks a:hover{color:var(--gold)}
   </div>
 </section>
 
-<!-- TOOL 03: GRADER -->
+<!-- BRIDGE: AUDIT -> RETAINER -->
+<div class="bridge-strip">
+  <div class="inner">
+    <div class="lab">The audit is the list · the retainer is me doing it</div>
+    <p>A list of leaks is just homework. <span>Someone has to actually run the ads, fix the follow-up, build the systems. That someone is me. Here's what I'd own, and what it's worth.</span></p>
+  </div>
+</div>
+
+<!-- TOOL 03: GRADER / THE RETAINER -->
 <section class="toolsec" id="gap">
   <div class="tool-ghost" data-ghost>03</div>
   <div class="wrap">
     <div class="tool-head">
-      <div class="ey g" data-reveal>Try it free · 03 · The growth gap grader</div>
+      <div class="ey g" data-reveal>Service 3 · The retainer · what I'd own</div>
       <h2 class="sh" data-reveal>Five questions. <span class="lmask"><span>Your growth gap, <em>in dollars.</em></span></span></h2>
-      <p class="sb" data-reveal>These are the five systems I build and run as a fractional head of growth. Answer honestly. Every "no" is money sitting on the table.</p>
+      <p class="sb" data-reveal>These are the five systems I build and run as your fractional head of growth. Answer honestly. Every "no" is money sitting on the table, and a job I'd take off your plate.</p>
     </div>
     <div class="app" data-tilt data-reveal>
       <div class="glare"></div>
@@ -781,61 +907,79 @@ footer .flinks a:hover{color:var(--gold)}
   </div>
 </section>
 
-<!-- PRICING -->
+<!-- PRICING / THE PATH -->
 <section class="toolsec alt" id="pricing">
   <div class="wrap" style="position:relative;z-index:2">
     <div class="tool-head">
-      <div class="ey g" data-reveal>Pricing · three steps, no contracts</div>
-      <h2 class="sh" data-reveal>Start free. Stay because <span class="lmask"><span><em>the numbers say so.</em></span></span></h2>
-      <p class="sb" data-reveal>Every step pays for itself or you don't take the next one. That's the whole pitch.</p>
+      <div class="ey g" data-reveal>The path · tool → audit → retainer</div>
+      <h2 class="sh" data-reveal>Three services. <span class="lmask"><span>Each one <em>earns</em> the next.</span></span></h2>
+      <p class="sb" data-reveal>You never reach for the next step until the last one paid for itself. Read it top to bottom. It's built so the logic is obvious.</p>
     </div>
     <div class="scarcity" data-reveal>
       <span class="pulse"></span>
-      <p>I set up every line myself, so I onboard <b>3 new businesses a month</b>, no exceptions. <b><span data-month>This month</span>: 1 slot left.</b> The next opening is <span data-nextmonth>next month</span>.</p>
+      <p>I set up and run every account myself, so I take on <b>3 new businesses a month</b>, no exceptions. <b><span data-month>This month</span>: 1 slot left.</b> Next opening is <span data-nextmonth>next month</span>.</p>
     </div>
-    <div class="tiers-grid">
-      <div class="tc" data-reveal>
-        <div class="step-lab">Step 1 · Start here</div>
-        <h3>The free week</h3>
-        <div class="tprice">$0</div>
-        <p class="tdesc">My missed call recovery AI, live on your line for 7 days. No card, no commitment.</p>
-        <ul class="tlist">
-          <li>Set up in <b>about 15 minutes</b>, on a call with me</li>
-          <li>Texts every missed caller back <b>within 60 seconds</b></li>
-          <li>Runs nights, weekends, lunch rushes</li>
-          <li>Ends with a results call: <b>your missed calls, your recovered bookings, your dollars</b></li>
-        </ul>
-        <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Claim the last <span data-month>June</span> slot <span class="arr">→</span></a>
-        <div class="slotline">1 of 3 <span data-month>June</span> slots left</div>
+
+    <div class="ladder" id="ladder">
+      <div class="ladder-spine"><div class="ladder-fill"></div></div>
+
+      <!-- RUNG 1: THE TOOL -->
+      <div class="rung">
+        <div class="rung-mark"><span class="rung-dot"></span></div>
+        <div class="rung-card" data-reveal>
+          <div class="rstep">Service 1 · The tool <span class="pill">START FREE</span></div>
+          <div class="rung-top">
+            <h3>Catch every <em>missed call</em></h3>
+            <div class="rprice">$500<sub>/mo</sub><span class="free">week one is free</span></div>
+          </div>
+          <p class="rdesc">My AI texts every missed caller back from your number in 60 seconds and books the job. It plugs the one leak you can already see: the phone. <b>One recovered job usually covers the whole month.</b> Start with a free week on your real line, no card.</p>
+          <div class="rfeat"><span>24/7 from your number</span><span>AI books the appointment</span><span>Monday revenue report</span><span>Cancel any month</span></div>
+          <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Start the free week <span class="arr">→</span></a>
+          <div class="slotline">1 of 3 <span data-month>June</span> slots left</div>
+        </div>
       </div>
-      <div class="tc feat" data-reveal data-d="1">
-        <div class="tag">The tool</div>
-        <div class="step-lab">Step 2 · Keep it running</div>
-        <h3>Missed call recovery</h3>
-        <div class="tprice">$500<sub>/month</sub></div>
-        <p class="tdesc">The same system, every day, on autopilot. One recovered job usually covers it.</p>
-        <ul class="tlist">
-          <li>Every missed call texted back, <b>24/7</b>, from your number</li>
-          <li>AI conversation, scoped tight, human flagging built in</li>
-          <li><b>Monday report:</b> calls missed, recovered, revenue saved</li>
-          <li>Cancel any month. <b>The report is the retention strategy</b></li>
-        </ul>
-        <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book the setup call <span class="arr">→</span></a>
+
+      <div class="bridge">
+        <div class="b-mark">↓</div>
+        <div class="b-txt">Week one hands you a real number: dollars you were losing without knowing. <b>That raises the obvious question</b> — <em>if I'm losing this much on calls alone, where else is it leaking?</em></div>
       </div>
-      <div class="tc" data-reveal data-d="2">
-        <div class="step-lab">Step 3 · Hand me the number</div>
-        <h3>Head of growth</h3>
-        <div class="tprice">$5,000<sub>/month</sub></div>
-        <p class="tdesc">I embed in your business and own the growth number. Not an agency. Me.</p>
-        <ul class="tlist">
-          <li><b>Everything:</b> ads, outreach, creative, follow up, CRO</li>
-          <li>The $500 tool, <b>included</b></li>
-          <li>One weekly call, straight numbers</li>
-          <li>Month to month, <b>no lock in</b></li>
-        </ul>
-        <a class="btng" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Talk to me first <span class="arr">→</span></a>
+
+      <!-- RUNG 2: THE AUDIT -->
+      <div class="rung">
+        <div class="rung-mark"><span class="rung-dot"></span></div>
+        <div class="rung-card" data-reveal>
+          <div class="rstep">Service 2 · The audit</div>
+          <div class="rung-top">
+            <h3>Find <em>every other leak</em></h3>
+            <div class="rprice">Free<span class="free">on a 30-min call</span></div>
+          </div>
+          <p class="rdesc">The 9-point conversion audit. I map your whole funnel: ads, speed-to-lead, reviews, booking flow, dead-list reactivation. You walk away with a ranked list of what's costing you most, in dollars. <b>The scan further up the page is check one of the nine.</b> Yours to keep, whether we work together or not.</p>
+          <div class="rfeat"><span>All 9 conversion checks</span><span>Ranked by dollar impact</span><span>A plan you keep</span><span>Zero obligation</span></div>
+          <a class="btng" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book the audit call <span class="arr">→</span></a>
+        </div>
+      </div>
+
+      <div class="bridge">
+        <div class="b-mark">↓</div>
+        <div class="b-txt">Now you've got the full list. <b>But a list is just homework</b> until someone runs the ads, fixes the follow-up, and builds the systems. <em>That's the part most owners have no time for.</em></div>
+      </div>
+
+      <!-- RUNG 3: THE RETAINER -->
+      <div class="rung feat">
+        <div class="rung-mark"><span class="rung-dot"></span></div>
+        <div class="rung-card" data-reveal>
+          <div class="rstep">Service 3 · The retainer <span class="pill">I RUN IT ALL</span></div>
+          <div class="rung-top">
+            <h3>I own <em>the growth number</em></h3>
+            <div class="rprice">$5,000<sub>/mo</sub></div>
+          </div>
+          <p class="rdesc">I embed as your fractional head of growth and execute everything the audit found. Ads, outreach, creative, CRO, follow-up systems, and the missed-call tool, included. Not an agency. Me, on one weekly call. <b>A full-time head of growth runs $150K+ a year. Same seat, no severance risk, cancel any month.</b></p>
+          <div class="rfeat"><span>Everything the audit found, done</span><span>The $500 tool, included</span><span>One weekly call, real numbers</span><span>Month to month, no lock-in</span></div>
+          <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Talk to me first <span class="arr">→</span></a>
+        </div>
       </div>
     </div>
+
     <div class="risk" data-reveal>
       <span>No contracts</span><span>No setup fees</span><span>No card for the trial</span><span>Cancel any month</span>
     </div>
@@ -985,12 +1129,16 @@ footer .flinks a:hover{color:var(--gold)}
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <script>
 (function(){
 "use strict";
 var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 var finePointer = window.matchMedia('(pointer: fine)').matches;
 var desktop = window.innerWidth > 980;
+var GS = (typeof window.gsap !== 'undefined') ? window.gsap : null;
+if(GS && window.ScrollTrigger){ GS.registerPlugin(window.ScrollTrigger); } else { GS = null; }
 
 /* ---------- DYNAMIC DATES ---------- */
 var now = new Date();
@@ -1025,26 +1173,6 @@ if(reduceMotion || sessionStorage.getItem('vy_seen')){
     else setTimeout(finishLoad, 120);
   })(t0);
   setTimeout(function(){ if(!document.documentElement.classList.contains('loaded')) finishLoad(); }, 2500);
-}
-
-/* ---------- CUSTOM CURSOR ---------- */
-if(finePointer && !reduceMotion){
-  var dot = document.getElementById('cur-dot'), ring = document.getElementById('cur-ring');
-  var mx = -100, my = -100, rx = -100, ry = -100;
-  document.addEventListener('mousemove', function(e){ mx = e.clientX; my = e.clientY; }, {passive:true});
-  (function curLoop(){
-    rx += (mx - rx) * .16; ry += (my - ry) * .16;
-    dot.style.transform = 'translate(' + (mx-3) + 'px,' + (my-3) + 'px)';
-    ring.style.transform = 'translate(' + (rx - ring.offsetWidth/2) + 'px,' + (ry - ring.offsetHeight/2) + 'px)';
-    requestAnimationFrame(curLoop);
-  })();
-  document.querySelectorAll('a,button,input,.tog,.fq').forEach(function(el){
-    el.addEventListener('mouseenter', function(){ ring.classList.add('hot'); });
-    el.addEventListener('mouseleave', function(){ ring.classList.remove('hot'); });
-  });
-}else{
-  var cd = document.getElementById('cur-dot'), cr = document.getElementById('cur-ring');
-  if(cd) cd.remove(); if(cr) cr.remove();
 }
 
 /* ---------- NAV + SCROLL BAR + CLAIM BAR ---------- */
@@ -1500,6 +1628,122 @@ togs.forEach(function(t){
     if(e.key === 'ArrowRight'){ flip(false); }
   });
 });
+
+/* ---------- SYSTEM FLOW DIAGRAM ---------- */
+var flow = document.getElementById('flow');
+if(flow){
+  var ftrack = document.getElementById('flow-track');
+  var fglow = document.getElementById('flow-glow');
+  var fsignal = document.getElementById('flow-signal');
+  var fsvg = document.getElementById('flow-svg');
+  var fnodes = [].slice.call(flow.querySelectorAll('.flow-node'));
+  var fCenters = [], fNodeDist = [], fTotal = 0;
+  function buildFlow(){
+    var fr = flow.getBoundingClientRect();
+    if(!fr.width) return;
+    fsvg.setAttribute('viewBox', '0 0 ' + fr.width + ' ' + fr.height);
+    fCenters = fnodes.map(function(n){
+      var r = n.querySelector('.ic').getBoundingClientRect();
+      return { x:(r.left + r.width/2) - fr.left, y:(r.top + r.height/2) - fr.top };
+    });
+    var d = 'M ' + fCenters.map(function(c){ return c.x.toFixed(1) + ' ' + c.y.toFixed(1); }).join(' L ');
+    ftrack.setAttribute('d', d); fglow.setAttribute('d', d);
+    fTotal = ftrack.getTotalLength();
+    fNodeDist = [0];
+    for(var i=1;i<fCenters.length;i++){
+      var dx = fCenters[i].x-fCenters[i-1].x, dy = fCenters[i].y-fCenters[i-1].y;
+      fNodeDist[i] = fNodeDist[i-1] + Math.sqrt(dx*dx+dy*dy);
+    }
+    var seg = Math.min(80, fTotal*0.13);
+    fglow._seg = seg;
+    fglow.style.strokeDasharray = seg + ' ' + (fTotal + seg);
+  }
+  buildFlow();
+  var flowVis = false, fRaf = null, fT0 = null;
+  var DURF = 4400, PAUSEF = 1000;
+  if(reduceMotion){
+    fnodes.forEach(function(n){ n.classList.add('lit'); });
+    fsignal.style.opacity = '0'; fglow.style.opacity = '0';
+  }else{
+    var fFrame = function(ts){
+      if(!flowVis) return;
+      if(fTotal === 0){ buildFlow(); }
+      if(fT0 === null) fT0 = ts;
+      var t = (ts - fT0) % (DURF + PAUSEF);
+      var running = t < DURF;
+      var p = running ? t / DURF : 1;
+      var dist = p * fTotal;
+      var pt = ftrack.getPointAtLength(dist);
+      fsignal.setAttribute('cx', pt.x); fsignal.setAttribute('cy', pt.y);
+      fsignal.style.opacity = running ? '1' : '0';
+      fglow.style.opacity = running ? '.9' : '0';
+      fglow.style.strokeDashoffset = (fglow._seg - dist).toFixed(1);
+      fnodes.forEach(function(n, i){ n.classList.toggle('lit', dist >= fNodeDist[i] - 8); });
+      fRaf = requestAnimationFrame(fFrame);
+    };
+    var flowIO = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.isIntersecting && !flowVis){ flowVis = true; fT0 = null; buildFlow(); fRaf = requestAnimationFrame(fFrame); }
+        else if(!e.isIntersecting && flowVis){ flowVis = false; if(fRaf) cancelAnimationFrame(fRaf); }
+      });
+    }, {threshold:.25});
+    flowIO.observe(flow);
+    var fRz; window.addEventListener('resize', function(){ clearTimeout(fRz); fRz = setTimeout(buildFlow, 150); }, {passive:true});
+  }
+}
+
+/* ---------- OFFER LADDER (spine draw + rung activation) ---------- */
+var ladder = document.getElementById('ladder');
+if(ladder){
+  var spine = ladder.querySelector('.ladder-spine');
+  var fill = ladder.querySelector('.ladder-fill');
+  var rungs = [].slice.call(ladder.querySelectorAll('.rung'));
+  var lGeo = { top:0, height:0 };
+  function layoutLadder(){
+    var dots = rungs.map(function(r){ return r.querySelector('.rung-dot'); });
+    if(!dots.length) return;
+    var lref = ladder.getBoundingClientRect();
+    var f = dots[0].getBoundingClientRect(), l = dots[dots.length-1].getBoundingClientRect();
+    lGeo.top = (f.top + f.height/2) - lref.top;
+    lGeo.height = (l.top + l.height/2) - (f.top + f.height/2);
+    spine.style.top = lGeo.top + 'px';
+    spine.style.height = lGeo.height + 'px';
+  }
+  function activateByFill(prog){
+    var lref = ladder.getBoundingClientRect();
+    var filledY = lref.top + lGeo.top + prog * lGeo.height;
+    rungs.forEach(function(r){
+      var d = r.querySelector('.rung-dot').getBoundingClientRect();
+      r.classList.toggle('active', (d.top + d.height/2) <= filledY + 5);
+    });
+  }
+  layoutLadder();
+  if(reduceMotion){
+    fill.style.transform = 'scaleY(1)';
+    rungs.forEach(function(r){ r.classList.add('active'); });
+  }else if(GS){
+    GS.to(fill, {
+      scaleY: 1, ease: 'none',
+      scrollTrigger: { trigger: ladder, start: 'top 72%', end: 'bottom 60%', scrub: .4,
+        onUpdate: function(self){ activateByFill(self.progress); },
+        onRefresh: layoutLadder }
+    });
+    window.addEventListener('resize', function(){ layoutLadder(); if(window.ScrollTrigger) window.ScrollTrigger.refresh(); }, {passive:true});
+  }else{
+    var updateLadder = function(){
+      var lref = ladder.getBoundingClientRect();
+      var vh = window.innerHeight;
+      var topY = lref.top + lGeo.top;
+      var prog = (vh*0.72 - topY) / (vh*0.30 + lGeo.height);
+      prog = Math.max(0, Math.min(1, prog));
+      fill.style.transform = 'scaleY(' + prog + ')';
+      activateByFill(prog);
+    };
+    window.addEventListener('scroll', updateLadder, {passive:true});
+    window.addEventListener('resize', function(){ layoutLadder(); updateLadder(); }, {passive:true});
+    updateLadder();
+  }
+}
 
 /* ---------- FAQ ---------- */
 document.querySelectorAll('.fitem').forEach(function(item){
