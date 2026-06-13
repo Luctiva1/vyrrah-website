@@ -854,7 +854,14 @@ async function createBooking(supabase, client, { caller_phone, caller_name, star
     source: source || 'recaller_ai',
     google_event_id: googleEventId
   }).select().single();
-  if (error) throw error;
+  if (error) {
+    // 23505 = unique violation on uniq_active_slot: slot was taken between offer and book.
+    if (error.code === '23505' || /duplicate key|uniq_active_slot/i.test(error.message || '')) {
+      if (googleEventId) { try { await googleDeleteEvent(client, googleEventId); } catch (e) {} }
+      const e = new Error('slot_taken'); e.slotTaken = true; throw e;
+    }
+    throw error;
+  }
 
   // Confirmation SMS to the caller (best-effort).
   if (caller_phone && client.twilio_number) {
@@ -1311,23 +1318,38 @@ async function handleSms(req, res) {
         }
         const chosen = offered && offered[idx];
         if (chosen) {
-          // Infer name from prior inbound history if we ever captured one (none yet).
-          const { appointment, label } = await createBooking(supabase, client, {
-            caller_phone: caller,
-            caller_name: null,
-            start_at: chosen.start_at,
-            end_at: chosen.end_at,
-            service: client.services ? null : null,
-            source: 'recaller_ai'
-          });
-          _offeredSlots.delete(`${client.id}:${caller}`);
-          if (callRow) {
-            await supabase.from('tool_calls').update({ booked: true, recovered: true }).eq('id', callRow.id);
+          try {
+            const { appointment, label } = await createBooking(supabase, client, {
+              caller_phone: caller,
+              caller_name: null,
+              start_at: chosen.start_at,
+              end_at: chosen.end_at,
+              service: null,
+              source: 'recaller_ai'
+            });
+            _offeredSlots.delete(`${client.id}:${caller}`);
+            if (callRow) {
+              await supabase.from('tool_calls').update({ booked: true, recovered: true }).eq('id', callRow.id);
+            }
+            await markPatientStatus(supabase, client.id, caller, 'rebooked');
+            return twiml(res);
+          } catch (bookErr) {
+            if (bookErr.slotTaken) {
+              // Slot got taken between offer and pick — re-offer fresh slots.
+              const fresh = await getOpenSlots(supabase, client, { days: 5, maxSlots: 3 });
+              if (fresh && fresh.length) {
+                stashOffer(client.id, caller, fresh);
+                const list = fresh.map((s, i) => `${i + 1}) ${s.label}`).join('  ');
+                await sendOrDefer(supabase, client, {
+                  caller,
+                  body: `Sorry, that time was just taken! Here's what's open now: ${list} — reply with the number.`,
+                  ai_generated: false
+                });
+              }
+              return twiml(res);
+            }
+            throw bookErr;
           }
-          // Reactivation: a slot pick = rebooked.
-          await markPatientStatus(supabase, client.id, caller, 'rebooked');
-          // createBooking already sent caller confirmation + owner alert.
-          return twiml(res);
         }
       } catch (e) {
         console.error('slot selection error:', e);
@@ -1443,23 +1465,19 @@ async function handleSms(req, res) {
 // ─── 5. GET /api/tool/report ─────────────────────────────────────────────────
 
 async function handleReport(req, res) {
-  if (!requireAuth(req, res)) return;
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
   try {
     const supabase = getSupabase();
+    const token = req.query.token;
     const clientId = req.query.client_id;
     const days = parseInt(req.query.days) || 7;
-    if (!clientId) return res.status(400).json({ error: 'client_id required' });
-
-    const { data: client } = await supabase
-      .from('tool_clients')
-      .select('id, practice_name, status, avg_customer_value')
-      .eq('id', clientId)
-      .single();
+    // Token (client portal) OR admin client_id
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id: clientId });
     if (!client) return res.status(404).json({ error: 'Client not found' });
 
-    const stats = await computeStats(supabase, clientId, days);
-    return res.status(200).json({ client, stats });
+    const stats = await computeStats(supabase, client.id, days);
+    return res.status(200).json({ client: { id: client.id, practice_name: client.practice_name, status: client.status, avg_customer_value: client.avg_customer_value }, stats });
   } catch (err) {
     console.error('tool/report error:', err);
     return res.status(500).json({ error: err.message });
@@ -2502,6 +2520,22 @@ async function handleReply(req, res) {
     }
     if (!caller) return res.status(404).json({ error: 'No caller found matching last4' });
 
+    // Register the 24h takeover FIRST — the owner has taken over this thread,
+    // and that intent must hold even if this one SMS fails to deliver.
+    let takeoverOk = false;
+    try {
+      await supabase.from('tool_takeovers')
+        .delete()
+        .eq('client_id', client.id)
+        .eq('caller_phone', caller);
+      await supabase.from('tool_takeovers').insert({
+        client_id: client.id,
+        caller_phone: caller,
+        until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      });
+      takeoverOk = true;
+    } catch (e) { console.error('takeover insert failed:', e); }
+
     // Send immediately (owner-initiated — bypass quiet hours), logging an
     // outbound row with ai_generated=false.
     const { data: row } = await supabase.from('tool_messages').insert({
@@ -2518,15 +2552,12 @@ async function handleReply(req, res) {
     } catch (sendErr) {
       console.error('handleReply send failed:', sendErr);
       if (row) await supabase.from('tool_messages').update({ delivery_status: 'failed' }).eq('id', row.id);
-      return res.status(502).json({ error: 'SMS send failed', detail: sendErr.message });
+      // Takeover is already set; report partial success so the UI can show "couldn't deliver".
+      return res.status(200).json({ ok: false, takeover: takeoverOk, sent: false, sent_to: maskPhone(caller), error: 'message could not be delivered, but you have the conversation' });
     }
 
-    // Upsert a fresh 24h takeover window.
-    try {
-      await supabase.from('tool_takeovers')
-        .delete()
-        .eq('client_id', client.id)
-        .eq('caller_phone', caller);
+    // (legacy block retained below as no-op safety; takeover already set above)
+    if (false) try {
       await supabase.from('tool_takeovers').insert({
         client_id: client.id,
         caller_phone: caller,
@@ -2690,14 +2721,19 @@ async function handleAppointments(req, res) {
       if (!start_at || isNaN(new Date(start_at).getTime())) {
         return res.status(400).json({ error: 'valid start_at (ISO) required' });
       }
-      const { appointment, label } = await createBooking(supabase, client, {
-        caller_phone: caller_phone || null,
-        caller_name: caller_name || null,
-        start_at,
-        service: service || null,
-        source: 'manual'
-      });
-      return res.status(200).json({ ok: true, appointment, label });
+      try {
+        const { appointment, label } = await createBooking(supabase, client, {
+          caller_phone: caller_phone || null,
+          caller_name: caller_name || null,
+          start_at,
+          service: service || null,
+          source: 'manual'
+        });
+        return res.status(200).json({ ok: true, appointment, label });
+      } catch (bookErr) {
+        if (bookErr.slotTaken) return res.status(409).json({ error: 'That time is already booked. Pick another slot.' });
+        throw bookErr;
+      }
     }
 
     return res.status(405).json({ error: 'Method not allowed' });
@@ -2771,7 +2807,16 @@ async function handleConfig(req, res) {
       patch.slot_minutes = n;
     }
     if (b.timezone !== undefined) patch.timezone = String(b.timezone);
-    if (b.booking_link !== undefined) patch.booking_link = b.booking_link || null;
+    if (b.booking_link !== undefined) {
+      let bl = (b.booking_link || '').trim();
+      if (bl) {
+        // Reject anything with HTML/script chars; require a plausible URL/domain.
+        if (/[<>"'`]/.test(bl) || !/^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i.test(bl)) {
+          return res.status(400).json({ error: 'booking_link must be a valid URL' });
+        }
+      }
+      patch.booking_link = bl || null;
+    }
     if (b.google_calendar_id !== undefined) patch.google_calendar_id = b.google_calendar_id || 'primary';
     if (b.availability !== undefined) {
       if (b.availability !== null && typeof b.availability !== 'object') {
