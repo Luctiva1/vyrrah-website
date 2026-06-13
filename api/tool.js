@@ -2338,6 +2338,7 @@ async function handleAdminOverview(req, res) {
       else if (sinceIn <= 14 * DAY) health = 'quiet';
       else health = 'at_risk';
       if (c.status === 'trial' && trialDaysLeft != null && trialDaysLeft < 2) health = 'at_risk';
+      if (c.status === 'past_due') health = 'at_risk';
 
       const slim = (s) => s ? {
         calls: s.total_calls, missed: s.missed, recovered: s.recovered,
