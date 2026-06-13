@@ -5,27 +5,69 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vyrrah Recaller — Get Set Up</title>
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#070707">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#070707; --panel:#0f0f0f; --text:#f2ede4; --muted:rgba(242,237,228,.55);
-    --red:#c8251e; --gold:#f0a500; --green:#2fbf71; --line:rgba(242,237,228,.09);
+    --bg:#070707; --panel:#0f0f0f; --panel2:#161616; --text:#f2ede4; --muted:rgba(242,237,228,.55);
+    --red:#c8251e; --gold:#f0a500; --gold2:#f5c030; --green:#2fbf71; --line:rgba(242,237,228,.09); --line2:rgba(242,237,228,.14);
+    --ease:cubic-bezier(.22,1,.36,1);
   }
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--gold);color:var(--bg)}
   a{color:var(--gold)}
-  .wrap{width:100%;max-width:680px;margin:0 auto;padding:28px 20px 60px;flex:1}
-  .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:.04em;text-align:center}
+  #grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:0;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");animation:grain 7s steps(8) infinite}
+  @keyframes grain{0%,100%{transform:translate(0,0)}50%{transform:translate(-2%,1%)}}
+  .wrap{width:100%;max-width:680px;margin:0 auto;padding:26px 20px 60px;flex:1;position:relative;z-index:1}
+  .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;letter-spacing:.04em;text-align:center}
   .wordmark .dot{color:var(--red)}
-  h1{font-family:'Fraunces',serif;font-weight:900;font-size:30px;text-align:center;margin:22px 0 6px}
-  .sub{text-align:center;color:var(--muted);font-size:14px;margin-bottom:30px}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(28px,6vw,34px);text-align:center;margin:20px 0 6px;line-height:1.08}
+  .sub{text-align:center;color:var(--muted);font-size:14.5px;margin-bottom:18px}
+  .center{text-align:center}
+  .nocard{display:inline-block;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--green);border:1px solid rgba(47,191,113,.45);background:rgba(47,191,113,.08);border-radius:999px;padding:5px 13px;margin-bottom:26px}
+
+  .howstrip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:8px 0 28px}
+  .howstep{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 14px}
+  .howstep .hn{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--gold)}
+  .howstep .ht{font-size:13px;line-height:1.5;color:var(--muted);margin-top:8px}
+  .howstep .ht b{color:var(--text);font-weight:500}
+  @media(max-width:560px){.howstrip{grid-template-columns:1fr;gap:10px}.howstep{display:flex;align-items:baseline;gap:12px}.howstep .ht{margin-top:0}}
+
+  /* ROI slider */
+  .roi{background:radial-gradient(120% 140% at 100% 0%,rgba(240,165,0,.12),transparent 55%),var(--panel);border:1px solid rgba(240,165,0,.34);border-radius:16px;padding:22px 24px;margin-bottom:18px}
+  .roi h2{font-family:'Fraunces',serif;font-weight:900;font-size:19px;margin-bottom:4px}
+  .roi .rp{font-size:13px;color:var(--muted);margin-bottom:16px}
+  .roirow{margin:14px 0}
+  .roirow label{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .roirow label b{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);text-transform:none}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;background:linear-gradient(90deg,var(--gold) var(--f,50%),rgba(242,237,228,.14) var(--f,50%));outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--gold);border:4px solid var(--bg);box-shadow:0 0 0 1px var(--gold);cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--gold);border:none}
+  .roiout{border-top:1px solid var(--line);margin-top:18px;padding-top:16px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .roiout .rbig{font-family:'Syne',sans-serif;font-weight:800;font-size:34px;color:var(--gold);font-variant-numeric:tabular-nums}
+  .roiout .rlbl{font-size:13px;color:var(--muted)}
+  .roifine{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
+
+  /* live demo */
+  .demo{background:radial-gradient(120% 140% at 0% 0%,rgba(200,37,30,.14),transparent 55%),var(--panel);border:1px solid rgba(200,37,30,.4);border-radius:16px;padding:24px;margin-bottom:30px}
+  .demo h2{font-family:'Fraunces',serif;font-weight:900;font-size:21px;margin-bottom:6px}
+  .demo p{font-size:13.5px;color:var(--muted);line-height:1.55;margin-bottom:16px}
+  .demorow{display:flex;gap:10px;flex-wrap:wrap}
+  .demorow input{flex:1;min-width:180px}
+  .demorow .btn{width:auto;margin-top:0;white-space:nowrap;padding:13px 20px}
+  .demomsg{display:none;margin-top:14px;font-size:14px;line-height:1.5;border-radius:10px;padding:12px 14px}
+  .demomsg.ok{display:block;color:var(--green);background:rgba(47,191,113,.1);border:1px solid rgba(47,191,113,.4)}
+  .demomsg.bad{display:block;color:var(--text);background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4)}
 
   /* progress rail */
-  .rail{display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:34px}
+  .rail{display:flex;align-items:center;justify-content:center;margin-bottom:30px}
   .rstep{display:flex;align-items:center}
-  .dot2{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--muted)}
+  .dot2{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--muted);transition:all .3s}
   .rlbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-left:8px;display:none}
   .rline{width:54px;height:1px;background:var(--line);margin:0 10px}
   .rstep.on .dot2{border-color:var(--red);background:var(--red);color:var(--text)}
@@ -35,22 +77,30 @@
   .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px}
   label{display:block;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px}
   label:first-child{margin-top:0}
-  input{width:100%;background:#161616;border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none}
+  input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;transition:border-color .2s}
   input:focus{border-color:rgba(240,165,0,.55)}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:480px){.row{grid-template-columns:1fr}}
   .hint{font-size:12px;color:var(--muted);margin-top:5px}
-  .btn{display:inline-block;width:100%;background:var(--red);color:var(--text);border:none;cursor:pointer;text-align:center;text-decoration:none;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;letter-spacing:.06em;padding:15px 22px;border-radius:10px;margin-top:24px}
+  .autofill{font-size:12px;color:var(--green);margin-top:6px;display:none}
+  .btn{display:inline-block;width:100%;background:var(--red);color:var(--text);border:none;cursor:pointer;text-align:center;text-decoration:none;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;letter-spacing:.06em;padding:15px 22px;border-radius:10px;margin-top:24px;transition:filter .2s}
   .btn:hover{filter:brightness(1.12)}
   .btn[disabled]{opacity:.5;cursor:wait}
   .err{display:none;background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4);border-radius:10px;padding:12px 14px;font-size:14px;margin-top:16px}
 
-  .bignum{font-family:'Syne',sans-serif;font-weight:800;font-size:36px;text-align:center;color:var(--gold);letter-spacing:.02em;background:#161616;border:1px solid rgba(240,165,0,.35);border-radius:14px;padding:22px;margin-bottom:8px;word-break:break-all}
-  .pending{font-family:'Fraunces',serif;font-weight:900;font-size:20px;text-align:center;color:var(--gold);background:rgba(240,165,0,.08);border:1px dashed rgba(240,165,0,.4);border-radius:14px;padding:26px;margin-bottom:8px}
+  .website-band{background:var(--panel2);border:1px dashed var(--line2);border-radius:12px;padding:16px;margin-bottom:18px}
+  .website-band label{margin-top:0}
+
+  .bignum{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;text-align:center;color:var(--gold);letter-spacing:.02em;background:var(--panel2);border:1px solid rgba(240,165,0,.35);border-radius:14px;padding:22px;margin-bottom:8px;word-break:break-all}
+  .pending{font-family:'Fraunces',serif;font-weight:900;font-size:19px;text-align:center;color:var(--gold);background:rgba(240,165,0,.08);border:1px dashed rgba(240,165,0,.4);border-radius:14px;padding:26px;margin-bottom:8px}
   .pending small{display:block;font-family:'DM Sans',sans-serif;font-weight:400;font-size:13px;color:var(--muted);margin-top:10px}
 
+  .carriers{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+  .carrier{background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.04em;padding:8px 13px;cursor:pointer}
+  .carrier.on{border-color:var(--gold);color:var(--gold);background:rgba(240,165,0,.08)}
+
   .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 14px}
-  .tab{flex:1;min-width:120px;background:#161616;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:11px 8px;cursor:pointer;text-align:center}
+  .tab{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:11px 8px;cursor:pointer;text-align:center}
   .tab.on{border-color:var(--red);color:var(--text);background:rgba(200,37,30,.12)}
   .pane{display:none;background:#121212;border:1px solid var(--line);border-radius:12px;padding:18px;font-size:14px;line-height:1.65}
   .pane.on{display:block}
@@ -61,7 +111,6 @@
   .testbox{background:linear-gradient(135deg,rgba(47,191,113,.1),rgba(47,191,113,.03));border:1px solid rgba(47,191,113,.4);border-radius:12px;padding:18px;margin-top:22px;font-size:14px;line-height:1.6}
   .testbox b{font-family:'Fraunces',serif;font-weight:900;color:var(--green);display:block;margin-bottom:6px;font-size:16px}
 
-  /* live verification widget */
   .verify{margin-top:22px;border-radius:14px;padding:22px;text-align:center;border:1px solid rgba(240,165,0,.4);background:rgba(240,165,0,.06)}
   .verify .vtitle{font-family:'Fraunces',serif;font-weight:900;font-size:18px;color:var(--gold);margin-bottom:8px}
   .verify .vsub{font-size:13.5px;line-height:1.6;color:var(--muted)}
@@ -70,41 +119,21 @@
   @keyframes pulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.25)}}
   .verify.done{border-color:rgba(47,191,113,.55);background:linear-gradient(135deg,rgba(47,191,113,.16),rgba(240,165,0,.06));position:relative;overflow:hidden}
   .verify.done .vtitle{color:var(--green);font-size:22px}
-  .verify .check{font-size:42px;margin-bottom:6px;display:inline-block;animation:pop .5s cubic-bezier(.18,.89,.32,1.6)}
-  @keyframes pop{0%{transform:scale(0) rotate(-25deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
-  /* tasteful gold/red confetti */
+  .verify .check{font-size:42px;margin-bottom:6px;display:inline-block;animation:popc .5s cubic-bezier(.18,.89,.32,1.6)}
+  @keyframes popc{0%{transform:scale(0) rotate(-25deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
   .conf{position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;opacity:0;animation:fall 2.4s ease-in forwards}
   @keyframes fall{0%{opacity:1;transform:translateY(-10px) rotate(0)}100%{opacity:0;transform:translateY(220px) rotate(540deg)}}
 
   .confetti{text-align:center;font-size:44px;margin-bottom:10px}
-  .center{text-align:center}
   .gold-note{background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.4);border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.6;margin-top:20px}
   #step2,#step3{display:none}
-
-  /* #8 free-trial front door */
-  .nocard{display:inline-block;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--green);border:1px solid rgba(47,191,113,.45);background:rgba(47,191,113,.08);border-radius:999px;padding:5px 13px;margin-top:14px}
-  .howstrip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0 30px}
-  .howstep{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 14px}
-  .howstep .hn{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--gold)}
-  .howstep .ht{font-size:13px;line-height:1.5;color:var(--muted);margin-top:8px}
-  .howstep .ht b{color:var(--text);font-weight:500}
-  @media(max-width:560px){.howstrip{grid-template-columns:1fr;gap:10px}.howstep{display:flex;align-items:baseline;gap:12px}.howstep .ht{margin-top:0}}
-
-  /* #7 live demo widget */
-  .demo{background:radial-gradient(120% 140% at 0% 0%,rgba(200,37,30,.14),transparent 55%),var(--panel);border:1px solid rgba(200,37,30,.4);border-radius:16px;padding:24px;margin-bottom:30px}
-  .demo h2{font-family:'Fraunces',serif;font-weight:900;font-size:22px;margin-bottom:6px}
-  .demo p{font-size:13.5px;color:var(--muted);line-height:1.55;margin-bottom:16px}
-  .demorow{display:flex;gap:10px;flex-wrap:wrap}
-  .demorow input{flex:1;min-width:180px}
-  .demorow .btn{width:auto;margin-top:0;white-space:nowrap;padding:13px 20px}
-  .demomsg{display:none;margin-top:14px;font-size:14px;line-height:1.5;border-radius:10px;padding:12px 14px}
-  .demomsg.ok{display:block;color:var(--green);background:rgba(47,191,113,.1);border:1px solid rgba(47,191,113,.4)}
-  .demomsg.bad{display:block;color:var(--text);background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4)}
-  footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;font-size:13px;color:var(--muted)}
+  footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;font-size:13px;color:var(--muted);position:relative;z-index:1}
   footer a{color:var(--muted)}
+  @media(prefers-reduced-motion:reduce){#grain{animation:none}}
 </style>
 </head>
 <body>
+<div id="grain"></div>
 <div class="wrap">
   <div class="wordmark">VYRRAH RECALLER<span class="dot">.</span></div>
   <h1>Start your free week. No card.</h1>
@@ -117,7 +146,23 @@
     <div class="howstep"><div class="hn">3</div><div class="ht">Watch us <b>recover them</b> — free for 7 days.</div></div>
   </div>
 
-  <!-- #7 LIVE DEMO -->
+  <!-- ROI SLIDER -->
+  <div class="roi">
+    <h2>What's a free week worth to you?</h2>
+    <p class="rp">Two sliders. Your numbers. This is roughly what we'd aim to recover.</p>
+    <div class="roirow">
+      <label>Calls you get a week <b id="roiCallsOut">80</b></label>
+      <input type="range" id="roiCalls" min="20" max="400" step="5" value="80">
+    </div>
+    <div class="roirow">
+      <label>Average customer value <b id="roiValOut">$500</b></label>
+      <input type="range" id="roiVal" min="50" max="2500" step="25" value="500">
+    </div>
+    <div class="roiout"><span class="rbig" id="roiBig">$0</span><span class="rlbl">a month we'd aim to put back on your books</span></div>
+    <div class="roifine">Estimate using a 38% missed-call rate and conservative recovery. Your free week replaces this with your real numbers.</div>
+  </div>
+
+  <!-- LIVE DEMO -->
   <div class="demo">
     <h2>See it work in 10 seconds</h2>
     <p>Enter your number and we'll text you the exact message your missed callers would get — within 60 seconds, from your number.</p>
@@ -138,6 +183,11 @@
 
   <!-- STEP 1 -->
   <div class="card" id="step1">
+    <div class="website-band">
+      <label for="website">Paste your website (optional, we'll autofill)</label>
+      <input id="website" type="url" placeholder="https://smiledental.com" autocomplete="url">
+      <div class="autofill" id="autofillNote">✓ Filled in what we could from your site.</div>
+    </div>
     <form id="form">
       <label for="practice_name">Practice name *</label>
       <input id="practice_name" required placeholder="Smile Dental Studio">
@@ -186,7 +236,7 @@
     <div id="numberBlock">
       <p class="sub" style="margin-bottom:14px">Your new recovery number</p>
       <div class="bignum" id="twilioNumber"></div>
-      <p class="hint center">Patients never see this number change anything — your main line stays the same.</p>
+      <p class="hint center">Patients never see this — your main line stays exactly the same.</p>
     </div>
     <div id="pendingBlock" style="display:none">
       <div class="pending">Number pending — we'll text you setup steps shortly.<small>Your account is created and safe. Godwin will finish the number setup and send your forwarding code within the hour.</small></div>
@@ -196,25 +246,30 @@
       <h2 style="font-family:'Fraunces',serif;font-weight:900;font-size:20px;margin:24px 0 4px">Turn on missed-call forwarding</h2>
       <p class="hint">This only kicks in when nobody answers or the line is busy. Normal calls ring exactly like before.</p>
       <div class="tabs">
-        <div class="tab on" data-pane="gsm">Most mobiles (GSM)</div>
+        <div class="tab on" data-pane="gsm">Dial a code (fastest)</div>
         <div class="tab" data-pane="phone">iPhone / Android setting</div>
         <div class="tab" data-pane="voip">VoIP / desk system</div>
       </div>
       <div class="pane on" id="pane-gsm">
-        On the phone that owns your main line, open the dialer and call:
-        <br><code id="gsmCode">*004*+1XXXXXXXXXX#</code><br>
-        Press call. You'll see a confirmation message. This sets <b>forward-when-unanswered and forward-when-busy</b> to your new recovery number — answered calls are untouched.
+        On the phone that owns your main line, open the dialer and call the code for your carrier:
+        <div class="carriers">
+          <span class="carrier on" data-carrier="default">T-Mobile / AT&amp;T / most GSM</span>
+          <span class="carrier" data-carrier="verizon">Verizon</span>
+          <span class="carrier" data-carrier="noanswer">No-answer only</span>
+        </div>
+        <code id="gsmCode">*004*+1XXXXXXXXXX#</code>
+        <div class="hint" id="carrierHint">Press call. You'll see a confirmation. This forwards <b>unanswered and busy</b> calls to your recovery number. Answered calls are untouched.</div>
       </div>
       <div class="pane" id="pane-phone">
         <ol>
-          <li>Open <b>Settings → Phone → Call Forwarding</b> (on Android: Phone app → Settings → Calls → Call Forwarding).</li>
+          <li>Open <b>Settings → Phone → Call Forwarding</b> (Android: Phone app → Settings → Calls → Call Forwarding).</li>
           <li>Choose <b>conditional</b> forwarding: "When unanswered" and "When busy".</li>
           <li>Enter your recovery number: <code class="fwdNum">…</code></li>
-          <li>Leave "Always forward" OFF — you still want to answer calls normally.</li>
+          <li>Leave "Always forward" OFF — you still answer calls normally.</li>
         </ol>
       </div>
       <div class="pane" id="pane-voip">
-        Using RingCentral, Weave, or an office PBX? In your phone system admin, set <b>No-Answer forwarding</b> (sometimes "call handling → when unanswered") to:
+        Using RingCentral, Weave, or an office PBX? In your phone-system admin, set <b>No-Answer forwarding</b> (sometimes "call handling → when unanswered") to:
         <br><code class="fwdNum">…</code><br>
         Not sure where that lives? Forward this page to your IT person — it's a two-minute change.
       </div>
@@ -255,22 +310,43 @@
 <script>
 (function(){
   var state = { client: null };
+  var fwdNum = '';
 
-  function setRail(n){
-    [1,2,3].forEach(function(i){
-      var el = document.getElementById('r'+i);
-      el.className = 'rstep' + (i<n ? ' done' : i===n ? ' on' : '');
-    });
-  }
-  function showStep(n){
-    [1,2,3].forEach(function(i){
-      document.getElementById('step'+i).style.display = i===n ? 'block' : 'none';
-    });
-    setRail(n);
-    window.scrollTo({top:0,behavior:'smooth'});
-  }
+  function setRail(n){ [1,2,3].forEach(function(i){ var el=document.getElementById('r'+i); el.className='rstep'+(i<n?' done':i===n?' on':''); }); }
+  function showStep(n){ [1,2,3].forEach(function(i){ document.getElementById('step'+i).style.display=i===n?'block':'none'; }); setRail(n); window.scrollTo({top:0,behavior:'smooth'}); }
+  function v(id){ return document.getElementById(id).value.trim(); }
 
-  // tabs
+  /* ── ROI slider (client-side only) ── */
+  var rc=document.getElementById('roiCalls'), rv=document.getElementById('roiVal');
+  function fill(inp){ inp.style.setProperty('--f', ((inp.value-inp.min)/(inp.max-inp.min)*100)+'%'); }
+  function roi(){
+    fill(rc); fill(rv);
+    var calls=+rc.value, val=+rv.value;
+    document.getElementById('roiCallsOut').textContent = calls;
+    document.getElementById('roiValOut').textContent = '$' + val.toLocaleString();
+    var monthly = Math.round((calls*4.3*0.38) * 0.16 * val); // missed/mo × conservative recovered-and-booked share
+    document.getElementById('roiBig').textContent = '$' + monthly.toLocaleString();
+  }
+  rc.addEventListener('input', roi); rv.addEventListener('input', roi); roi();
+
+  /* ── Website autofill (client-side only; does not change API body) ── */
+  document.getElementById('website').addEventListener('change', function(){
+    var url = this.value.trim();
+    if(!url) return;
+    if(!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    var host;
+    try{ host = new URL(url).hostname.replace(/^www\./,''); }catch(e){ return; }
+    var core = host.split('.')[0].replace(/[-_]+/g,' ').trim();
+    var name = core.replace(/\b\w/g,function(c){return c.toUpperCase();});
+    var pn = document.getElementById('practice_name');
+    var bl = document.getElementById('booking_link');
+    var filled = false;
+    if(pn && !pn.value){ pn.value = name; filled = true; }
+    if(bl && !bl.value){ bl.value = url; filled = true; }
+    if(filled) document.getElementById('autofillNote').style.display = 'block';
+  });
+
+  /* ── tabs ── */
   document.querySelectorAll('.tab').forEach(function(t){
     t.addEventListener('click', function(){
       document.querySelectorAll('.tab').forEach(function(x){ x.classList.remove('on'); });
@@ -280,84 +356,69 @@
     });
   });
 
-  function v(id){ return document.getElementById(id).value.trim(); }
-
-  // ─── #7 Live demo ───
-  document.getElementById('demoBtn').addEventListener('click', function(){
-    var btn = this;
-    var msg = document.getElementById('demoMsg');
-    var phone = document.getElementById('demoPhone').value.trim();
-    msg.className = 'demomsg';
-    if(!phone || phone.replace(/\D/g,'').length < 10){
-      msg.className = 'demomsg bad';
-      msg.textContent = 'Please enter a valid phone number with area code.';
-      return;
-    }
-    btn.disabled = true; btn.textContent = 'Sending…';
-    fetch('/api/tool/demo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: phone })
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if(d && d.ok){
-        msg.className = 'demomsg ok';
-        msg.textContent = 'Sent! Check your phone in ~30 seconds 📲';
-      } else {
-        msg.className = 'demomsg bad';
-        msg.textContent = (d && d.error) || 'Could not send the demo just now. Please try again.';
-      }
-    })
-    .catch(function(){
-      msg.className = 'demomsg bad';
-      msg.textContent = 'Could not send the demo just now. Please try again.';
-    })
-    .finally(function(){ btn.disabled = false; btn.textContent = 'Text me the demo'; });
+  /* ── carrier-specific forwarding codes ── */
+  function setCarrier(kind){
+    var n = fwdNum || '+1XXXXXXXXXX';
+    var code = '*004*' + n + '#';
+    var hint = 'Press call. You\'ll see a confirmation. This forwards <b>unanswered and busy</b> calls to your recovery number. Answered calls are untouched.';
+    if(kind === 'verizon'){ code = '*71' + n; hint = 'On Verizon, dial <b>*71</b> then your recovery number (no #), and press call. That sets no-answer / busy transfer. Answered calls ring normally.'; }
+    else if(kind === 'noanswer'){ code = '*61*' + n + '#'; hint = 'This forwards <b>only unanswered</b> calls (not busy). Use it if the all-conditions code above is rejected by your carrier.'; }
+    document.getElementById('gsmCode').textContent = code;
+    document.getElementById('carrierHint').innerHTML = hint + ' If your carrier rejects a code, use the iPhone / Android setting tab instead.';
+  }
+  document.querySelectorAll('.carrier').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('.carrier').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      setCarrier(b.dataset.carrier);
+    });
   });
 
-  // ─── Live forwarding verification ───
+  /* ── live demo ── */
+  document.getElementById('demoBtn').addEventListener('click', function(){
+    var btn=this, msg=document.getElementById('demoMsg'), phone=document.getElementById('demoPhone').value.trim();
+    msg.className='demomsg';
+    if(!phone || phone.replace(/\D/g,'').length < 10){ msg.className='demomsg bad'; msg.textContent='Please enter a valid phone number with area code.'; return; }
+    btn.disabled=true; btn.textContent='Sending…';
+    fetch('/api/tool/demo', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: phone }) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d && d.ok){ msg.className='demomsg ok'; msg.textContent='Sent! Check your phone in ~30 seconds 📲'; }
+      else { msg.className='demomsg bad'; msg.textContent=(d && d.error) || 'Could not send the demo just now. Please try again.'; }
+    })
+    .catch(function(){ msg.className='demomsg bad'; msg.textContent='Could not send the demo just now. Please try again.'; })
+    .finally(function(){ btn.disabled=false; btn.textContent='Text me the demo'; });
+  });
+
+  /* ── live forwarding verification ── */
   var verifyTimer = null;
   function fireConfetti(box){
-    var colors = ['#f0a500','#c8251e','#2fbf71','#f2ede4'];
-    for(var i=0;i<28;i++){
-      var c = document.createElement('span');
-      c.className = 'conf';
-      c.style.left = (Math.random()*100) + '%';
-      c.style.background = colors[i % colors.length];
-      c.style.animationDelay = (Math.random()*0.5) + 's';
-      box.appendChild(c);
-    }
+    var colors=['#f0a500','#c8251e','#2fbf71','#f2ede4'];
+    for(var i=0;i<28;i++){ var c=document.createElement('span'); c.className='conf'; c.style.left=(Math.random()*100)+'%'; c.style.background=colors[i%colors.length]; c.style.animationDelay=(Math.random()*0.5)+'s'; box.appendChild(c); }
   }
   function showVerified(box){
-    if(verifyTimer){ clearInterval(verifyTimer); verifyTimer = null; }
+    if(verifyTimer){ clearInterval(verifyTimer); verifyTimer=null; }
     box.classList.add('done');
-    box.innerHTML = '<div class="check">✓</div>' +
-      '<div class="vtitle">Forwarding confirmed! You\'re live.</div>' +
+    box.innerHTML = '<div class="check">✓</div><div class="vtitle">Forwarding confirmed! You\'re live.</div>'+
       '<div class="vsub">We just caught your test call. Every missed call from here on gets texted back automatically.</div>';
     fireConfetti(box);
   }
   function startVerifyPolling(token){
     if(!token) return;
-    var box = document.getElementById('verifyBox');
-    if(!box) return;
+    var box = document.getElementById('verifyBox'); if(!box) return;
     function poll(){
       fetch('/api/tool/verify-status?token=' + encodeURIComponent(token))
         .then(function(r){ return r.json(); })
         .then(function(d){ if(d && d.verified){ showVerified(box); } })
-        .catch(function(){ /* keep polling */ });
+        .catch(function(){});
     }
-    poll();
-    verifyTimer = setInterval(poll, 3000);
+    poll(); verifyTimer = setInterval(poll, 3000);
   }
 
   document.getElementById('form').addEventListener('submit', function(e){
     e.preventDefault();
-    var btn = document.getElementById('submitBtn');
-    var err = document.getElementById('formErr');
-    err.style.display = 'none';
-    btn.disabled = true; btn.textContent = 'Setting up…';
-
+    var btn=document.getElementById('submitBtn'), err=document.getElementById('formErr');
+    err.style.display='none'; btn.disabled=true; btn.textContent='Setting up…';
     var payload = {
       practice_name: v('practice_name'),
       owner_name: v('owner_name') || null,
@@ -369,23 +430,18 @@
       booking_link: v('booking_link') || null,
       area_code: v('area_code') || null
     };
-
-    fetch('/api/tool/clients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }); })
+    fetch('/api/tool/clients', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, data:d }; }); })
     .then(function(res){
       if(!res.ok || res.data.error){ throw new Error(res.data.error || 'Something went wrong'); }
       state.client = res.data.client;
       var num = state.client && state.client.twilio_number;
       if(res.data.twilio_error || !num){
-        // soft-fail: client created, number pending
-        document.getElementById('numberBlock').style.display = 'none';
-        document.getElementById('forwarding').style.display = 'none';
-        document.getElementById('pendingBlock').style.display = 'block';
+        document.getElementById('numberBlock').style.display='none';
+        document.getElementById('forwarding').style.display='none';
+        document.getElementById('pendingBlock').style.display='block';
       } else {
+        fwdNum = num;
         document.getElementById('twilioNumber').textContent = num;
         document.getElementById('gsmCode').textContent = '*004*' + num + '#';
         document.querySelectorAll('.fwdNum').forEach(function(el){ el.textContent = num; });
@@ -393,38 +449,27 @@
       }
       showStep(2);
     })
-    .catch(function(e2){
-      err.textContent = e2.message + ' — try again, or email godwin@vyrrahlabs.com';
-      err.style.display = 'block';
-    })
-    .finally(function(){
-      btn.disabled = false; btn.textContent = 'Start Free Week →';
-    });
+    .catch(function(e2){ err.textContent = e2.message + ' — try again, or email godwin@vyrrahlabs.com'; err.style.display='block'; })
+    .finally(function(){ btn.disabled=false; btn.textContent='Start Free Week →'; });
   });
 
   document.getElementById('toStep3').addEventListener('click', function(){
     var token = state.client && state.client.magic_token;
     document.getElementById('dashLink').href = token ? ('/recover?token=' + encodeURIComponent(token)) : '#';
-    showStep(3);
-    loadCheckout();
+    showStep(3); loadCheckout();
   });
 
   function loadCheckout(){
-    var payBlock = document.getElementById('payBlock');
-    var trialBlock = document.getElementById('trialBlock');
+    var payBlock=document.getElementById('payBlock'), trialBlock=document.getElementById('trialBlock');
     var id = state.client && state.client.id;
-    if(!id){ trialBlock.style.display = 'block'; return; }
+    if(!id){ trialBlock.style.display='block'; return; }
     fetch('/api/tool/checkout?client_id=' + encodeURIComponent(id))
       .then(function(r){ return r.json(); })
       .then(function(d){
-        if(d && d.mode === 'paid' && d.checkout_url){
-          document.getElementById('payLink').href = d.checkout_url;
-          payBlock.style.display = 'block';
-        } else {
-          trialBlock.style.display = 'block';
-        }
+        if(d && d.mode === 'paid' && d.checkout_url){ document.getElementById('payLink').href = d.checkout_url; payBlock.style.display='block'; }
+        else { trialBlock.style.display='block'; }
       })
-      .catch(function(){ trialBlock.style.display = 'block'; });
+      .catch(function(){ trialBlock.style.display='block'; });
   }
 })();
 </script>

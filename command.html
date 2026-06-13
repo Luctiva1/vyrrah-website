@@ -5,71 +5,87 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vyrrah Recaller — Command Center</title>
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#070707">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#070707; --panel:#0f0f0f; --text:#f2ede4; --muted:rgba(242,237,228,.55);
-    --red:#c8251e; --gold:#f0a500; --green:#2fbf71; --line:rgba(242,237,228,.09);
+    --bg:#070707; --panel:#0f0f0f; --panel2:#161616; --text:#f2ede4; --muted:rgba(242,237,228,.55);
+    --red:#c8251e; --red2:#e03030; --gold:#f0a500; --green:#2fbf71; --line:rgba(242,237,228,.09); --line2:rgba(242,237,228,.14);
   }
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--gold);color:var(--bg)}
   a{color:var(--gold);text-decoration:none}
-  .wrap{width:100%;max-width:1100px;margin:0 auto;padding:26px 18px 70px}
+  #grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:0;opacity:.04;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .wrap{width:100%;max-width:1140px;margin:0 auto;padding:26px 18px 70px;position:relative;z-index:1}
   .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
-  .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;letter-spacing:.04em}
+  .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;letter-spacing:.04em}
   .wordmark .dot{color:var(--red)}
   h1{font-family:'Fraunces',serif;font-weight:900;font-size:26px;margin:14px 0 2px}
   .sub{color:var(--muted);font-size:13px;margin-bottom:24px}
   .refresh{font-size:11px;color:var(--muted)}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 
-  .btn{background:var(--red);color:var(--text);border:none;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.05em;padding:11px 16px;border-radius:9px}
+  .btn{background:var(--red);color:var(--text);border:none;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.05em;padding:11px 16px;border-radius:9px;transition:filter .2s}
   .btn:hover{filter:brightness(1.12)}
   .btn[disabled]{opacity:.5;cursor:wait}
   .btn.gold{background:var(--gold);color:#070707}
+  .btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--muted)}
+  .btn.ghost:hover{border-color:var(--gold);color:var(--gold);filter:none}
 
-  /* metric bar */
-  .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px}
+  .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:26px}
   @media(max-width:760px){.metrics{grid-template-columns:repeat(2,1fr)}}
   .metric{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
-  .metric .mv{font-family:'Syne',sans-serif;font-weight:800;font-size:24px}
+  .metric .mv{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;font-variant-numeric:tabular-nums}
   .metric .ml{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-top:4px}
   .metric .mv.gold{color:var(--gold)} .metric .mv.green{color:var(--green)}
 
-  /* client cards */
   .clients{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:760px){.clients{grid-template-columns:1fr}}
-  .c{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;position:relative}
-  .c.attn{border-color:rgba(200,37,30,.5)}
+  .c{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;position:relative;transition:border-color .25s}
+  .c.attn{border-color:rgba(200,37,30,.5);box-shadow:0 0 0 1px rgba(200,37,30,.14)}
   .chead{display:flex;align-items:center;gap:10px;margin-bottom:4px}
   .hdot{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
   .hdot.healthy{background:var(--green)} .hdot.quiet{background:var(--gold)}
-  .hdot.at_risk{background:var(--red)} .hdot.unverified{background:rgba(242,237,228,.4)}
-  .cname{font-family:'Fraunces',serif;font-weight:900;font-size:18px;line-height:1.2}
+  .hdot.at_risk{background:var(--red);box-shadow:0 0 8px rgba(200,37,30,.7)} .hdot.unverified{background:rgba(242,237,228,.4)}
+  .cname{font-family:'Fraunces',serif;font-weight:900;font-size:18px;line-height:1.2;flex:1}
   .pill{font-family:'Syne',sans-serif;font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
   .pill.active{color:var(--green);border-color:rgba(47,191,113,.5)}
   .pill.trial{color:var(--gold);border-color:rgba(240,165,0,.5)}
+  .pill.paused{color:var(--muted);border-color:var(--line2)}
   .pill.churned{color:var(--red);border-color:rgba(200,37,30,.5)}
-  .num{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--text);margin:8px 0 2px}
+  .badges{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 0}
+  .badge{font-size:9.5px;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:6px}
+  .badge.risk{color:var(--red2);background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4)}
+  .badge.unv{color:var(--text);background:rgba(242,237,228,.06);border:1px solid var(--line2)}
+  .badge.warn{color:var(--gold);background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4)}
+  .num{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--text);margin:10px 0 2px}
   .num.none{color:var(--muted);font-weight:400;font-style:italic}
-  .hflag{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
-  .cstats{display:flex;gap:18px;border-top:1px solid var(--line);padding-top:12px;margin-top:10px}
-  .cstat .sv{font-family:'Syne',sans-serif;font-weight:800;font-size:18px}
+  .seen{font-size:11px;color:var(--muted);margin-top:2px}
+  .cstats{display:flex;gap:18px;border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+  .cstat .sv{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;font-variant-numeric:tabular-nums}
   .cstat .sl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
   .cstat .sv.green{color:var(--green)} .cstat .sv.gold{color:var(--gold)}
-  .clinks{display:flex;gap:14px;margin-top:12px;font-size:12px}
-  .trial-left{font-size:11px;color:var(--gold);margin-top:6px}
+  .clinks{display:flex;gap:14px;margin-top:12px;font-size:12px;flex-wrap:wrap}
+  .actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+  .act{background:var(--panel2);border:1px solid var(--line2);color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.04em;padding:7px 11px;border-radius:7px;cursor:pointer;transition:all .15s}
+  .act:hover{border-color:var(--gold);color:var(--gold)}
+  .act.danger:hover{border-color:var(--red);color:var(--red2)}
   .err{display:none;background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4);border-radius:10px;padding:12px 14px;font-size:14px;margin:14px 0}
   .empty{color:var(--muted);text-align:center;padding:40px;font-size:14px}
 </style>
 </head>
 <body>
+<div id="grain"></div>
 <div class="wrap">
   <div class="top">
     <div class="wordmark">VYRRAH RECALLER<span class="dot">.</span> · COMMAND</div>
-    <div style="display:flex;gap:10px;align-items:center">
+    <div class="toolbar">
       <span class="refresh" id="refresh">—</span>
+      <button class="btn ghost" id="keyBtn">Admin key</button>
       <button class="btn gold" id="refillBtn">Refill pool (+5)</button>
     </div>
   </div>
@@ -83,39 +99,75 @@
 
 <script>
 (function(){
+  // ── Admin key (fail-closed auth). Stored locally, sent as x-admin-key on every call. ──
+  function getKey(){
+    var k = localStorage.getItem('vyrrah_admin_key');
+    if(!k){ k = prompt('Enter Command Center admin key'); if(k){ localStorage.setItem('vyrrah_admin_key', k); } }
+    return k || '';
+  }
+  function clearKey(){ localStorage.removeItem('vyrrah_admin_key'); }
+  function adminFetch(url, opts){
+    opts = opts || {}; opts.headers = opts.headers || {};
+    opts.headers['x-admin-key'] = getKey();
+    return fetch(url, opts).then(function(r){
+      if(r.status === 401){ clearKey(); throw new Error('Unauthorized — re-enter the admin key and reload.'); }
+      return r.json();
+    });
+  }
+  document.getElementById('keyBtn').addEventListener('click', function(){
+    var k = prompt('Admin key (stored on this device):', localStorage.getItem('vyrrah_admin_key') || '');
+    if(k != null){ if(k){ localStorage.setItem('vyrrah_admin_key', k); } else { clearKey(); } load(); }
+  });
+
   function fmtMoney(n){ return '$' + Math.round(Number(n)||0).toLocaleString(); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
-
-  function metricCard(v, l, cls){
-    return '<div class="metric"><div class="mv ' + (cls||'') + '">' + v + '</div><div class="ml">' + l + '</div></div>';
+  function since(iso){
+    if(!iso) return 'never';
+    var diff = Date.now() - new Date(iso).getTime();
+    var d = Math.floor(diff/86400000), h = Math.floor(diff/3600000), m = Math.floor(diff/60000);
+    if(d>0) return d+'d ago'; if(h>0) return h+'h ago'; return m>0 ? m+'m ago' : 'just now';
   }
+
+  function metricCard(v, l, cls){ return '<div class="metric"><div class="mv '+(cls||'')+'">'+v+'</div><div class="ml">'+l+'</div></div>'; }
+
+  var HEALTH_ORDER = { at_risk:0, unverified:1, quiet:2, healthy:3 };
 
   function clientCard(c){
     var s7 = c.stats_7d || {};
     var attn = (c.health === 'at_risk' || c.health === 'unverified') ? ' attn' : '';
     var hlabel = { healthy:'Healthy', quiet:'Quiet 7–14d', at_risk:'At risk', unverified:'Forwarding unverified' }[c.health] || c.health;
-    var pill = '<span class="pill ' + esc(c.status) + '">' + esc(c.status) + '</span>';
-    var num = c.twilio_number
-      ? '<div class="num">' + esc(c.twilio_number) + '</div>'
-      : '<div class="num none">no number yet</div>';
-    var trial = (c.status === 'trial' && c.trial_days_left != null)
-      ? '<div class="trial-left">' + (c.trial_days_left <= 0 ? 'Trial ended' : c.trial_days_left + ' day(s) left in trial') + '</div>'
-      : '';
-    var links = '';
-    if (c.magic_token) links += '<a href="/recaller?token=' + encodeURIComponent(c.magic_token) + '" target="_blank">Dashboard ↗</a>';
-    links += '<a href="/api/tool/report?client_id=' + encodeURIComponent(c.id) + '&days=7" target="_blank">Report ↗</a>';
+    var pill = '<span class="pill '+esc(c.status)+'">'+esc(c.status)+'</span>';
+    var badges = '';
+    if(c.health === 'at_risk') badges += '<span class="badge risk">Churn risk</span>';
+    if(!c.forwarding_verified) badges += '<span class="badge unv">Unverified</span>';
+    if(c.status === 'trial' && c.trial_days_left != null && c.trial_days_left <= 2) badges += '<span class="badge warn">'+(c.trial_days_left<=0?'Trial ended':c.trial_days_left+'d trial left')+'</span>';
+    var num = c.twilio_number ? '<div class="num">'+esc(c.twilio_number)+'</div>' : '<div class="num none">no number yet</div>';
 
-    return '<div class="c' + attn + '">' +
-      '<div class="chead"><span class="hdot ' + esc(c.health) + '"></span>' +
-        '<span class="cname">' + esc(c.practice_name) + '</span>' + pill + '</div>' +
-      '<div class="hflag">' + esc(hlabel) + '</div>' +
-      num + trial +
-      '<div class="cstats">' +
-        '<div class="cstat"><div class="sv green">' + (s7.recovered || 0) + '</div><div class="sl">Recovered 7d</div></div>' +
-        '<div class="cstat"><div class="sv gold">' + fmtMoney(s7.est_revenue_saved) + '</div><div class="sl">Saved 7d</div></div>' +
-        '<div class="cstat"><div class="sv">' + (s7.missed || 0) + '</div><div class="sl">Missed 7d</div></div>' +
-      '</div>' +
-      '<div class="clinks">' + links + '</div>' +
+    var links = '';
+    if(c.magic_token){
+      links += '<a href="/recaller?token='+encodeURIComponent(c.magic_token)+'" target="_blank">Dashboard ↗</a>';
+      links += '<a href="/api/tool/report?token='+encodeURIComponent(c.magic_token)+'&days=7" target="_blank">Report ↗</a>';
+    }
+
+    var st = c.status, acts = '';
+    if(st === 'active' || st === 'trial') acts += '<span class="act" data-act="pause" data-id="'+esc(c.id)+'">Pause</span>';
+    if(st === 'paused') acts += '<span class="act" data-act="resume" data-id="'+esc(c.id)+'">Resume</span>';
+    if(st === 'churned') acts += '<span class="act" data-act="reactivate_trial" data-id="'+esc(c.id)+'">Reactivate trial</span>';
+    acts += '<span class="act" data-act="set_value" data-id="'+esc(c.id)+'">Set value</span>';
+    if(st !== 'churned') acts += '<span class="act danger" data-act="churn" data-id="'+esc(c.id)+'">Churn</span>';
+
+    return '<div class="c'+attn+'">'+
+      '<div class="chead"><span class="hdot '+esc(c.health)+'"></span>'+
+        '<span class="cname">'+esc(c.practice_name)+'</span>'+pill+'</div>'+
+      (badges ? '<div class="badges">'+badges+'</div>' : '')+
+      num + '<div class="seen">Last inbound: '+esc(since(c.last_inbound_at))+' · '+esc(hlabel)+'</div>'+
+      '<div class="cstats">'+
+        '<div class="cstat"><div class="sv green">'+(s7.recovered||0)+'</div><div class="sl">Recovered 7d</div></div>'+
+        '<div class="cstat"><div class="sv gold">'+fmtMoney(s7.est_revenue_saved)+'</div><div class="sl">Saved 7d</div></div>'+
+        '<div class="cstat"><div class="sv">'+(s7.missed||0)+'</div><div class="sl">Missed 7d</div></div>'+
+      '</div>'+
+      '<div class="clinks">'+links+'</div>'+
+      '<div class="actions">'+acts+'</div>'+
     '</div>';
   }
 
@@ -128,16 +180,35 @@
       metricCard(fmtMoney(t.total_revenue_recovered), 'Recovered (30d)', 'gold') +
       metricCard(t.pool_available || 0, 'Pool available', 'gold');
 
-    var list = d.clients || [];
-    document.getElementById('clients').innerHTML = list.length
-      ? list.map(clientCard).join('')
-      : '<div class="empty">No clients yet.</div>';
+    var list = (d.clients || []).slice().sort(function(a,b){
+      return (HEALTH_ORDER[a.health]==null?9:HEALTH_ORDER[a.health]) - (HEALTH_ORDER[b.health]==null?9:HEALTH_ORDER[b.health]);
+    });
+    var box = document.getElementById('clients');
+    box.innerHTML = list.length ? list.map(clientCard).join('') : '<div class="empty">No clients yet.</div>';
+    box.querySelectorAll('.act').forEach(function(el){
+      el.addEventListener('click', function(){ doAction(el.dataset.id, el.dataset.act, el); });
+    });
     document.getElementById('refresh').textContent = 'updated ' + new Date().toLocaleTimeString();
   }
 
+  function doAction(id, action, el){
+    var body = { client_id: id, action: action };
+    if(action === 'set_value'){
+      var val = prompt('New average customer value ($):'); if(val == null) return;
+      body.value = Number(val) || 0;
+    }
+    if(action === 'churn' && !confirm('Churn this client? This stops their recovery line.')) return;
+    var orig = el.textContent; el.textContent = '…';
+    adminFetch('/api/tool/admin-action', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      .then(function(d){ if(d && d.error) throw new Error(d.error); load(); })
+      .catch(function(e){
+        el.textContent = orig;
+        var er = document.getElementById('err'); er.textContent = 'Action failed: ' + e.message; er.style.display = 'block';
+      });
+  }
+
   function load(){
-    fetch('/api/tool/admin-overview')
-      .then(function(r){ return r.json(); })
+    adminFetch('/api/tool/admin-overview')
       .then(function(d){
         if(d.error) throw new Error(d.error);
         document.getElementById('err').style.display = 'none';
@@ -153,12 +224,11 @@
   document.getElementById('refillBtn').addEventListener('click', function(){
     var btn = this;
     btn.disabled = true; btn.textContent = 'Buying…';
-    fetch('/api/tool/pool/refill', {
+    adminFetch('/api/tool/pool/refill', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ count: 5 })
     })
-      .then(function(r){ return r.json(); })
       .then(function(d){
         btn.textContent = d.added != null ? ('Added ' + d.added) : 'Done';
         load();

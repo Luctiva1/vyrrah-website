@@ -5,106 +5,128 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vyrrah Recaller — Your Recovery Dashboard</title>
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#070707">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Recaller">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23070707'/%3E%3Ctext y='78' x='50' text-anchor='middle' font-size='74' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,900;1,9..144,900&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#070707; --panel:#0f0f0f; --text:#f2ede4; --muted:rgba(242,237,228,.55);
-    --red:#c8251e; --gold:#f0a500; --green:#2fbf71; --line:rgba(242,237,228,.09);
+    --bg:#070707; --bg2:#0f0f0f; --panel:#0f0f0f; --panel2:#161616; --text:#f2ede4; --muted:rgba(242,237,228,.55);
+    --red:#c8251e; --red2:#e03030; --gold:#f0a500; --gold2:#f5c030; --green:#2fbf71; --line:rgba(242,237,228,.09); --line2:rgba(242,237,228,.14);
+    --ease:cubic-bezier(.22,1,.36,1);
   }
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  ::selection{background:var(--gold);color:var(--bg)}
   a{color:var(--gold)}
-  .wrap{width:100%;max-width:880px;margin:0 auto;padding:28px 20px 60px;flex:1}
+  #grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:0;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");animation:grain 7s steps(8) infinite}
+  @keyframes grain{0%,100%{transform:translate(0,0)}50%{transform:translate(-2%,1%)}}
+  .wrap{width:100%;max-width:900px;margin:0 auto;padding:24px 20px 70px;flex:1;position:relative;z-index:1}
 
-  header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-bottom:22px;border-bottom:1px solid var(--line)}
-  .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:.04em}
+  header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-bottom:20px;border-bottom:1px solid var(--line)}
+  .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;letter-spacing:.04em}
   .wordmark .dot{color:var(--red)}
   .who{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .practice{font-family:'Fraunces',serif;font-weight:900;font-size:22px}
-  .pill{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.14em;padding:5px 12px;border-radius:999px;border:1px solid}
+  .pill{font-family:'Syne',sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.14em;padding:5px 12px;border-radius:999px;border:1px solid}
   .pill.trial{color:var(--gold);border-color:rgba(240,165,0,.45);background:rgba(240,165,0,.08)}
   .pill.active{color:var(--green);border-color:rgba(47,191,113,.45);background:rgba(47,191,113,.08)}
   .pill.other{color:var(--muted);border-color:var(--line)}
 
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:26px 0}
-  .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 16px}
-  .stat .num{font-family:'Syne',sans-serif;font-weight:800;font-size:34px;line-height:1.05}
-  .stat .num.money{color:var(--gold)}
-  .stat .lbl{margin-top:8px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .tabbar{display:flex;gap:8px;margin:20px 0 4px}
+  .tabbtn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;padding:11px 22px;cursor:pointer;transition:border-color .2s,color .2s,background .2s}
+  .tabbtn.on{border-color:var(--red);color:var(--text);background:rgba(200,37,30,.12)}
+  #viewOverview,#viewInbox{display:none}
 
-  .banner{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:linear-gradient(135deg,rgba(240,165,0,.14),rgba(240,165,0,.05));border:1px solid rgba(240,165,0,.4);border-radius:14px;padding:18px 20px;margin-bottom:26px}
-  .banner p{font-family:'Fraunces',serif;font-weight:900;font-size:17px;color:var(--gold)}
-  .btn{display:inline-block;background:var(--red);color:var(--text);text-decoration:none;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.06em;padding:12px 22px;border-radius:10px;white-space:nowrap}
+  /* HERO — giant money recovered */
+  .hero{position:relative;overflow:hidden;border:1px solid rgba(240,165,0,.4);border-radius:22px;padding:40px 34px 32px;margin:24px 0 14px;background:radial-gradient(130% 150% at 50% 0%,rgba(240,165,0,.16),rgba(240,165,0,.03) 55%,transparent),var(--panel);display:none}
+  .hero .hglow{position:absolute;width:360px;height:360px;border-radius:50%;background:rgba(240,165,0,.12);filter:blur(90px);top:-160px;left:50%;transform:translateX(-50%);pointer-events:none}
+  .hero .hkick{position:relative;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+  .hero .hbig{position:relative;font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(58px,13vw,104px);line-height:.9;color:var(--gold);letter-spacing:-.02em;text-shadow:0 2px 50px rgba(240,165,0,.28);font-variant-numeric:tabular-nums}
+  .hero .hsub{position:relative;font-family:'Fraunces',serif;font-weight:900;font-size:19px;margin-top:18px;max-width:580px;line-height:1.35}
+  .hero .hsub b{color:var(--gold)}
+  .hero .hrow{position:relative;display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:22px}
+  .hero .hshare{background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--gold);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;padding:11px 18px;border-radius:10px;cursor:pointer;transition:filter .2s}
+  .hero .hshare:hover{filter:brightness(1.12)}
+  .hero .hhint{font-size:12px;color:var(--muted);letter-spacing:.03em}
+  .hero.building{border-color:rgba(47,191,113,.34);background:radial-gradient(130% 150% at 50% 0%,rgba(47,191,113,.12),rgba(47,191,113,.02) 55%,transparent),var(--panel)}
+  .hero.building .hglow{background:rgba(47,191,113,.12)}
+  .hero.building .hbig{color:var(--green);font-size:clamp(26px,5vw,38px);font-family:'Fraunces',serif;font-weight:900;text-shadow:none;line-height:1.1}
+
+  /* insight chips */
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 0}
+  .chip{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 15px;font-size:13px}
+  .chip .cv{font-family:'Syne',sans-serif;font-weight:800;font-size:17px}
+  .chip .cv.green{color:var(--green)} .chip .cv.gold{color:var(--gold)}
+  .chip .cl{color:var(--muted);font-size:12px}
+  .chip .trend{font-size:11px;font-weight:700}
+  .chip .trend.up{color:var(--green)} .chip .trend.down{color:var(--red2)}
+
+  .reco{display:flex;gap:12px;align-items:flex-start;background:linear-gradient(135deg,rgba(47,191,113,.08),transparent);border:1px solid rgba(47,191,113,.26);border-radius:14px;padding:16px 18px;margin:16px 0 0}
+  .reco .ri{flex:0 0 auto;font-size:16px;line-height:1.4}
+  .reco p{font-size:13.5px;color:var(--text);line-height:1.55}
+  .reco p b{color:var(--green)}
+
+  .numbercard{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin:16px 0 0}
+  .numbercard .ncn{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .numbercard .nbig{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:var(--gold);letter-spacing:.02em}
+  .numbercard .nhint{font-size:13px;color:var(--muted);max-width:340px;line-height:1.5}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 16px;transition:border-color .3s}
+  .stat:hover{border-color:var(--line2)}
+  .stat .num{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;line-height:1.05;font-variant-numeric:tabular-nums}
+  .stat .num.money{color:var(--gold)}
+  .stat .lbl{margin-top:8px;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+
+  .howcard{background:linear-gradient(135deg,rgba(47,191,113,.07),rgba(47,191,113,.02));border:1px solid rgba(47,191,113,.24);border-radius:14px;padding:20px;margin:16px 0 0}
+  .howcard h3{font-family:'Fraunces',serif;font-weight:900;font-size:16px;margin-bottom:10px}
+  .howcard ol{margin:0;padding-left:20px;color:var(--muted);font-size:13.5px;line-height:1.7}
+  .howcard ol b{color:var(--text);font-weight:500}
+
+  .banner{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:linear-gradient(135deg,rgba(240,165,0,.14),rgba(240,165,0,.05));border:1px solid rgba(240,165,0,.4);border-radius:14px;padding:18px 20px;margin:18px 0 0}
+  .banner p{font-family:'Fraunces',serif;font-weight:900;font-size:16px;color:var(--gold)}
+  .btn{display:inline-block;background:var(--red);color:var(--text);text-decoration:none;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.06em;padding:12px 22px;border-radius:10px;white-space:nowrap;transition:filter .2s}
   .btn:hover{filter:brightness(1.12)}
 
-  h2{font-family:'Fraunces',serif;font-weight:900;font-size:22px;margin:8px 0 16px}
-  .convo{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
-  .convo-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  h2{font-family:'Fraunces',serif;font-weight:900;font-size:20px;margin:26px 0 14px}
+  .convo{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:12px}
+  .convo-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
   .caller{font-family:'Syne',sans-serif;font-weight:700;font-size:14px}
   .meta{font-size:12px;color:var(--muted)}
-  .tag{font-size:10px;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.12em;color:var(--green);border:1px solid rgba(47,191,113,.4);border-radius:999px;padding:3px 9px;margin-left:8px}
-  .bubble{max-width:78%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.45;margin-bottom:8px}
+  .tag{font-size:9.5px;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.12em;color:var(--green);border:1px solid rgba(47,191,113,.4);border-radius:999px;padding:3px 9px;margin-left:8px}
+  .summary{font-size:12.5px;color:var(--gold);font-style:italic;margin:0 0 12px;display:flex;gap:7px;align-items:baseline}
+  .summary::before{content:'✦';font-style:normal;font-size:11px}
+  .bubble{max-width:80%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.45;margin-bottom:8px}
   .in{background:#181818;border:1px solid var(--line);border-bottom-left-radius:4px;margin-right:auto}
   .out{background:rgba(200,37,30,.16);border:1px solid rgba(200,37,30,.35);border-bottom-right-radius:4px;margin-left:auto}
   .stamp{display:block;margin-top:5px;font-size:10px;color:var(--muted)}
   .empty{color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:14px;padding:26px;text-align:center;font-size:14px}
-
-  .dot-status{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .dot-status{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
   .dot-status.ok{background:var(--green);box-shadow:0 0 6px rgba(47,191,113,.6)}
   .dot-status.fail{background:var(--red);box-shadow:0 0 6px rgba(200,37,30,.6)}
   .dot-status.pending{background:var(--muted)}
   .defer-note{color:var(--gold);font-style:italic}
 
-  .numbercard{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px}
-  .numbercard .ncn{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-  .numbercard .nbig{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:var(--gold);letter-spacing:.02em}
-  .numbercard .nhint{font-size:13px;color:var(--muted);max-width:340px;line-height:1.5}
-
-  .howcard{background:linear-gradient(135deg,rgba(47,191,113,.08),rgba(47,191,113,.02));border:1px solid rgba(47,191,113,.28);border-radius:14px;padding:20px;margin-bottom:26px}
-  .howcard h3{font-family:'Fraunces',serif;font-weight:900;font-size:17px;margin-bottom:10px}
-  .howcard ol{margin:0;padding-left:20px;color:var(--muted);font-size:14px;line-height:1.7}
-  .howcard ol b{color:var(--text);font-weight:500}
-  .rangenote{font-size:12px;color:var(--muted);margin:-12px 0 18px;letter-spacing:.03em}
-
-  /* #5 ROI proof hero */
-  .hero{position:relative;overflow:hidden;border:1px solid rgba(240,165,0,.38);border-radius:20px;padding:38px 32px 30px;margin:26px 0 8px;background:radial-gradient(120% 140% at 50% 0%,rgba(240,165,0,.16),rgba(240,165,0,.03) 55%,transparent),var(--panel);display:none}
-  .hero .hkick{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
-  .hero .hbig{font-family:'Syne',sans-serif;font-weight:800;font-size:84px;line-height:.92;color:var(--gold);letter-spacing:-.01em;text-shadow:0 2px 40px rgba(240,165,0,.25)}
-  .hero .hbig span{font-size:46px;vertical-align:.06em}
-  .hero .hsub{font-family:'Fraunces',serif;font-weight:900;font-size:20px;margin-top:18px;max-width:560px;line-height:1.35}
-  .hero .hsub b{color:var(--gold)}
-  .hero .hrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:22px}
-  .hero .hshare{background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.4);color:var(--gold);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;padding:11px 18px;border-radius:10px;cursor:pointer}
-  .hero .hshare:hover{filter:brightness(1.12)}
-  .hero .hhint{font-size:12px;color:var(--muted);letter-spacing:.03em}
-  .hero.building{border-color:rgba(47,191,113,.32);background:radial-gradient(120% 140% at 50% 0%,rgba(47,191,113,.12),rgba(47,191,113,.02) 55%,transparent),var(--panel)}
-  .hero.building .hbig{color:var(--green);font-size:38px;font-family:'Fraunces',serif;font-weight:900;text-shadow:none}
-  .hero.building .hbig span{display:none}
-
   .state{text-align:center;padding:90px 20px;display:none}
-  .state h1{font-family:'Fraunces',serif;font-weight:900;font-size:30px;margin-bottom:14px}
+  .state h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin-bottom:14px}
   .state p{color:var(--muted);font-size:15px;line-height:1.6}
   #loading .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--red);border-radius:50%;margin:0 auto 18px;animation:sp 1s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
-
-  footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;font-size:13px;color:var(--muted)}
-  footer a{color:var(--muted)}
   #app{display:none}
-
-  /* tabs */
-  .tabbar{display:flex;gap:8px;margin:22px 0 4px}
-  .tabbtn{background:#161616;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;padding:11px 20px;cursor:pointer}
-  .tabbtn.on{border-color:var(--red);color:var(--text);background:rgba(200,37,30,.12)}
-  #viewOverview,#viewInbox{display:none}
 
   /* inbox */
   .inbox{display:grid;grid-template-columns:300px 1fr;gap:16px;margin-top:18px}
   .convolist{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;max-height:600px;overflow-y:auto}
-  .convoitem{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+  .convoitem{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s}
   .convoitem:last-child{border-bottom:none}
-  .convoitem:hover{background:#161616}
+  .convoitem:hover{background:var(--panel2)}
   .convoitem.sel{background:rgba(200,37,30,.1)}
   .ci-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
   .ci-caller{font-family:'Syne',sans-serif;font-weight:700;font-size:13px}
@@ -120,22 +142,42 @@
   .panel-empty{color:var(--muted);text-align:center;padding:60px 20px;font-size:14px}
   .sysrow{text-align:center;font-size:12px;color:var(--muted);margin:12px 0}
 
+  /* first-win celebration */
+  #celebrate{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(7,7,7,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  #celebrate.show{display:flex}
+  #celebrate .cbox{background:var(--panel);border:1px solid rgba(47,191,113,.5);border-radius:20px;padding:40px 34px;max-width:440px;text-align:center;position:relative;overflow:hidden;animation:pop .5s var(--ease)}
+  @keyframes pop{from{opacity:0;transform:translateY(20px) scale(.96)}to{opacity:1;transform:none}}
+  #celebrate .cmoji{font-size:52px;margin-bottom:8px}
+  #celebrate h3{font-family:'Fraunces',serif;font-weight:900;font-size:26px;margin-bottom:12px}
+  #celebrate h3 b{color:var(--green)}
+  #celebrate p{color:var(--muted);font-size:14.5px;line-height:1.6;margin-bottom:24px}
+  #celebrate .btn{cursor:pointer;border:none}
+  .conf{position:fixed;top:-14px;width:9px;height:15px;border-radius:2px;opacity:0;z-index:61;animation:fall 2.6s ease-in forwards;pointer-events:none}
+  @keyframes fall{0%{opacity:1;transform:translateY(-10px) rotate(0)}100%{opacity:0;transform:translateY(105vh) rotate(640deg)}}
+
+  /* add to home hint */
+  #a2h{position:fixed;left:14px;right:14px;bottom:14px;z-index:55;background:rgba(15,15,15,.96);border:1px solid var(--line2);border-radius:14px;padding:13px 16px;display:none;align-items:center;gap:12px;box-shadow:0 16px 50px rgba(0,0,0,.5)}
+  #a2h.show{display:flex}
+  #a2h p{font-size:12.5px;color:var(--text);line-height:1.4}
+  #a2h p b{color:var(--gold)}
+  #a2h .x{margin-left:auto;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;flex:0 0 auto}
+
+  footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;font-size:13px;color:var(--muted);position:relative;z-index:1}
+  footer a{color:var(--muted)}
+
   @media(max-width:640px){
     .stats{grid-template-columns:repeat(2,1fr)}
-    .stat .num{font-size:28px}
     .practice{font-size:18px}
     .bubble{max-width:90%}
     .inbox{grid-template-columns:1fr}
     .convolist{max-height:300px}
-    .hero{padding:28px 20px 24px;border-radius:16px}
-    .hero .hbig{font-size:58px}
-    .hero .hbig span{font-size:32px}
-    .hero.building .hbig{font-size:28px}
-    .hero .hsub{font-size:17px}
+    .hero{padding:30px 22px 26px;border-radius:18px}
   }
+  @media(prefers-reduced-motion:reduce){#grain,.conf{animation:none}.conf{display:none}}
 </style>
 </head>
 <body>
+<div id="grain"></div>
 <div class="wrap">
   <div id="loading" class="state" style="display:block">
     <div class="spin"></div>
@@ -162,49 +204,51 @@
     </div>
 
     <div id="viewOverview" style="display:block">
-    <div class="hero" id="roiHero">
-      <div class="hkick" id="heroKick">Your return this month</div>
-      <div class="hbig" id="heroBig">0<span>×</span></div>
-      <div class="hsub" id="heroSub"></div>
-      <div class="hrow">
-        <button class="hshare" id="heroShare">Copy summary</button>
-        <span class="hhint">Screenshot this — it's the kind of number worth showing your partner.</span>
+      <div class="hero" id="roiHero">
+        <div class="hglow"></div>
+        <div class="hkick" id="heroKick">Recovered this month</div>
+        <div class="hbig" id="heroBig">$0</div>
+        <div class="hsub" id="heroSub"></div>
+        <div class="hrow">
+          <button class="hshare" id="heroShare">Copy summary</button>
+          <span class="hhint">Screenshot this — it's the kind of number worth showing your partner.</span>
+        </div>
       </div>
-    </div>
 
-    <div class="numbercard" id="numberCard" style="display:none">
-      <div>
-        <div class="ncn">Your Vyrrah number</div>
-        <div class="nbig" id="vyrrahNumber"></div>
+      <div class="chips" id="insightChips"></div>
+      <div class="reco" id="recoBox" style="display:none"><span class="ri">✦</span><p id="recoText"></p></div>
+
+      <div class="numbercard" id="numberCard" style="display:none">
+        <div>
+          <div class="ncn">Your Vyrrah number</div>
+          <div class="nbig" id="vyrrahNumber"></div>
+        </div>
+        <div class="nhint">Want to see it live? Call your practice line and don't pick up — within seconds this number texts the caller back automatically.</div>
       </div>
-      <div class="nhint">Want to see it live? Call your practice line from a phone and don't pick up — within seconds this number texts the caller back automatically.</div>
-    </div>
 
-    <div class="howcard">
-      <h3>How it's working for you</h3>
-      <ol>
-        <li>A caller can't reach you, so the call rolls to <b>your Vyrrah number</b>.</li>
-        <li>We instantly text them back as your front desk and start a real conversation.</li>
-        <li>When they want to book, <b>you get a heads-up text</b> and it shows up below — recovered.</li>
-      </ol>
-    </div>
+      <div class="stats">
+        <div class="stat"><div class="num" id="statMissed">0</div><div class="lbl">Calls missed &amp; caught</div></div>
+        <div class="stat"><div class="num" id="statRecovered">0</div><div class="lbl">Conversations recovered</div></div>
+        <div class="stat"><div class="num" id="statBooked">0</div><div class="lbl">Bookings captured</div></div>
+        <div class="stat"><div class="num money" id="statRevenue">$0</div><div class="lbl">Est. revenue saved</div></div>
+      </div>
 
-    <div class="rangenote">Showing activity from the last 30 days.</div>
+      <div class="howcard">
+        <h3>How it's working for you</h3>
+        <ol>
+          <li>A caller can't reach you, so the call rolls to <b>your Vyrrah number</b>.</li>
+          <li>We instantly text them back as your front desk and start a real conversation.</li>
+          <li>When they want to book, <b>you get a heads-up text</b> and it shows up below — recovered.</li>
+        </ol>
+      </div>
 
-    <div class="stats">
-      <div class="stat"><div class="num" id="statMissed">0</div><div class="lbl">Calls missed &amp; caught</div></div>
-      <div class="stat"><div class="num" id="statRecovered">0</div><div class="lbl">Conversations recovered</div></div>
-      <div class="stat"><div class="num" id="statBooked">0</div><div class="lbl">Bookings captured</div></div>
-      <div class="stat"><div class="num money" id="statRevenue">$0</div><div class="lbl">Est. revenue saved</div></div>
-    </div>
+      <div class="banner" id="trialBanner" style="display:none">
+        <p>Your free week is running. Like what you see? Lock it in.</p>
+        <a class="btn" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book a call</a>
+      </div>
 
-    <div class="banner" id="trialBanner" style="display:none">
-      <p>Your free week is running. Like what you see? Lock it in.</p>
-      <a class="btn" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Book a call</a>
-    </div>
-
-    <h2>Recent recovered conversations</h2>
-    <div id="convos"></div>
+      <h2>Recent recovered conversations <span style="font-weight:400;font-size:13px;color:var(--muted)">· last 30 days</span></h2>
+      <div id="convos"></div>
     </div><!-- /viewOverview -->
 
     <div id="viewInbox">
@@ -216,6 +260,20 @@
       </div>
     </div><!-- /viewInbox -->
   </div>
+</div>
+
+<div id="celebrate">
+  <div class="cbox">
+    <div class="cmoji">🎉</div>
+    <h3>You just recovered <b id="celAmt">your first booking</b></h3>
+    <p id="celMsg">A call you would have lost is now a booked job. This is exactly what the line was built to do — and it keeps going, automatically.</p>
+    <button class="btn" id="celClose" style="background:var(--green);color:#06120b">See the numbers →</button>
+  </div>
+</div>
+
+<div id="a2h">
+  <p><b>Add this to your home screen</b> — tap Share, then "Add to Home Screen" for one-tap access.</p>
+  <button class="x" id="a2hX" aria-label="Dismiss">×</button>
 </div>
 
 <footer>
@@ -236,45 +294,35 @@
       document.getElementById(x).style.display = x===id ? 'block' : 'none';
     });
   }
-
-  function esc(s){
-    var d = document.createElement('div'); d.textContent = s == null ? '' : String(s);
-    return d.innerHTML;
-  }
-
+  function esc(s){ var d=document.createElement('div'); d.textContent = s==null?'':String(s); return d.innerHTML; }
   function fmtTime(iso){
     if(!iso) return '';
     var d = new Date(iso);
     return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' · ' +
            d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
   }
+  function fmtClock(iso){ if(!iso) return ''; return new Date(iso).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
 
   function countUp(el, target, prefix){
     prefix = prefix || '';
     if(!firstLoad){ el.textContent = prefix + target.toLocaleString(); return; }
     var start = performance.now(), dur = 1100;
-    function tick(now){
-      var p = Math.min((now-start)/dur, 1);
-      var eased = 1 - Math.pow(1-p, 3);
-      el.textContent = prefix + Math.round(target*eased).toLocaleString();
-      if(p < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
+    (function tick(now){
+      var p = Math.min((now-start)/dur, 1), e = 1-Math.pow(1-p,3);
+      el.textContent = prefix + Math.round(target*e).toLocaleString();
+      if(p<1) requestAnimationFrame(tick);
+    })(start);
   }
 
-  var heroFirst = true;
-  var heroSummaryText = '';
-
+  var heroFirst = true, heroSummaryText = '';
   function countUpNum(el, target, fmt){
     if(!heroFirst){ el.innerHTML = fmt(target); return; }
     var start = performance.now(), dur = 1300;
-    function tick(now){
-      var p = Math.min((now-start)/dur, 1);
-      var eased = 1 - Math.pow(1-p, 3);
-      el.innerHTML = fmt(target*eased);
-      if(p < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
+    (function tick(now){
+      var p = Math.min((now-start)/dur, 1), e = 1-Math.pow(1-p,3);
+      el.innerHTML = fmt(target*e);
+      if(p<1) requestAnimationFrame(tick);
+    })(start);
   }
 
   function renderHero(d, practice){
@@ -286,24 +334,45 @@
     var big = document.getElementById('heroBig');
     var sub = document.getElementById('heroSub');
 
-    // New/low account → warm "building" state instead of a sad $0.
     if(saved < 100 || mult < 1){
       hero.classList.add('building');
       document.getElementById('heroKick').textContent = 'Your numbers are building';
-      big.textContent = "Here's this week so far";
-      sub.innerHTML = "We've started catching your missed calls. As recovered bookings come in, your return shows up right here — usually within the first few days.";
+      big.textContent = "Catching your calls";
+      sub.innerHTML = "We've started catching your missed calls. As recovered bookings come in, your recovered total shows up right here — usually within the first few days.";
       heroSummaryText = practice + ' — Vyrrah Recaller is live and catching missed calls. Recovery numbers are building this week.';
     } else {
       hero.classList.remove('building');
-      document.getElementById('heroKick').textContent = 'Your return this month';
-      countUpNum(big, mult, function(v){ return Math.round(v) + '<span>×</span>'; });
-      sub.innerHTML = 'We recovered an estimated <b>$' + saved.toLocaleString() +
-        '</b> for you this month. Your plan is $' + cost.toLocaleString() + '.';
+      document.getElementById('heroKick').textContent = 'Recovered this month';
+      countUpNum(big, saved, function(v){ return '$' + Math.round(v).toLocaleString(); });
+      sub.innerHTML = "That's a <b>" + Math.round(mult) + "× return</b> on your $" + cost.toLocaleString() + " plan, from calls you'd otherwise have lost.";
       heroSummaryText = practice + ' — Vyrrah Recaller recovered an estimated $' + saved.toLocaleString() +
         ' this month for a $' + cost.toLocaleString() + ' plan. That\'s a ' + Math.round(mult) + '× return.';
     }
     hero.style.display = 'block';
     heroFirst = false;
+  }
+
+  function renderInsights(d){
+    var chipsEl = document.getElementById('insightChips');
+    var rr = d.recovery_rate || {}, br = d.booking_rate || {};
+    var chips = '';
+    if(rr.current_pct != null){
+      var dir = (rr.direction === 'up') ? 'up' : (rr.direction === 'down' ? 'down' : '');
+      var arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '';
+      var trend = (rr.trend_pct ? '<span class="trend '+dir+'">'+arrow+' '+Math.abs(Math.round(rr.trend_pct))+'%</span>' : '');
+      chips += '<div class="chip"><span class="cv green">'+Math.round(rr.current_pct)+'%</span><span class="cl">caught calls recovered</span>'+trend+'</div>';
+    }
+    if(br.pct != null){
+      chips += '<div class="chip"><span class="cv gold">'+Math.round(br.pct)+'%</span><span class="cl">of recovered turned into bookings</span></div>';
+    }
+    chipsEl.innerHTML = chips;
+    var recs = d.recommendations || [];
+    if(recs.length){
+      document.getElementById('recoText').innerHTML = '<b>From Godwin:</b> ' + esc(recs[0]);
+      document.getElementById('recoBox').style.display = 'flex';
+    } else {
+      document.getElementById('recoBox').style.display = 'none';
+    }
   }
 
   document.getElementById('heroShare').addEventListener('click', function(){
@@ -317,8 +386,35 @@
   function loadInsights(practice){
     fetch('/api/tool/insights?token=' + encodeURIComponent(token))
       .then(function(r){ if(!r.ok) throw new Error('bad'); return r.json(); })
-      .then(function(d){ renderHero(d.insights || {}, d.practice_name || practice || ''); })
+      .then(function(d){
+        renderHero(d.insights || {}, d.practice_name || practice || '');
+        renderInsights(d.insights || {});
+      })
       .catch(function(){ document.getElementById('roiHero').style.display = 'none'; });
+  }
+
+  /* first-win celebration (once per browser per token) */
+  function maybeCelebrate(recovered, saved){
+    if(!recovered || recovered < 1) return;
+    var key = 'vy_celebrated_' + (token||'').slice(0,10);
+    try{ if(localStorage.getItem(key)) return; localStorage.setItem(key,'1'); }catch(e){ return; }
+    var amt = saved >= 100 ? ('$' + Math.round(saved).toLocaleString()) : 'your first booking';
+    document.getElementById('celAmt').textContent = amt;
+    var box = document.getElementById('celebrate');
+    box.classList.add('show');
+    if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      var colors=['#f0a500','#c8251e','#2fbf71','#f2ede4'];
+      for(var i=0;i<40;i++){ var c=document.createElement('span'); c.className='conf'; c.style.left=(Math.random()*100)+'%'; c.style.background=colors[i%colors.length]; c.style.animationDelay=(Math.random()*.6)+'s'; document.body.appendChild(c); setTimeout((function(x){return function(){x.remove();};})(c),3200); }
+    }
+  }
+  document.getElementById('celClose').addEventListener('click', function(){ document.getElementById('celebrate').classList.remove('show'); });
+
+  function summarize(c){
+    if(c.booked) return 'Booked an appointment.';
+    var lastIn = null;
+    (c.messages||[]).forEach(function(m){ if(m.direction==='inbound') lastIn = m; });
+    if(lastIn) return 'Replied: "' + (lastIn.body||'').slice(0,60) + ((lastIn.body||'').length>60?'…':'') + '"';
+    return 'Texted back after a missed call.';
   }
 
   function render(data){
@@ -333,9 +429,7 @@
     if(data.twilio_number){
       document.getElementById('vyrrahNumber').textContent = data.twilio_number;
       numCard.style.display = 'flex';
-    } else {
-      numCard.style.display = 'none';
-    }
+    } else { numCard.style.display = 'none'; }
 
     var s = data.stats || {};
     countUp(document.getElementById('statMissed'), s.missed || 0);
@@ -354,54 +448,36 @@
           var statusHtml = '';
           if(m.direction !== 'inbound'){
             var ds = (m.delivery_status || '').toLowerCase();
-            if(ds === 'deferred'){
-              statusHtml = '<span class="defer-note">scheduled for morning</span>';
-            } else if(ds === 'delivered' || ds === 'sent'){
-              statusHtml = '<span class="dot-status ok" title="delivered"></span>delivered';
-            } else if(ds === 'failed' || ds === 'undelivered'){
-              statusHtml = '<span class="dot-status fail" title="failed"></span>failed';
-            } else if(ds){
-              statusHtml = '<span class="dot-status pending" title="'+esc(ds)+'"></span>sending';
-            }
+            if(ds === 'deferred') statusHtml = '<span class="defer-note">scheduled for morning</span>';
+            else if(ds === 'delivered' || ds === 'sent') statusHtml = '<span class="dot-status ok"></span>delivered';
+            else if(ds === 'failed' || ds === 'undelivered') statusHtml = '<span class="dot-status fail"></span>failed';
+            else if(ds) statusHtml = '<span class="dot-status pending"></span>sending';
           }
           return '<div class="bubble '+cls+'">'+esc(m.body)+
-            '<span class="stamp">'+esc(fmtTime(m.created_at))+
-            (statusHtml ? ' · '+statusHtml : '')+'</span></div>';
+            '<span class="stamp">'+esc(fmtTime(m.created_at))+(statusHtml ? ' · '+statusHtml : '')+'</span></div>';
         }).join('');
         return '<div class="convo"><div class="convo-head"><span class="caller">'+esc(c.caller)+
           (c.booked ? '<span class="tag">BOOKED</span>' : '')+
-          '</span><span class="meta">'+esc(fmtTime(c.created_at))+'</span></div>'+msgs+'</div>';
+          '</span><span class="meta">'+esc(fmtTime(c.created_at))+'</span></div>'+
+          '<div class="summary">'+esc(summarize(c))+'</div>'+msgs+'</div>';
       }).join('');
     }
     show('app');
-    if(firstLoad) loadInsights(data.practice_name);
+    if(firstLoad){ loadInsights(data.practice_name); maybeCelebrate(s.recovered || 0, s.est_revenue_saved || 0); }
     firstLoad = false;
   }
 
-  function fmtClock(iso){
-    if(!iso) return '';
-    return new Date(iso).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
-  }
-
-  var CALL_LABEL = {
-    answered:'📞 Answered', missed:'📞 Missed call', busy:'📞 Busy',
-    failed:'📞 Failed call', voicemail:'📞 Voicemail'
-  };
+  var CALL_LABEL = { answered:'📞 Answered', missed:'📞 Missed call', busy:'📞 Busy', failed:'📞 Failed call', voicemail:'📞 Voicemail' };
 
   function renderInbox(){
     if(!inboxData) return;
     var convos = inboxData.conversations || [];
     var list = document.getElementById('convoList');
-    if(!convos.length){
-      list.innerHTML = '<div class="panel-empty">No conversations yet.</div>';
-      return;
-    }
+    if(!convos.length){ list.innerHTML = '<div class="panel-empty">No conversations yet.</div>'; return; }
     list.innerHTML = convos.map(function(c){
-      var lastMsg = null, lastInbound = false;
-      for(var i=c.timeline.length-1;i>=0;i--){
-        if(c.timeline[i].type==='message'){ lastMsg = c.timeline[i]; break; }
-      }
-      lastInbound = lastMsg && lastMsg.direction==='inbound';
+      var lastMsg = null;
+      for(var i=c.timeline.length-1;i>=0;i--){ if(c.timeline[i].type==='message'){ lastMsg = c.timeline[i]; break; } }
+      var lastInbound = lastMsg && lastMsg.direction==='inbound';
       var prev = lastMsg ? lastMsg.body : (c.call_count ? 'Missed call' : '');
       var pills = (c.booked ? '<span class="minipill booked">BOOKED</span>' : '') +
                   (c.recovered && !c.booked ? '<span class="minipill recovered">RECOVERED</span>' : '');
@@ -414,28 +490,20 @@
         (pills ? '<div class="ci-pills">'+pills+'</div>' : '')+'</div>';
     }).join('');
     list.querySelectorAll('.convoitem').forEach(function(el){
-      el.addEventListener('click', function(){
-        selectedCaller = el.dataset.id;
-        renderInbox();
-        renderPanel();
-      });
+      el.addEventListener('click', function(){ selectedCaller = el.dataset.id; renderInbox(); renderPanel(); });
     });
   }
 
   function renderPanel(){
     var panel = document.getElementById('convoPanel');
-    if(!inboxData || selectedCaller==null){
-      panel.innerHTML = '<div class="panel-empty">Select a conversation to see its full timeline.</div>';
-      return;
-    }
+    if(!inboxData || selectedCaller==null){ panel.innerHTML = '<div class="panel-empty">Select a conversation to see its full timeline.</div>'; return; }
     var c = (inboxData.conversations||[]).filter(function(x){ return x.caller_raw_last4===selectedCaller; })[0];
     if(!c){ panel.innerHTML = '<div class="panel-empty">Conversation not found.</div>'; return; }
     panel.innerHTML = '<div class="convo-head"><span class="caller">'+esc(c.caller)+
       (c.booked?'<span class="tag">BOOKED</span>':'')+'</span></div>' +
       c.timeline.map(function(t){
         if(t.type==='call'){
-          return '<div class="sysrow">'+esc(CALL_LABEL[t.outcome]||('📞 '+(t.outcome||'call')))+
-            ' · '+esc(fmtClock(t.created_at))+'</div>';
+          return '<div class="sysrow">'+esc(CALL_LABEL[t.outcome]||('📞 '+(t.outcome||'call')))+' · '+esc(fmtClock(t.created_at))+'</div>';
         }
         var cls = t.direction==='inbound' ? 'in' : 'out';
         var statusHtml = '';
@@ -446,8 +514,7 @@
           else if(ds==='failed'||ds==='undelivered') statusHtml = '<span class="dot-status fail"></span>failed';
           else if(ds) statusHtml = '<span class="dot-status pending"></span>sending';
         }
-        return '<div class="bubble '+cls+'">'+esc(t.body)+
-          '<span class="stamp">'+esc(fmtClock(t.created_at))+(statusHtml?' · '+statusHtml:'')+'</span></div>';
+        return '<div class="bubble '+cls+'">'+esc(t.body)+'<span class="stamp">'+esc(fmtClock(t.created_at))+(statusHtml?' · '+statusHtml:'')+'</span></div>';
       }).join('');
   }
 
@@ -456,13 +523,10 @@
       .then(function(r){ if(!r.ok) throw new Error('bad'); return r.json(); })
       .then(function(d){
         inboxData = d;
-        if(selectedCaller==null && d.conversations && d.conversations.length){
-          selectedCaller = d.conversations[0].caller_raw_last4;
-        }
-        renderInbox();
-        renderPanel();
+        if(selectedCaller==null && d.conversations && d.conversations.length){ selectedCaller = d.conversations[0].caller_raw_last4; }
+        renderInbox(); renderPanel();
       })
-      .catch(function(){ /* keep overview usable */ });
+      .catch(function(){});
   }
 
   function setView(view){
@@ -485,10 +549,21 @@
   }
 
   load();
-  setInterval(function(){
-    if(activeView==='Inbox') loadInbox();
-    else load();
-  }, 60000);
+  setInterval(function(){ if(activeView==='Inbox') loadInbox(); else load(); }, 60000);
+
+  /* iOS add-to-home hint, once */
+  (function(){
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    var standalone = ('standalone' in navigator) && navigator.standalone;
+    var seen; try{ seen = localStorage.getItem('vy_a2h'); }catch(e){ seen = '1'; }
+    if(isIOS && !standalone && !seen){
+      setTimeout(function(){ document.getElementById('a2h').classList.add('show'); }, 4000);
+    }
+    document.getElementById('a2hX').addEventListener('click', function(){
+      document.getElementById('a2h').classList.remove('show');
+      try{ localStorage.setItem('vy_a2h','1'); }catch(e){}
+    });
+  })();
 })();
 </script>
 </body>
