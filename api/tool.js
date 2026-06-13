@@ -458,6 +458,436 @@ function forwardingInstructions(number) {
   return `Have the practice set conditional call forwarding (no-answer/busy) to ${number}`;
 }
 
+// Welcome email — fired once on successful client create. NEVER throws (so it
+// can never fail the create request); flips welcome_sent=true on success.
+async function sendWelcomeEmail(supabase, client) {
+  try {
+    if (!client || !client.owner_email || client.welcome_sent) return;
+    const number = client.twilio_number || 'your Vyrrah number (being provisioned)';
+    await sendEmail({
+      to: client.owner_email,
+      toName: client.owner_name,
+      subject: 'Welcome to Vyrrah Recaller — save this email',
+      body: [
+        `Hi ${client.owner_name || 'there'},`,
+        '',
+        `Welcome to ${BRAND.name}! Here's everything you need.`,
+        '',
+        `Your Vyrrah number: ${number}`,
+        `Set conditional call forwarding (no-answer/busy) on your line to that number, and we'll text back anyone you miss.`,
+        '',
+        `Your dashboard: ${PUBLIC_BASE}/recaller?token=${client.magic_token}`,
+        '',
+        'Questions? Just reply or reach Godwin at godwin@vyrrahlabs.com',
+        '',
+        `— ${BRAND.from}`
+      ].join('\n')
+    });
+    await supabase.from('tool_clients').update({ welcome_sent: true }).eq('id', client.id);
+  } catch (e) {
+    console.error('sendWelcomeEmail error (non-fatal):', e);
+  }
+}
+
+// ─── Booking / calendar helpers ──────────────────────────────────────────────
+
+// Default availability if a client hasn't configured one (Mon-Fri 9-5 local).
+const DEFAULT_AVAILABILITY = {
+  mon: ['09:00', '17:00'],
+  tue: ['09:00', '17:00'],
+  wed: ['09:00', '17:00'],
+  thu: ['09:00', '17:00'],
+  fri: ['09:00', '17:00']
+};
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+// Lead buffer before the first offered slot (don't offer "in 5 minutes").
+const SLOT_LEAD_MS = 2 * 60 * 60 * 1000; // ~2h
+
+// ── Timezone math (no external libs) ─────────────────────────────────────────
+// We need two operations, both via Intl.DateTimeFormat with a timeZone:
+//   1) Given a UTC instant, render a human label in the client's tz.
+//   2) Given a desired wall-clock time in the client's tz on a given calendar
+//      day, find the UTC instant for it.
+// For (2) we derive the tz's UTC offset *at that instant* by formatting a probe
+// Date in the tz and comparing the rendered wall-clock to the same fields read
+// as UTC. This handles DST correctly because the offset is computed per-date.
+
+// Offset (in minutes) of `tz` from UTC at the given instant. e.g. EST => -300.
+function tzOffsetMinutes(tz, instant) {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false
+    });
+    const parts = fmt.formatToParts(instant).reduce((acc, p) => {
+      acc[p.type] = p.value; return acc;
+    }, {});
+    let hour = parseInt(parts.hour, 10);
+    if (hour === 24) hour = 0;
+    // The wall-clock the tz shows, expressed as if it were UTC.
+    const asUtc = Date.UTC(
+      parseInt(parts.year, 10),
+      parseInt(parts.month, 10) - 1,
+      parseInt(parts.day, 10),
+      hour,
+      parseInt(parts.minute, 10),
+      parseInt(parts.second, 10)
+    );
+    return Math.round((asUtc - instant.getTime()) / 60000);
+  } catch (e) {
+    // Fallback to the fixed offset map (DST ignored).
+    const off = TZ_OFFSETS[tz] != null ? TZ_OFFSETS[tz] : -5;
+    return off * 60;
+  }
+}
+
+// Build the UTC Date for a given wall-clock (y,m,d,hh,mm) in `tz`.
+// Two-pass: guess offset from a naive UTC build, then refine once (covers the
+// rare case where the offset differs across a DST boundary near the target).
+function wallClockToUtc(tz, year, monthIdx, day, hh, mm) {
+  const naive = Date.UTC(year, monthIdx, day, hh, mm, 0);
+  let offset = tzOffsetMinutes(tz, new Date(naive));
+  let utcMs = naive - offset * 60000;
+  const offset2 = tzOffsetMinutes(tz, new Date(utcMs));
+  if (offset2 !== offset) utcMs = naive - offset2 * 60000;
+  return new Date(utcMs);
+}
+
+// Human label like "Tomorrow 2:30 PM" / "Thu 10:00 AM" rendered in client's tz.
+function slotLabel(startUtc, tz, now = new Date()) {
+  try {
+    const dayFmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' });
+    const timeFmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true
+    });
+    const ymdFmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+    const keyOf = (d) => ymdFmt.format(d);
+    const startKey = keyOf(startUtc);
+    const todayKey = keyOf(now);
+    const tomorrowKey = keyOf(new Date(now.getTime() + 24 * 3600 * 1000));
+    let dayWord;
+    if (startKey === todayKey) dayWord = 'Today';
+    else if (startKey === tomorrowKey) dayWord = 'Tomorrow';
+    else dayWord = dayFmt.format(startUtc);
+    return `${dayWord} ${timeFmt.format(startUtc)}`;
+  } catch (e) {
+    return new Date(startUtc).toISOString();
+  }
+}
+
+// The weekday key ('mon'...) for a UTC instant as seen in `tz`.
+function weekdayKeyInTz(instant, tz) {
+  try {
+    const wd = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' })
+      .format(instant).toLowerCase().slice(0, 3);
+    return wd;
+  } catch (e) {
+    return WEEKDAY_KEYS[instant.getUTCDay()];
+  }
+}
+
+// Parse "HH:MM" -> {h,m}; null if malformed.
+function parseHM(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '').trim());
+  if (!m) return null;
+  const h = parseInt(m[1], 10), mm = parseInt(m[2], 10);
+  if (h < 0 || h > 23 || mm < 0 || mm > 59) return null;
+  return { h, m: mm };
+}
+
+// ── Google Calendar (activates only when env creds + refresh token present) ──
+const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/calendar';
+const GOOGLE_REDIRECT_URI = `${PUBLIC_BASE}/api/tool/google/callback`;
+const _googleTokenCache = new Map(); // client_id -> { token, exp }
+
+function googleConfigured() {
+  return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+}
+
+// Exchange a stored refresh token for a short-lived access token (cached).
+async function googleAccessToken(client) {
+  if (!googleConfigured() || !client || !client.google_refresh_token) return null;
+  const cached = _googleTokenCache.get(client.id);
+  if (cached && cached.exp > Date.now() + 30000) return cached.token;
+  try {
+    const r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        refresh_token: client.google_refresh_token,
+        grant_type: 'refresh_token'
+      }).toString()
+    });
+    if (!r.ok) { console.error('googleAccessToken error', r.status, await r.text()); return null; }
+    const data = await r.json();
+    if (!data.access_token) return null;
+    const exp = Date.now() + ((data.expires_in || 3600) * 1000);
+    _googleTokenCache.set(client.id, { token: data.access_token, exp });
+    return data.access_token;
+  } catch (e) {
+    console.error('googleAccessToken failed:', e);
+    return null;
+  }
+}
+
+// Busy intervals from the client's Google calendar. Returns [{start,end}] (ISO).
+async function googleFreeBusy(client, timeMinISO, timeMaxISO) {
+  try {
+    const token = await googleAccessToken(client);
+    if (!token) return [];
+    const calId = client.google_calendar_id || 'primary';
+    const r = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timeMin: timeMinISO, timeMax: timeMaxISO, items: [{ id: calId }] })
+    });
+    if (!r.ok) { console.error('googleFreeBusy error', r.status); return []; }
+    const data = await r.json();
+    const cal = (data.calendars && data.calendars[calId]) || {};
+    return (cal.busy || []).map((b) => ({ start: b.start, end: b.end }));
+  } catch (e) {
+    console.error('googleFreeBusy failed:', e);
+    return [];
+  }
+}
+
+// Create an event; returns the Google event id or null on failure.
+async function googleCreateEvent(client, { start, end, summary, description }) {
+  try {
+    const token = await googleAccessToken(client);
+    if (!token) return null;
+    const calId = client.google_calendar_id || 'primary';
+    const tz = client.timezone || 'America/New_York';
+    const r = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`,
+      {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: summary || 'Appointment',
+          description: description || '',
+          start: { dateTime: start, timeZone: tz },
+          end: { dateTime: end, timeZone: tz }
+        })
+      }
+    );
+    if (!r.ok) { console.error('googleCreateEvent error', r.status, await r.text()); return null; }
+    const data = await r.json();
+    return data.id || null;
+  } catch (e) {
+    console.error('googleCreateEvent failed:', e);
+    return null;
+  }
+}
+
+async function googleDeleteEvent(client, eventId) {
+  try {
+    if (!eventId) return;
+    const token = await googleAccessToken(client);
+    if (!token) return;
+    const calId = client.google_calendar_id || 'primary';
+    await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(eventId)}`,
+      { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }
+    );
+  } catch (e) {
+    console.error('googleDeleteEvent failed:', e);
+  }
+}
+
+// ── Slot computation ─────────────────────────────────────────────────────────
+// Returns upcoming open slots as [{ start_at, end_at, label }].
+// Approach: walk the next `days` calendar days; for each day look up the client's
+// availability window for that weekday (in client tz); step slot_minutes from
+// open to close, converting each wall-clock slot to a UTC instant via
+// wallClockToUtc (DST-correct per-date). Keep only future slots beyond the lead
+// buffer. Subtract overlapping existing appointments, and (google mode) Google
+// busy intervals. Cap at maxSlots.
+async function getOpenSlots(supabase, client, { days = 5, maxSlots = 3 } = {}) {
+  const tz = client.timezone || 'America/New_York';
+  const slotMin = Number(client.slot_minutes) > 0 ? Number(client.slot_minutes) : 30;
+  const availability = (client.availability && typeof client.availability === 'object')
+    ? client.availability : DEFAULT_AVAILABILITY;
+  const now = new Date();
+  const earliest = now.getTime() + SLOT_LEAD_MS;
+  const windowEnd = new Date(now.getTime() + (days + 1) * 24 * 3600 * 1000);
+
+  // Existing appts that block slots.
+  let busy = [];
+  try {
+    const { data: appts } = await supabase
+      .from('tool_appointments')
+      .select('start_at, end_at, status')
+      .eq('client_id', client.id)
+      .in('status', ['booked', 'confirmed'])
+      .gte('end_at', now.toISOString())
+      .lte('start_at', windowEnd.toISOString());
+    busy = (appts || []).map((a) => ({
+      start: new Date(a.start_at).getTime(), end: new Date(a.end_at).getTime()
+    }));
+  } catch (e) {
+    console.error('getOpenSlots appt lookup error:', e);
+  }
+
+  // Google busy (best-effort; failure falls back to native-only).
+  if (client.booking_mode === 'google' && client.google_refresh_token) {
+    try {
+      const gb = await googleFreeBusy(client, now.toISOString(), windowEnd.toISOString());
+      for (const b of gb) {
+        busy.push({ start: new Date(b.start).getTime(), end: new Date(b.end).getTime() });
+      }
+    } catch (e) {
+      console.error('getOpenSlots google freebusy error (ignored):', e);
+    }
+  }
+
+  const overlaps = (s, e) => busy.some((b) => s < b.end && e > b.start);
+
+  const slots = [];
+  // Iterate calendar days starting today, using each day's date as seen in tz.
+  for (let d = 0; d <= days && slots.length < maxSlots; d++) {
+    const dayInstant = new Date(now.getTime() + d * 24 * 3600 * 1000);
+    // Get the y/m/d for this day as seen in the client tz.
+    let ymd;
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(dayInstant).reduce((a, p) => { a[p.type] = p.value; return a; }, {});
+      ymd = { y: parseInt(parts.year, 10), m: parseInt(parts.month, 10) - 1, d: parseInt(parts.day, 10) };
+    } catch (e) {
+      ymd = { y: dayInstant.getUTCFullYear(), m: dayInstant.getUTCMonth(), d: dayInstant.getUTCDate() };
+    }
+    // Weekday window. Use a noon-of-day probe instant to read the weekday safely.
+    const probe = wallClockToUtc(tz, ymd.y, ymd.m, ymd.d, 12, 0);
+    const wdKey = weekdayKeyInTz(probe, tz);
+    const win = availability[wdKey];
+    if (!Array.isArray(win) || win.length < 2) continue;
+    const open = parseHM(win[0]);
+    const close = parseHM(win[1]);
+    if (!open || !close) continue;
+
+    let cursorMin = open.h * 60 + open.m;
+    const closeMin = close.h * 60 + close.m;
+    for (; cursorMin + slotMin <= closeMin && slots.length < maxSlots; cursorMin += slotMin) {
+      const hh = Math.floor(cursorMin / 60), mm = cursorMin % 60;
+      const startUtc = wallClockToUtc(tz, ymd.y, ymd.m, ymd.d, hh, mm);
+      const startMs = startUtc.getTime();
+      if (startMs < earliest) continue;
+      const endMs = startMs + slotMin * 60000;
+      if (overlaps(startMs, endMs)) continue;
+      slots.push({
+        start_at: new Date(startMs).toISOString(),
+        end_at: new Date(endMs).toISOString(),
+        label: slotLabel(startUtc, tz, now)
+      });
+    }
+  }
+  return slots;
+}
+
+// ── Slot-offer tracking (dual approach) ──────────────────────────────────────
+// Primary: an in-memory Map keyed `${client_id}:${caller}` -> { slots, ts }.
+// Serverless instances are warm for minutes and the same caller usually reuses
+// the same instance, so a numbered reply within minutes hits this cache.
+// Fallback (cold start / evicted): when a caller replies with just a number and
+// the cache is empty, we regenerate getOpenSlots and map the number to the Nth
+// current slot. The offered set is stable over short windows, so this is robust.
+const _offeredSlots = new Map();
+const OFFER_TTL_MS = 30 * 60 * 1000;
+function stashOffer(clientId, caller, slots) {
+  _offeredSlots.set(`${clientId}:${caller}`, { slots, ts: Date.now() });
+}
+function getOfferedSlots(clientId, caller) {
+  const v = _offeredSlots.get(`${clientId}:${caller}`);
+  if (!v) return null;
+  if (Date.now() - v.ts > OFFER_TTL_MS) { _offeredSlots.delete(`${clientId}:${caller}`); return null; }
+  return v.slots;
+}
+
+// Resolve a client by magic token (?token=) or admin client_id (?client_id=).
+// Magic token requires no header auth; client_id is admin-gated by caller.
+async function resolveClient(supabase, { token, client_id }) {
+  if (token) {
+    const { data } = await supabase.from('tool_clients').select('*').eq('magic_token', token).single();
+    return data || null;
+  }
+  if (client_id) {
+    const { data } = await supabase.from('tool_clients').select('*').eq('id', client_id).single();
+    return data || null;
+  }
+  return null;
+}
+
+// Shared: create an appointment + (google) event + confirmation SMS + owner alert.
+async function createBooking(supabase, client, { caller_phone, caller_name, start_at, end_at, service, source }) {
+  const tz = client.timezone || 'America/New_York';
+  const slotMin = Number(client.slot_minutes) > 0 ? Number(client.slot_minutes) : 30;
+  const startMs = new Date(start_at).getTime();
+  const endMs = end_at ? new Date(end_at).getTime() : startMs + slotMin * 60000;
+  const label = slotLabel(new Date(startMs), tz);
+
+  let googleEventId = null;
+  if (client.booking_mode === 'google' && client.google_refresh_token) {
+    googleEventId = await googleCreateEvent(client, {
+      start: new Date(startMs).toISOString(),
+      end: new Date(endMs).toISOString(),
+      summary: `${caller_name || 'Appointment'}${service ? ' — ' + service : ''}`,
+      description: `Booked via ${BRAND.name}. Caller: ${caller_phone || 'unknown'}.`
+    });
+  }
+
+  const { data: appt, error } = await supabase.from('tool_appointments').insert({
+    client_id: client.id,
+    caller_phone: caller_phone || null,
+    caller_name: caller_name || null,
+    start_at: new Date(startMs).toISOString(),
+    end_at: new Date(endMs).toISOString(),
+    service: service || null,
+    status: 'booked',
+    source: source || 'recaller_ai',
+    google_event_id: googleEventId
+  }).select().single();
+  if (error) throw error;
+
+  // Confirmation SMS to the caller (best-effort).
+  if (caller_phone && client.twilio_number) {
+    try {
+      await sendSms(getTwilioClient(), {
+        from: client.twilio_number,
+        to: caller_phone,
+        body: `You're booked for ${label}. See you then! Reply C to cancel.`
+      });
+    } catch (e) { console.error('booking confirm SMS failed:', e); }
+  }
+  // Owner alert (best-effort).
+  if (client.owner_phone && client.twilio_number) {
+    try {
+      await sendSms(getTwilioClient(), {
+        from: client.twilio_number,
+        to: client.owner_phone,
+        body: `${BRAND.name}: ${caller_name || maskPhone(caller_phone)} booked ${label}${service ? ' (' + service + ')' : ''}.`
+      });
+    } catch (e) { console.error('owner booking alert failed:', e); }
+  }
+  return { appointment: appt, label };
+}
+
+// Cancel an appointment row: status->cancelled + delete google event.
+async function cancelBooking(supabase, client, appt) {
+  if (!appt) return;
+  if (appt.google_event_id && client.booking_mode === 'google') {
+    await googleDeleteEvent(client, appt.google_event_id);
+  }
+  await supabase.from('tool_appointments').update({ status: 'cancelled' }).eq('id', appt.id);
+}
+
 // ─── 1 & 8. /api/tool/clients ────────────────────────────────────────────────
 
 async function handleClients(req, res) {
@@ -543,12 +973,14 @@ async function handleClients(req, res) {
       // Provision Twilio number — soft-fail so onboarding can retry later
       try {
         const updated = await provisionTwilioNumber(supabase, client, area_code);
+        await sendWelcomeEmail(supabase, updated);
         return res.status(200).json({
           client: updated,
           forwarding_instructions: forwardingInstructions(updated.twilio_number)
         });
       } catch (twErr) {
         console.error('Twilio provisioning failed:', twErr);
+        await sendWelcomeEmail(supabase, client);
         return res.status(200).json({
           client,
           twilio_error: twErr.message,
@@ -603,6 +1035,8 @@ async function handleVoice(req, res) {
   try {
     if (!validateTwilioWebhook(req, res)) return;
     const supabase = getSupabase();
+    // Opportunistically deliver any due deferred messages on inbound traffic.
+    try { await flushDeferred(getSupabase(), 5); } catch (e) {}
     const to = (req.body && req.body.To) || '';
 
     const { data: client } = await supabase
@@ -613,6 +1047,15 @@ async function handleVoice(req, res) {
 
     if (!client || !client.real_line) {
       return twiml(res, '<Say voice="alice">This number is not configured.</Say><Hangup/>');
+    }
+
+    // STATUS GUARD: churned/paused clients still get graceful forwarding, but no
+    // verification tracking and no downstream text-back service.
+    if (client.status === 'churned' || client.status === 'paused') {
+      return twiml(
+        res,
+        `<Dial timeout="25">${xmlEscape(client.real_line)}</Dial>`
+      );
     }
 
     // ANY inbound call proves forwarding works — record it.
@@ -674,6 +1117,12 @@ async function handleVoiceStatus(req, res) {
       .single();
     if (callErr) console.error('tool_calls insert error:', callErr);
 
+    // STATUS GUARD: churned/paused — row inserted above for data continuity, but
+    // no text-back is sent.
+    if (client.status === 'churned' || client.status === 'paused') {
+      return twiml(res);
+    }
+
     // Skip text-back for the practice's own numbers / non-textable callers / opt-outs
     const callerDigits = normalizePhone(caller);
     const skipSelf =
@@ -725,6 +1174,8 @@ async function handleSms(req, res) {
   try {
     if (!validateTwilioWebhook(req, res)) return;
     const supabase = getSupabase();
+    // Opportunistically deliver any due deferred messages on inbound traffic.
+    try { await flushDeferred(getSupabase(), 5); } catch (e) {}
     const to = (req.body && req.body.To) || '';
     const caller = (req.body && req.body.From) || '';
     const body = (req.body && req.body.Body) || '';
@@ -736,6 +1187,20 @@ async function handleSms(req, res) {
       .eq('twilio_number', to)
       .single();
     if (!client) return twiml(res);
+
+    // STATUS GUARD: churned/paused — log the inbound message for continuity, but
+    // send NO outbound (no AI reply, no owner alert).
+    if (client.status === 'churned' || client.status === 'paused') {
+      await supabase.from('tool_messages').insert({
+        client_id: client.id,
+        caller_phone: caller,
+        direction: 'inbound',
+        body,
+        ai_generated: false,
+        twilio_sid: msgSid
+      });
+      return twiml(res);
+    }
 
     // Find most recent call from this caller for this client
     const { data: recentCalls } = await supabase
@@ -769,6 +1234,22 @@ async function handleSms(req, res) {
       await supabase.from('tool_calls').update({ recovered: true }).eq('id', callRow.id);
     }
 
+    // HUMAN TAKEOVER: if the owner has taken over this caller (active window),
+    // skip the AI auto-reply — but still do booking marking + owner alert below.
+    let humanTakeover = false;
+    try {
+      const { data: takeovers } = await supabase
+        .from('tool_takeovers')
+        .select('*')
+        .eq('client_id', client.id)
+        .eq('caller_phone', caller)
+        .gt('until', new Date().toISOString())
+        .limit(1);
+      humanTakeover = !!(takeovers && takeovers[0]);
+    } catch (e) {
+      console.error('takeover lookup error:', e);
+    }
+
     // Conversation history (last 6 messages)
     const { data: histDesc } = await supabase
       .from('tool_messages')
@@ -779,14 +1260,86 @@ async function handleSms(req, res) {
       .limit(6);
     const history = (histDesc || []).reverse();
 
+    const trimmed = (body || '').trim();
+
+    // ── Cancellation: "C" or "cancel" cancels the next upcoming appointment. ──
+    if (/^\s*(c|cancel)\s*$/i.test(trimmed)) {
+      try {
+        const { data: upcoming } = await supabase
+          .from('tool_appointments')
+          .select('*')
+          .eq('client_id', client.id)
+          .eq('caller_phone', caller)
+          .in('status', ['booked', 'confirmed'])
+          .gte('start_at', new Date().toISOString())
+          .order('start_at', { ascending: true })
+          .limit(1);
+        const appt = upcoming && upcoming[0];
+        if (appt) {
+          await cancelBooking(supabase, client, appt);
+          const label = slotLabel(new Date(appt.start_at), client.timezone || 'America/New_York');
+          if (!humanTakeover) {
+            await sendOrDefer(supabase, client, {
+              caller,
+              body: `Your appointment for ${label} is cancelled. Reply anytime to rebook.`,
+              ai_generated: false
+            });
+          }
+          return twiml(res);
+        }
+        // No appointment to cancel — fall through to normal handling.
+      } catch (e) {
+        console.error('cancellation error:', e);
+      }
+    }
+
+    // ── Slot selection: caller replies with just a number (1-9). ──
+    const numMatch = /^\s*([1-9])\s*$/.exec(trimmed);
+    if (numMatch) {
+      const idx = parseInt(numMatch[1], 10) - 1;
+      try {
+        let offered = getOfferedSlots(client.id, caller);
+        // Cold-start fallback: regenerate current slots and map by index.
+        if (!offered) {
+          offered = await getOpenSlots(supabase, client, { days: 5, maxSlots: 3 });
+        }
+        const chosen = offered && offered[idx];
+        if (chosen) {
+          // Infer name from prior inbound history if we ever captured one (none yet).
+          const { appointment, label } = await createBooking(supabase, client, {
+            caller_phone: caller,
+            caller_name: null,
+            start_at: chosen.start_at,
+            end_at: chosen.end_at,
+            service: client.services ? null : null,
+            source: 'recaller_ai'
+          });
+          _offeredSlots.delete(`${client.id}:${caller}`);
+          if (callRow) {
+            await supabase.from('tool_calls').update({ booked: true, recovered: true }).eq('id', callRow.id);
+          }
+          // createBooking already sent caller confirmation + owner alert.
+          return twiml(res);
+        }
+      } catch (e) {
+        console.error('slot selection error:', e);
+      }
+      // If we couldn't map the number, fall through to normal AI handling.
+    }
+
     const bookingIntent = /\b(yes|yeah|sure|book|appointment|ok|please)\b/i.test(body);
-    let reply;
+    const mode = client.booking_mode || 'native';
+    const offersSlots = (mode === 'native' || mode === 'google');
 
     if (bookingIntent) {
       if (callRow) {
-        await supabase.from('tool_calls').update({ booked: true, recovered: true }).eq('id', callRow.id);
+        await supabase.from('tool_calls').update({ recovered: true }).eq('id', callRow.id);
+        // Mark booked only for handoff/calcom (no in-SMS confirmation step).
+        if (mode === 'handoff' || mode === 'calcom') {
+          await supabase.from('tool_calls').update({ booked: true }).eq('id', callRow.id);
+        }
       }
-      // Notify the practice owner
+      // Notify the practice owner (still fires under human takeover)
       if (client.owner_phone) {
         try {
           await sendSms(getTwilioClient(), {
@@ -798,6 +1351,50 @@ async function handleSms(req, res) {
           console.error('Owner notify SMS failed:', notifyErr);
         }
       }
+    }
+
+    // Under human takeover, the owner is handling the conversation — skip the AI auto-reply.
+    if (humanTakeover) {
+      return twiml(res);
+    }
+
+    let reply;
+    if (bookingIntent && offersSlots) {
+      // Native/Google: offer concrete open slots as a numbered list.
+      let slots = [];
+      try {
+        slots = await getOpenSlots(supabase, client, { days: 5, maxSlots: 3 });
+      } catch (e) {
+        console.error('getOpenSlots error in handleSms:', e);
+      }
+      if (slots.length) {
+        stashOffer(client.id, caller, slots);
+        const list = slots.map((s, i) => `${i + 1}) ${s.label}`).join('  ');
+        reply = `Great! I can get you in: ${list} — just reply with the number.`;
+      } else {
+        // No open slots — fall back to a warm human-callback message.
+        reply = await generateAiMessage({
+          client,
+          history,
+          purpose: 'The person wants to book but we have no open slots in the next few days. Apologize warmly and say someone will call them shortly to find a time.',
+          fallback: `Thanks! We're fully booked for the next few days — someone from ${client.practice_name} will call you shortly to find a time.`
+        });
+        if (callRow) await supabase.from('tool_calls').update({ booked: true }).eq('id', callRow.id);
+      }
+    } else if (bookingIntent && (mode === 'handoff' || mode === 'calcom')) {
+      // Handoff / cal.com: invite them to grab a time at the booking link.
+      const link = client.booking_link;
+      reply = await generateAiMessage({
+        client,
+        history,
+        purpose: link
+          ? `The person wants to book. Warmly invite them to grab a time at this link: ${link}`
+          : 'The person wants to book. Warmly confirm that someone will call them shortly to set a time.',
+        fallback: link
+          ? `Great! Grab a time that works for you here: ${link}`
+          : `Great! Someone from ${client.practice_name} will call you shortly to confirm a time. Talk soon!`
+      });
+    } else if (bookingIntent) {
       reply = await generateAiMessage({
         client,
         history,
@@ -1203,50 +1800,202 @@ async function handleSmsStatus(req, res) {
   }
 }
 
+// ─── Reusable deferred-message flush ─────────────────────────────────────────
+// Single indexed query for due deferred rows (send-time <= now), sends each, and
+// clears them. Used by cron-flush (limit 200) and opportunistically by inbound
+// traffic (limit 5). Returns the per-row results array.
+async function flushDeferred(supabase, limit = 10) {
+  const nowIso = new Date().toISOString();
+  const { data: due, error } = await supabase
+    .from('tool_messages')
+    .select('*')
+    .eq('delivery_status', 'deferred')
+    .lte('deferred_until', nowIso)
+    .limit(limit);
+  if (error) throw error;
+
+  const results = [];
+  for (const row of due || []) {
+    try {
+      const { data: client } = await supabase
+        .from('tool_clients')
+        .select('*')
+        .eq('id', row.client_id)
+        .single();
+      if (!client || !client.twilio_number || !row.caller_phone) {
+        results.push({ id: row.id, skipped: 'missing client/number' });
+        continue;
+      }
+      const msg = await sendSms(getTwilioClient(), {
+        from: client.twilio_number,
+        to: row.caller_phone,
+        body: row.body
+      });
+      await supabase
+        .from('tool_messages')
+        .update({ twilio_sid: msg.sid, delivery_status: 'sent', deferred_until: null })
+        .eq('id', row.id);
+      results.push({ id: row.id, sent: true });
+    } catch (e) {
+      console.error('flushDeferred send error for msg', row.id, e);
+      results.push({ id: row.id, error: e.message });
+    }
+  }
+  return results;
+}
+
 // ─── GET /api/tool/cron-flush — send deferred (quiet-hours) messages ─────────
 // No auth, safe to call anytime. Sends due deferred messages and clears them.
+// Also runs daily at 13:00 UTC to drive trial lifecycle automation.
 async function handleCronFlush(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
   try {
     const supabase = getSupabase();
-    const nowIso = new Date().toISOString();
 
-    const { data: due, error } = await supabase
-      .from('tool_messages')
-      .select('*')
-      .eq('delivery_status', 'deferred')
-      .lte('deferred_until', nowIso)
-      .limit(200);
-    if (error) throw error;
+    const results = await flushDeferred(supabase, 200);
 
-    const results = [];
-    for (const row of due || []) {
-      try {
-        const { data: client } = await supabase
-          .from('tool_clients')
-          .select('*')
-          .eq('id', row.client_id)
-          .single();
-        if (!client || !client.twilio_number || !row.caller_phone) {
-          results.push({ id: row.id, skipped: 'missing client/number' });
-          continue;
+    // ── Trial lifecycle automation ──
+    const trial_lifecycle = [];
+    try {
+      const { data: trials } = await supabase
+        .from('tool_clients')
+        .select('*')
+        .eq('status', 'trial');
+      for (const client of trials || []) {
+        try {
+          if (!client.trial_started_at) continue;
+          const days = Math.floor((Date.now() - new Date(client.trial_started_at).getTime()) / 86400000);
+
+          // Day 10+: pause
+          if (days >= 10 && client.status === 'trial') {
+            await supabase.from('tool_clients').update({ status: 'paused' }).eq('id', client.id);
+            if (client.owner_email) {
+              await sendEmail({
+                to: client.owner_email,
+                toName: client.owner_name,
+                subject: "We've paused your Vyrrah Recaller account",
+                body: [
+                  `Hi ${client.owner_name || 'there'},`,
+                  '',
+                  `We've paused your ${BRAND.name} account. Your number still forwards to your line, but we're no longer texting your missed callers.`,
+                  '',
+                  'Want it back on? Just reply to this email, or grab 15 minutes with Godwin: cal.com/godwin-rayen/30min',
+                  '',
+                  `— ${BRAND.from}`
+                ].join('\n')
+              });
+            }
+            trial_lifecycle.push({ client_id: client.id, action: 'paused', days });
+            continue;
+          }
+
+          // Day 7+: full week recap
+          if (days >= 7 && !client.day7_sent && client.owner_email) {
+            const stats = await computeStats(supabase, client.id, 7);
+            await sendEmail({
+              to: client.owner_email,
+              toName: client.owner_name,
+              subject: 'Your week with Vyrrah Recaller — here are the numbers',
+              body: [
+                `Hi ${client.owner_name || 'there'},`,
+                '',
+                `Here's your full first week with ${BRAND.name} for ${client.practice_name}:`,
+                '',
+                `- Missed calls caught: ${stats.missed}`,
+                `- Conversations recovered: ${stats.recovered}`,
+                `- Bookings: ${stats.booked}`,
+                `- Estimated revenue saved: $${stats.est_revenue_saved}`,
+                '',
+                `In short: you recovered ~$${stats.est_revenue_saved} in bookings. The tool is $500/month.`,
+                '',
+                `Keep it running: ${PUBLIC_BASE}/recaller?token=${client.magic_token}`,
+                'or grab 15 min with Godwin: cal.com/godwin-rayen/30min',
+                '',
+                `— ${BRAND.from}`
+              ].join('\n')
+            });
+            await supabase.from('tool_clients').update({ day7_sent: true }).eq('id', client.id);
+            trial_lifecycle.push({ client_id: client.id, action: 'day7_email', days });
+            continue;
+          }
+
+          // Day 5+: 5-day check-in
+          if (days >= 5 && !client.day5_sent && client.owner_email) {
+            const stats = await computeStats(supabase, client.id, 7);
+            await sendEmail({
+              to: client.owner_email,
+              toName: client.owner_name,
+              subject: 'Your first 5 days with Vyrrah Recaller',
+              body: [
+                `Hi ${client.owner_name || 'there'},`,
+                '',
+                `Here's what ${BRAND.name} has done for ${client.practice_name} so far:`,
+                '',
+                `- Missed calls caught: ${stats.missed}`,
+                `- Conversations recovered: ${stats.recovered}`,
+                `- Bookings: ${stats.booked}`,
+                `- Estimated revenue saved: $${stats.est_revenue_saved}`,
+                '',
+                'Your free week ends in about 2 days. Keep it running for $500/month, cancel anytime:',
+                `${PUBLIC_BASE}/recaller?token=${client.magic_token}`,
+                '',
+                `— ${BRAND.from}`
+              ].join('\n')
+            });
+            await supabase.from('tool_clients').update({ day5_sent: true }).eq('id', client.id);
+            trial_lifecycle.push({ client_id: client.id, action: 'day5_email', days });
+          }
+        } catch (e) {
+          console.error('trial lifecycle error for client', client.id, e);
+          trial_lifecycle.push({ client_id: client.id, error: e.message });
         }
-        const msg = await sendSms(getTwilioClient(), {
-          from: client.twilio_number,
-          to: row.caller_phone,
-          body: row.body
-        });
-        await supabase
-          .from('tool_messages')
-          .update({ twilio_sid: msg.sid, delivery_status: 'sent', deferred_until: null })
-          .eq('id', row.id);
-        results.push({ id: row.id, sent: true });
-      } catch (e) {
-        console.error('cron-flush send error for msg', row.id, e);
-        results.push({ id: row.id, error: e.message });
       }
+    } catch (e) {
+      console.error('trial lifecycle query error:', e);
     }
-    return res.status(200).json({ ok: true, flushed: results.length, results });
+
+    // ── Appointment reminders: booked/confirmed starting within next 24h ──
+    const reminders = [];
+    try {
+      const nowIso = new Date().toISOString();
+      const in24h = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+      const { data: appts } = await supabase
+        .from('tool_appointments')
+        .select('*')
+        .in('status', ['booked', 'confirmed'])
+        .eq('reminder_sent', false)
+        .gte('start_at', nowIso)
+        .lte('start_at', in24h);
+      // Cache clients across appts to avoid repeat lookups.
+      const clientCache = new Map();
+      for (const appt of appts || []) {
+        try {
+          if (!appt.caller_phone) continue;
+          let client = clientCache.get(appt.client_id);
+          if (!client) {
+            const { data: c } = await supabase
+              .from('tool_clients').select('*').eq('id', appt.client_id).single();
+            client = c; clientCache.set(appt.client_id, c);
+          }
+          if (!client || !client.twilio_number) continue;
+          const label = slotLabel(new Date(appt.start_at), client.timezone || 'America/New_York');
+          await sendOrDefer(supabase, client, {
+            caller: appt.caller_phone,
+            body: `Reminder: your appointment with ${client.practice_name} is ${label}. Reply C to cancel.`,
+            ai_generated: false
+          });
+          await supabase.from('tool_appointments').update({ reminder_sent: true }).eq('id', appt.id);
+          reminders.push({ appointment_id: appt.id, sent: true });
+        } catch (e) {
+          console.error('reminder error for appt', appt.id, e);
+          reminders.push({ appointment_id: appt.id, error: e.message });
+        }
+      }
+    } catch (e) {
+      console.error('appointment reminders query error:', e);
+    }
+
+    return res.status(200).json({ ok: true, flushed: results.length, results, trial_lifecycle, reminders });
   } catch (err) {
     console.error('tool/cron-flush error:', err);
     return res.status(500).json({ error: err.message });
@@ -1315,7 +2064,8 @@ async function handleDodoWebhook(req, res) {
 
     const activate = ['subscription.active', 'payment.succeeded'].includes(type);
     const churn = ['subscription.cancelled', 'subscription.expired'].includes(type);
-    if (!activate && !churn) {
+    const failed = ['payment.failed', 'subscription.payment_failed'].includes(type);
+    if (!activate && !churn && !failed) {
       return res.status(200).json({ ok: true, ignored: type || 'unknown event' });
     }
 
@@ -1343,12 +2093,35 @@ async function handleDodoWebhook(req, res) {
       return res.status(200).json({ ok: true, matched: false });
     }
 
-    const status = activate ? 'active' : 'churned';
+    const status = activate ? 'active' : failed ? 'past_due' : 'churned';
     const { error } = await supabase
       .from('tool_clients')
       .update({ status })
       .eq('id', client.id);
     if (error) console.error('dodo-webhook: status update failed', error);
+
+    // On payment failure: enter dunning — service continues, email the owner.
+    if (failed && client.owner_email) {
+      try {
+        await sendEmail({
+          to: client.owner_email,
+          toName: client.owner_name,
+          subject: 'Payment issue with Vyrrah Recaller',
+          body: [
+            `Hi ${client.owner_name || 'there'},`,
+            '',
+            `Your payment for ${BRAND.name} didn't go through. No need to worry — your service continues for now.`,
+            '',
+            `Update your card here: ${PUBLIC_BASE}/recaller?token=${client.magic_token}`,
+            'Or grab 15 min with Godwin if you need a hand: cal.com/godwin-rayen/30min',
+            '',
+            `— ${BRAND.from}`
+          ].join('\n')
+        });
+      } catch (mailErr) {
+        console.error('dodo-webhook: dunning email failed', mailErr);
+      }
+    }
 
     // On churn, best-effort release any pooled number back to availability.
     if (churn) {
@@ -1621,6 +2394,438 @@ async function handleAdminOverview(req, res) {
   }
 }
 
+// ─── POST /api/tool/reply — owner portal reply + human takeover ──────────────
+// Magic-token auth. Sends an owner-authored SMS to a caller (identified by last4),
+// then opens a 24h human-takeover window suppressing AI auto-replies.
+async function handleReply(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    const { token, last4, body } = req.body || {};
+    if (!token) return res.status(400).json({ error: 'token required' });
+    if (!last4) return res.status(400).json({ error: 'last4 required' });
+    const text = typeof body === 'string' ? body.trim() : '';
+    if (!text) return res.status(400).json({ error: 'body required' });
+
+    const { data: client } = await supabase
+      .from('tool_clients')
+      .select('*')
+      .eq('magic_token', token)
+      .single();
+    if (!client) return res.status(404).json({ error: 'Invalid token' });
+    if (!client.twilio_number) return res.status(400).json({ error: 'No Vyrrah number provisioned' });
+
+    const last4Digits = normalizePhone(last4).slice(-4);
+
+    // Find caller_phone: most recent message or call whose number ends in last4.
+    let caller = null;
+    let latestTs = 0;
+    const { data: msgs } = await supabase
+      .from('tool_messages')
+      .select('caller_phone, created_at')
+      .eq('client_id', client.id)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    for (const m of msgs || []) {
+      if (m.caller_phone && normalizePhone(m.caller_phone).slice(-4) === last4Digits) {
+        const ts = new Date(m.created_at).getTime();
+        if (ts >= latestTs) { latestTs = ts; caller = m.caller_phone; }
+      }
+    }
+    const { data: calls } = await supabase
+      .from('tool_calls')
+      .select('caller_phone, created_at')
+      .eq('client_id', client.id)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    for (const c of calls || []) {
+      if (c.caller_phone && normalizePhone(c.caller_phone).slice(-4) === last4Digits) {
+        const ts = new Date(c.created_at).getTime();
+        if (ts >= latestTs) { latestTs = ts; caller = c.caller_phone; }
+      }
+    }
+    if (!caller) return res.status(404).json({ error: 'No caller found matching last4' });
+
+    // Send immediately (owner-initiated — bypass quiet hours), logging an
+    // outbound row with ai_generated=false.
+    const { data: row } = await supabase.from('tool_messages').insert({
+      client_id: client.id,
+      caller_phone: caller,
+      direction: 'outbound',
+      body: text,
+      ai_generated: false,
+      delivery_status: 'queued'
+    }).select().single();
+    try {
+      const msg = await sendSms(getTwilioClient(), { from: client.twilio_number, to: caller, body: text });
+      if (row) await supabase.from('tool_messages').update({ twilio_sid: msg.sid }).eq('id', row.id);
+    } catch (sendErr) {
+      console.error('handleReply send failed:', sendErr);
+      if (row) await supabase.from('tool_messages').update({ delivery_status: 'failed' }).eq('id', row.id);
+      return res.status(502).json({ error: 'SMS send failed', detail: sendErr.message });
+    }
+
+    // Upsert a fresh 24h takeover window.
+    try {
+      await supabase.from('tool_takeovers')
+        .delete()
+        .eq('client_id', client.id)
+        .eq('caller_phone', caller);
+      await supabase.from('tool_takeovers').insert({
+        client_id: client.id,
+        caller_phone: caller,
+        until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      });
+    } catch (toErr) {
+      console.error('handleReply takeover upsert error:', toErr);
+    }
+
+    return res.status(200).json({ ok: true, sent_to: maskPhone(caller) });
+  } catch (err) {
+    console.error('tool/reply error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── POST /api/tool/admin-action — admin lifecycle controls ──────────────────
+async function handleAdminAction(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    const { client_id, action, value } = req.body || {};
+    if (!client_id) return res.status(400).json({ error: 'client_id required' });
+    if (!action) return res.status(400).json({ error: 'action required' });
+
+    const { data: client } = await supabase
+      .from('tool_clients')
+      .select('*')
+      .eq('id', client_id)
+      .single();
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+
+    let patch = {};
+    switch (action) {
+      case 'pause':
+        patch = { status: 'paused' };
+        break;
+      case 'resume':
+        patch = { status: 'active' };
+        break;
+      case 'churn':
+        patch = { status: 'churned' };
+        break;
+      case 'set_value':
+        patch = { avg_customer_value: Number(value) };
+        break;
+      case 'reactivate_trial':
+        patch = {
+          status: 'trial',
+          trial_started_at: new Date().toISOString(),
+          day5_sent: false,
+          day7_sent: false
+        };
+        break;
+      default:
+        return res.status(400).json({ error: 'Unknown action' });
+    }
+
+    const { data: updated, error } = await supabase
+      .from('tool_clients')
+      .update(patch)
+      .eq('id', client.id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // On churn, best-effort release any pooled number (same pattern as dodo-webhook).
+    if (action === 'churn') {
+      try {
+        await supabase.from('number_pool')
+          .update({ status: 'available', assigned_client_id: null })
+          .eq('assigned_client_id', client.id);
+      } catch (relErr) {
+        console.error('admin-action: pool release failed', relErr);
+      }
+    }
+
+    return res.status(200).json({ ok: true, client: updated });
+  } catch (err) {
+    console.error('tool/admin-action error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── Booking endpoints ───────────────────────────────────────────────────────
+
+// GET /api/tool/availability?token=MAGIC&date=YYYY-MM-DD — open slots for a day.
+// Magic-token auth (client-facing portal). If no date, returns next-5-day slots.
+async function handleAvailability(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const supabase = getSupabase();
+    const token = req.query.token;
+    if (!token) return res.status(400).json({ error: 'token required' });
+    const client = await resolveClient(supabase, { token });
+    if (!client) return res.status(404).json({ error: 'Invalid token' });
+
+    const date = req.query.date;
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      // Slots for a single day: generate a wide window then filter to that date.
+      const all = await getOpenSlots(supabase, client, { days: 14, maxSlots: 200 });
+      const tz = client.timezone || 'America/New_York';
+      const ymdFmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'
+      });
+      const slots = all.filter((s) => {
+        try { return ymdFmt.format(new Date(s.start_at)) === date; } catch (e) { return false; }
+      });
+      return res.status(200).json({ slots });
+    }
+
+    const slots = await getOpenSlots(supabase, client, { days: 5, maxSlots: 50 });
+    return res.status(200).json({ slots });
+  } catch (err) {
+    console.error('tool/availability error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// /api/tool/appointments
+//   GET  ?token=MAGIC | ?client_id (admin) — list upcoming appointments.
+//   POST { token|client_id, caller_phone, caller_name, start_at, service } — manual booking.
+async function handleAppointments(req, res) {
+  const supabase = getSupabase();
+  try {
+    if (req.method === 'GET') {
+      const token = req.query.token;
+      const client_id = req.query.client_id;
+      if (!token && !requireAuth(req, res)) return; // client_id path is admin-gated
+      const client = await resolveClient(supabase, { token, client_id });
+      if (!client) return res.status(404).json({ error: 'Client not found' });
+
+      const { data: appts } = await supabase
+        .from('tool_appointments')
+        .select('*')
+        .eq('client_id', client.id)
+        .in('status', ['booked', 'confirmed'])
+        .gte('start_at', new Date().toISOString())
+        .order('start_at', { ascending: true })
+        .limit(100);
+      const tz = client.timezone || 'America/New_York';
+      const out = (appts || []).map((a) => ({
+        id: a.id,
+        caller: maskPhone(a.caller_phone),
+        caller_name: a.caller_name || null,
+        start_at: a.start_at,
+        end_at: a.end_at,
+        label: slotLabel(new Date(a.start_at), tz),
+        service: a.service || null,
+        status: a.status
+      }));
+      return res.status(200).json({ appointments: out });
+    }
+
+    if (req.method === 'POST') {
+      const { token, client_id, caller_phone, caller_name, start_at, service } = req.body || {};
+      if (!token && !requireAuth(req, res)) return;
+      const client = await resolveClient(supabase, { token, client_id });
+      if (!client) return res.status(404).json({ error: 'Client not found' });
+      if (!start_at || isNaN(new Date(start_at).getTime())) {
+        return res.status(400).json({ error: 'valid start_at (ISO) required' });
+      }
+      const { appointment, label } = await createBooking(supabase, client, {
+        caller_phone: caller_phone || null,
+        caller_name: caller_name || null,
+        start_at,
+        service: service || null,
+        source: 'manual'
+      });
+      return res.status(200).json({ ok: true, appointment, label });
+    }
+
+    return res.status(405).json({ error: 'Method not allowed' });
+  } catch (err) {
+    console.error('tool/appointments error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// POST /api/tool/appointments/cancel { token|client_id, appointment_id }
+async function handleAppointmentsCancel(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const { token, client_id, appointment_id } = req.body || {};
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (!appointment_id) return res.status(400).json({ error: 'appointment_id required' });
+
+    const { data: appt } = await supabase
+      .from('tool_appointments')
+      .select('*')
+      .eq('id', appointment_id)
+      .eq('client_id', client.id)
+      .single();
+    if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+
+    await cancelBooking(supabase, client, appt);
+    const label = slotLabel(new Date(appt.start_at), client.timezone || 'America/New_York');
+    if (appt.caller_phone && client.twilio_number) {
+      try {
+        await sendSms(getTwilioClient(), {
+          from: client.twilio_number,
+          to: appt.caller_phone,
+          body: `Your appointment for ${label} has been cancelled. Reply anytime to rebook.`
+        });
+      } catch (e) { console.error('cancel SMS failed:', e); }
+    }
+    return res.status(200).json({ ok: true, cancelled: appt.id });
+  } catch (err) {
+    console.error('tool/appointments/cancel error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// POST /api/tool/config { token|client_id, booking_mode, slot_minutes, timezone,
+//   availability, booking_link, google_calendar_id } — update booking config.
+async function handleConfig(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const b = req.body || {};
+    const { token, client_id } = b;
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+
+    const patch = {};
+    if (b.booking_mode !== undefined) {
+      if (!['native', 'google', 'calcom', 'handoff'].includes(b.booking_mode)) {
+        return res.status(400).json({ error: 'invalid booking_mode' });
+      }
+      patch.booking_mode = b.booking_mode;
+    }
+    if (b.slot_minutes !== undefined) {
+      const n = parseInt(b.slot_minutes, 10);
+      if (!Number.isFinite(n) || n < 5 || n > 480) {
+        return res.status(400).json({ error: 'slot_minutes must be 5-480' });
+      }
+      patch.slot_minutes = n;
+    }
+    if (b.timezone !== undefined) patch.timezone = String(b.timezone);
+    if (b.booking_link !== undefined) patch.booking_link = b.booking_link || null;
+    if (b.google_calendar_id !== undefined) patch.google_calendar_id = b.google_calendar_id || 'primary';
+    if (b.availability !== undefined) {
+      if (b.availability !== null && typeof b.availability !== 'object') {
+        return res.status(400).json({ error: 'availability must be an object' });
+      }
+      // Light validation: each value should be [open, close] HH:MM strings.
+      if (b.availability) {
+        for (const k of Object.keys(b.availability)) {
+          const v = b.availability[k];
+          if (v != null && (!Array.isArray(v) || v.length < 2 || !parseHM(v[0]) || !parseHM(v[1]))) {
+            return res.status(400).json({ error: `invalid availability for ${k} (expected ["HH:MM","HH:MM"])` });
+          }
+        }
+      }
+      patch.availability = b.availability;
+    }
+    if (!Object.keys(patch).length) return res.status(400).json({ error: 'nothing to update' });
+
+    const { data: updated, error } = await supabase
+      .from('tool_clients').update(patch).eq('id', client.id).select().single();
+    if (error) throw error;
+    return res.status(200).json({ ok: true, client: updated });
+  } catch (err) {
+    console.error('tool/config error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── Google Calendar OAuth ───────────────────────────────────────────────────
+
+// GET /api/tool/google/connect?token=MAGIC — redirect to Google consent.
+async function handleGoogleConnect(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    if (!googleConfigured()) return res.status(200).json({ error: 'Google not configured' });
+    const token = req.query.token;
+    if (!token) return res.status(400).json({ error: 'token required' });
+    const supabase = getSupabase();
+    const client = await resolveClient(supabase, { token });
+    if (!client) return res.status(404).json({ error: 'Invalid token' });
+
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      redirect_uri: GOOGLE_REDIRECT_URI,
+      response_type: 'code',
+      scope: GOOGLE_SCOPE,
+      access_type: 'offline',
+      prompt: 'consent',
+      state: token
+    }).toString();
+    res.writeHead(302, { Location: url });
+    return res.end();
+  } catch (err) {
+    console.error('tool/google/connect error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// GET /api/tool/google/callback?code=&state= — exchange code, store refresh token.
+async function handleGoogleCallback(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    if (!googleConfigured()) return res.status(200).json({ error: 'Google not configured' });
+    const code = req.query.code;
+    const state = req.query.state; // = magic token
+    if (!code || !state) return res.status(400).json({ error: 'code and state required' });
+    const supabase = getSupabase();
+    const client = await resolveClient(supabase, { token: state });
+    if (!client) return res.status(404).json({ error: 'Invalid state' });
+
+    const r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_REDIRECT_URI,
+        grant_type: 'authorization_code'
+      }).toString()
+    });
+    if (!r.ok) {
+      console.error('google token exchange failed', r.status, await r.text());
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send('<html><body><h2>Connection failed</h2><p>Please try again.</p></body></html>');
+    }
+    const data = await r.json();
+    const refresh = data.refresh_token;
+    if (!refresh) {
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send('<html><body><h2>Connection incomplete</h2><p>No refresh token returned — try again and approve offline access.</p></body></html>');
+    }
+    await supabase.from('tool_clients')
+      .update({ google_refresh_token: refresh, booking_mode: 'google' })
+      .eq('id', client.id);
+    _googleTokenCache.delete(client.id);
+
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(
+      '<html><body style="font-family:sans-serif;text-align:center;padding:60px">' +
+      '<h2>Google Calendar connected</h2>' +
+      '<p>You can close this tab.</p></body></html>'
+    );
+  } catch (err) {
+    console.error('tool/google/callback error:', err);
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send('<html><body><h2>Something went wrong</h2></body></html>');
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 module.exports = async (req, res) => {
@@ -1651,6 +2856,14 @@ module.exports = async (req, res) => {
   if (seg0 === 'checkout') return handleCheckout(req, res);
   if (seg0 === 'dodo-webhook') return handleDodoWebhook(req, res);
   if (seg0 === 'pay') return handlePay(req, res);
+  if (seg0 === 'reply') return handleReply(req, res);
+  if (seg0 === 'admin-action') return handleAdminAction(req, res);
+  if (seg0 === 'availability') return handleAvailability(req, res);
+  if (seg0 === 'appointments' && seg1 === 'cancel') return handleAppointmentsCancel(req, res);
+  if (seg0 === 'appointments') return handleAppointments(req, res);
+  if (seg0 === 'config') return handleConfig(req, res);
+  if (seg0 === 'google' && seg1 === 'connect') return handleGoogleConnect(req, res);
+  if (seg0 === 'google' && seg1 === 'callback') return handleGoogleCallback(req, res);
 
   return res.status(404).json({ error: 'Route not found' });
 };
