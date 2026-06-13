@@ -421,6 +421,11 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 .slot-row:last-child{border-bottom:none}
 .slot-row span{color:var(--gray)}
 .slot-row b{color:var(--gray);font-family:'Syne',sans-serif;letter-spacing:2px}
+.slot-mini.sample{border-style:solid;border-color:var(--border2);background:linear-gradient(180deg,rgba(240,165,0,.04),transparent)}
+.slot-mini.sample .slot-row b{letter-spacing:-.5px;font-size:17px}
+.slot-mini.sample .slot-row b.r{color:var(--red2)}
+.slot-mini.sample .slot-row b.g{color:var(--gold)}
+.samp-badge{font-family:'DM Sans',sans-serif;font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--bg);background:var(--gold);padding:3px 8px;border-radius:2px;margin-left:8px;vertical-align:middle}
 @media(max-width:980px){.res-tease{padding:90px 20px}.res-tease .inner{grid-template-columns:1fr;gap:46px}}
 
 /* FAQ */
@@ -473,6 +478,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 footer{padding:54px 52px;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;border-top:1px solid var(--border)}
 footer .fl{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:-.5px}
 footer .fl span{color:var(--gold)}
+.srcnote{flex-basis:100%;width:100%;font-size:11px;color:var(--gray);line-height:1.6;max-width:820px;margin-bottom:8px;padding-bottom:18px;border-bottom:1px solid var(--border)}
 footer p{font-size:12.5px;color:var(--gray)}
 footer .flinks{display:flex;gap:24px}
 footer .flinks a{font-size:12.5px;color:var(--gray);text-decoration:none;transition:color .2s}
@@ -595,14 +601,13 @@ footer .flinks a:hover{color:var(--gold)}
   .bridge .b-txt{padding:14px 0 14px 0}
 }
 
-/* CONNECTOR TICK between tool sections */
-.bridge-strip{padding:0 52px;position:relative;z-index:3;margin-top:-66px}
-.bridge-strip + .toolsec{padding-top:48px}
+/* CONNECTOR LEAD-IN at top of a tool section */
+.bridge-strip{position:relative;z-index:3;margin-bottom:42px}
 .bridge-strip .inner{border-left:2px solid var(--gold);padding:4px 0 4px 26px;max-width:760px}
 .bridge-strip .lab{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
 .bridge-strip p{font-size:16px;color:var(--white);line-height:1.6;font-family:'Fraunces',serif}
 .bridge-strip p span{color:var(--mid);font-family:'DM Sans',sans-serif;font-size:15px}
-@media(max-width:980px){.bridge-strip{padding:0 20px;margin-top:-46px}.bridge-strip + .toolsec{padding-top:34px}}
+@media(max-width:980px){.bridge-strip{margin-bottom:32px}}
 
 /* LIVE LOSS TICKER */
 #ticker-loss{position:fixed;left:24px;bottom:24px;z-index:240;max-width:330px;background:rgba(10,10,10,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(224,48,48,.35);border-left:3px solid var(--red2);padding:14px 16px 14px 18px;transform:translateY(140%);transition:transform .55s var(--ease);box-shadow:0 18px 50px rgba(0,0,0,.5)}
@@ -891,18 +896,16 @@ footer .flinks a:hover{color:var(--gold)}
   </div>
 </section>
 
-<!-- BRIDGE: TOOL -> AUDIT -->
-<div class="bridge-strip">
-  <div class="wrap"><div class="inner">
-    <div class="lab">Step 1 plugs one leak · step 2 finds the rest</div>
-    <p>The phone is the leak you can see. <span>It's almost never the only one. Before you spend another dollar sending people to a site that drops them, you find every other place money slips out. That's the audit, and it starts with the scan below.</span></p>
-  </div></div>
-</div>
-
 <!-- TOOL 02: LEAK FINDER / THE AUDIT -->
 <section class="toolsec alt" id="leak">
   <div class="tool-ghost" data-ghost>02</div>
   <div class="wrap">
+    <div class="bridge-strip" data-reveal>
+      <div class="inner">
+        <div class="lab">Step 1 plugs one leak · step 2 finds the rest</div>
+        <p>The phone is the leak you can see. <span>It's almost never the only one. Before you spend another dollar sending people to a site that drops them, you find every other place money slips out. That's the audit, and it starts with the scan below.</span></p>
+      </div>
+    </div>
     <div class="tool-head">
       <div class="ey g" data-reveal>Service 2 · The audit · find every other leak</div>
       <h2 class="sh" data-reveal>The phone was leak one. <span class="lmask"><span>Here's <em>where else</em> you're bleeding.</span></span></h2>
@@ -958,18 +961,16 @@ footer .flinks a:hover{color:var(--gold)}
   </div>
 </section>
 
-<!-- BRIDGE: AUDIT -> RETAINER -->
-<div class="bridge-strip">
-  <div class="wrap"><div class="inner">
-    <div class="lab">The audit is the list · the retainer is me doing it</div>
-    <p>A list of leaks is just homework. <span>Someone has to actually run the ads, fix the follow-up, build the systems. That someone is me. Here's what I'd own, and what it's worth.</span></p>
-  </div></div>
-</div>
-
 <!-- TOOL 03: GRADER / THE RETAINER -->
 <section class="toolsec" id="gap">
   <div class="tool-ghost" data-ghost>03</div>
   <div class="wrap">
+    <div class="bridge-strip" data-reveal>
+      <div class="inner">
+        <div class="lab">A list of leaks is just homework · someone has to do it</div>
+        <p>Finding the leaks is the easy part. <span>Someone has to actually run the ads, fix the follow-up, build the systems, week after week. You can hand me one fix at a time, or hand me the whole number. Here's what that looks like.</span></p>
+      </div>
+    </div>
     <div class="tool-head">
       <div class="ey g" data-reveal>Service 3 · The retainer · what I'd own</div>
       <h2 class="sh" data-reveal>Eight questions. <span class="lmask"><span>Your growth gap, <em>in dollars.</em></span></span></h2>
@@ -1015,9 +1016,9 @@ footer .flinks a:hover{color:var(--gold)}
 <section class="toolsec alt" id="pricing">
   <div class="wrap" style="position:relative;z-index:2">
     <div class="tool-head">
-      <div class="ey g" data-reveal>The path · tool → audit → retainer</div>
-      <h2 class="sh" data-reveal>Three services. <span class="lmask"><span>Each one <em>earns</em> the next.</span></span></h2>
-      <p class="sb" data-reveal>You never reach for the next step until the last one paid for itself. Read it top to bottom. It's built so the logic is obvious.</p>
+      <div class="ey g" data-reveal>The path · start small, climb only if it pays</div>
+      <h2 class="sh" data-reveal>One step at a time. <span class="lmask"><span>Each one <em>earns</em> the next.</span></span></h2>
+      <p class="sb" data-reveal>No 10x leap from a tool to a retainer. Start free, prove it, then climb one rung at a time, and only if the last one paid for itself.</p>
     </div>
     <div class="scarcity" data-reveal>
       <span class="pulse"></span>
@@ -1031,7 +1032,7 @@ footer .flinks a:hover{color:var(--gold)}
       <div class="rung">
         <div class="rung-mark"><span class="rung-dot"></span></div>
         <div class="rung-card" data-reveal>
-          <div class="rstep">Service 1 · The tool <span class="pill">START FREE</span></div>
+          <div class="rstep">Step 1 · The tool <span class="pill">START FREE</span></div>
           <div class="rung-top">
             <h3>Catch every <em>missed call</em></h3>
             <div class="rprice">$500<sub>/mo</sub><span class="free">week one is free</span></div>
@@ -1052,7 +1053,7 @@ footer .flinks a:hover{color:var(--gold)}
       <div class="rung">
         <div class="rung-mark"><span class="rung-dot"></span></div>
         <div class="rung-card" data-reveal>
-          <div class="rstep">Service 2 · The audit</div>
+          <div class="rstep">Step 2 · The audit · free</div>
           <div class="rung-top">
             <h3>Find <em>every other leak</em></h3>
             <div class="rprice">Free<span class="free">on a 30-min call</span></div>
@@ -1065,21 +1066,41 @@ footer .flinks a:hover{color:var(--gold)}
 
       <div class="bridge">
         <div class="b-mark">↓</div>
-        <div class="b-txt">Now you've got the full list. <b>But a list is just homework</b> until someone runs the ads, fixes the follow-up, and builds the systems. <em>That's the part most owners have no time for.</em></div>
+        <div class="b-txt">The audit hands you a ranked list. <b>A list is just homework until someone does it.</b> <em>Most owners want it done, not assigned.</em></div>
       </div>
 
-      <!-- RUNG 3: THE RETAINER -->
+      <!-- RUNG 3: THE OPTIMIZATION -->
       <div class="rung feat">
         <div class="rung-mark"><span class="rung-dot"></span></div>
         <div class="rung-card" data-reveal>
-          <div class="rstep">Service 3 · The retainer <span class="pill">I RUN IT ALL</span></div>
+          <div class="rstep">Step 3 · The fixes <span class="pill">MOST PICK THIS</span></div>
           <div class="rung-top">
-            <h3>I own <em>the growth number</em></h3>
+            <h3>I work down <em>the list</em></h3>
+            <div class="rprice">$1,500<sub>/mo</sub></div>
+          </div>
+          <p class="rdesc">The bridge between a tool and a full hire, so there's no scary 10x leap. I take the top leaks the audit found and actually fix them: speed-to-lead and follow-up automated, a review engine running, your booking path repaired, your ads tuned. The $500 tool is included. <b>Done for you, not handed to you.</b></p>
+          <div class="rfeat"><span>Top audit fixes, implemented</span><span>Follow-up + reviews + booking</span><span>The $500 tool, included</span><span>Month to month</span></div>
+          <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Start fixing leaks <span class="arr">→</span></a>
+        </div>
+      </div>
+
+      <div class="bridge">
+        <div class="b-mark">↓</div>
+        <div class="b-txt">Or stop handing me fixes one at a time and <b>hand me the whole number.</b> <em>This is the seat most owners can't afford to fill full-time.</em></div>
+      </div>
+
+      <!-- RUNG 4: THE RETAINER -->
+      <div class="rung">
+        <div class="rung-mark"><span class="rung-dot"></span></div>
+        <div class="rung-card" data-reveal>
+          <div class="rstep">Step 4 · The whole number</div>
+          <div class="rung-top">
+            <h3>I own <em>your growth</em></h3>
             <div class="rprice">$5,000<sub>/mo</sub></div>
           </div>
-          <p class="rdesc">I embed as your fractional head of growth and execute everything the audit found. Ads, outreach, creative, CRO, follow-up systems, and the missed-call tool, included. Not an agency. Me, on one weekly call. <b>A full-time head of growth runs $150K+ a year. Same seat, no severance risk, cancel any month.</b></p>
-          <div class="rfeat"><span>Everything the audit found, done</span><span>The $500 tool, included</span><span>One weekly call, real numbers</span><span>Month to month, no lock-in</span></div>
-          <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Talk to me first <span class="arr">→</span></a>
+          <p class="rdesc">I embed as your fractional head of growth and run all of it: ads, outreach, creative, CRO, follow-up systems, the optimization work, and the missed-call tool, included. Not an agency. Me, on one weekly call. <b>A full-time head of growth runs $150K+ a year. Same seat, no severance risk, cancel any month.</b></p>
+          <div class="rfeat"><span>Everything, run by me</span><span>Optimization + tool included</span><span>One weekly call, real numbers</span><span>Month to month, no lock-in</span></div>
+          <a class="btng" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Talk to me first <span class="arr">→</span></a>
         </div>
       </div>
     </div>
@@ -1129,22 +1150,23 @@ footer .flinks a:hover{color:var(--gold)}
   <div class="wrap">
     <div class="inner">
       <div>
-        <div class="ey r" data-reveal>Results</div>
-        <h2 class="sh" data-reveal>The results page is <span class="lmask"><span><em class="r">empty.</em> On purpose.</span></span></h2>
-        <p class="sb" data-reveal>I could fill it with stock photos and first names like everyone else. I won't. Founding clients get their numbers published as they land: calls missed, calls recovered, dollars saved. Real data or nothing.</p>
+        <div class="ey r" data-reveal>Proof</div>
+        <h2 class="sh" data-reveal>No fake testimonials. <span class="lmask"><span><em class="r">The actual report</em> instead.</span></span></h2>
+        <p class="sb" data-reveal>Most sites in my space show stock smiles and invented quotes. I'd rather show you the thing you actually get: the <b>live text demo</b> further up, the <b>Monday report</b>, and a sample first week right here. When founding clients finish month one, their real numbers go on the results page. Real data or nothing.</p>
         <div class="hbtns" style="margin-top:34px" data-reveal>
-          <a class="btng" data-mag href="/results">See the open slots <span class="arr">→</span></a>
+          <a class="btng" data-mag href="/results">See the results page <span class="arr">→</span></a>
         </div>
       </div>
-      <div class="slot-mini" data-reveal>
-        <div class="co-label">Founding client · Slot 01</div>
+      <div class="slot-mini sample" data-reveal>
+        <div class="co-label">Sample first week <span class="samp-badge">SAMPLE</span></div>
         <div class="slot-rows">
-          <div class="slot-row"><span>Industry</span><b>RESERVED</b></div>
-          <div class="slot-row"><span>Calls missed</span><b>···</b></div>
-          <div class="slot-row"><span>Calls recovered</span><b>···</b></div>
-          <div class="slot-row"><span>Revenue saved</span><b>···</b></div>
+          <div class="slot-row"><span>Business type</span><b style="letter-spacing:0">Medspa</b></div>
+          <div class="slot-row"><span>Calls missed, week 1</span><b class="r">19</b></div>
+          <div class="slot-row"><span>Recovered by text</span><b class="g">14</b></div>
+          <div class="slot-row"><span>Jobs booked</span><b>9</b></div>
+          <div class="slot-row"><span>Revenue saved</span><b class="g">$2,340</b></div>
         </div>
-        <p class="fine" style="margin-top:20px">This slot fills with a real business's first month numbers. It could be yours.</p>
+        <p class="fine" style="margin-top:18px">Representative first week, not a specific client. Your real numbers replace these on your results call.</p>
       </div>
     </div>
   </div>
@@ -1212,6 +1234,7 @@ footer .flinks a:hover{color:var(--gold)}
 </section>
 
 <footer>
+  <p class="srcnote">The 62%, 85% and 38% figures are widely cited small-business call-handling estimates (industry call-tracking and lead-response studies), used here as context, not guarantees. The dollar figures are clearly-labeled estimates. The only numbers that matter are the ones your free week measures on your real line.</p>
   <div>
     <div class="fl">Vyrrah<span>.</span>Labs</div>
     <p>Godwin Rayen · UCLA Stats '19 · Ex VC · Ex Taboola R&amp;D</p>
@@ -1229,7 +1252,7 @@ footer .flinks a:hover{color:var(--gold)}
   <button class="tl-x" id="tl-x" aria-label="Dismiss">×</button>
   <div class="tl-top"><span class="tl-dot"></span><span class="tl-lab" id="tl-lab">Lost to missed calls · US local businesses</span></div>
   <div class="tl-num" id="tl-num">$0</div>
-  <div class="tl-sub" id="tl-sub">since you opened this page. Estimated. <a href="#calculator">Yours is below ↓</a></div>
+  <div class="tl-sub" id="tl-sub">since you landed. Conservative estimate. <a href="#calculator">Run your real number ↓</a></div>
 </div>
 
 <!-- FOUNDER VIDEO MODAL -->
@@ -1967,19 +1990,18 @@ if(ladder){
   if(!box) return;
   var numEl = document.getElementById('tl-num'), labEl = document.getElementById('tl-lab'), subEl = document.getElementById('tl-sub');
   var dismissed = !!sessionStorage.getItem('vy_tl_x');
-  var personal = null, t0 = null, rafId = null, shown = false;
-  var RATE = 410; // $/sec, estimated US local-business missed-call loss
+  var personal = null, timer = null, acc = 0, shown = false;
+  var RATE = 38, STEP_MS = 1500; // $/sec, deliberately conservative; steps like a meter, not a slot machine
   function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
-  function frame(ts){
+  function stepTick(){
     if(personal !== null) return;
-    if(t0 === null) t0 = ts;
-    numEl.textContent = money(((ts - t0) / 1000) * RATE);
-    rafId = requestAnimationFrame(frame);
+    acc += RATE * (STEP_MS / 1000) * (0.6 + Math.random() * 0.85);
+    numEl.textContent = money(acc);
   }
   function ensureRunning(){
     if(personal !== null) return;
-    if(reduceMotion){ numEl.textContent = money(11000); return; }
-    if(!rafId) rafId = requestAnimationFrame(frame);
+    if(reduceMotion){ numEl.textContent = money(RATE * 55); return; }
+    if(!timer){ stepTick(); timer = setInterval(stepTick, STEP_MS); }
   }
   function sync(){
     if(dismissed){ box.classList.remove('show'); return; }
@@ -1991,12 +2013,12 @@ if(ladder){
   window.addEventListener('scroll', sync, {passive:true});
   document.getElementById('tl-x').addEventListener('click', function(){
     dismissed = true; sessionStorage.setItem('vy_tl_x','1'); box.classList.remove('show');
-    if(rafId) cancelAnimationFrame(rafId);
+    if(timer) clearInterval(timer);
   });
   window.setPersonalLoss = function(weekly){
     if(!isFinite(weekly) || weekly <= 0) return;
     personal = weekly;
-    if(rafId) cancelAnimationFrame(rafId);
+    if(timer) clearInterval(timer);
     box.classList.add('you');
     labEl.textContent = 'Walking out of your business';
     numEl.textContent = money(weekly) + '/wk';
