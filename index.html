@@ -9,7 +9,15 @@
 <meta property="og:description" content="My AI texts every missed caller back in 60 seconds from your number and books the job. Try it free for a week.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://vyrrahlabs.com">
+<meta property="og:image" content="https://vyrrahlabs.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Vyrrah Labs | Your missed calls are money. I get them back.">
+<meta name="twitter:description" content="My AI texts every missed caller back in 60 seconds from your number and books the job. Try it free for a week.">
+<meta name="twitter:image" content="https://vyrrahlabs.com/og.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
+<script defer data-domain="vyrrahlabs.com" src="https://plausible.io/js/script.tagged-events.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,300;1,9..144,700;1,9..144,900&family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -27,8 +35,8 @@
   --gold2:#f5c030;
   --border:rgba(242,237,228,.07);
   --border2:rgba(242,237,228,.13);
-  --gray:#666;
-  --mid:#999;
+  --gray:#828282;
+  --mid:#a6a6a6;
   --ease:cubic-bezier(.22,1,.36,1);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -740,7 +748,7 @@ footer .flinks a:hover{color:var(--gold)}
             <input type="range" id="value" min="50" max="2500" step="25" value="250" aria-label="Average customer value">
           </div>
         </div>
-        <div class="calc-out">
+        <div class="calc-out" aria-live="polite">
           <div class="glow c"></div>
           <div class="co-label">Estimated revenue walking out the door</div>
           <div class="co-big">$<span id="loss">0</span></div>
@@ -830,7 +838,7 @@ footer .flinks a:hover{color:var(--gold)}
           <div class="scan-step" data-step="3"><span class="sq"></span> Checking call and booking paths</div>
           <div class="scan-step" data-step="4"><span class="sq"></span> Ranking the leaks, picking the worst one</div>
         </div>
-        <div class="verdict" id="leak-verdict">
+        <div class="verdict" id="leak-verdict" aria-live="polite">
           <div class="verdict-tag"><span class="dot"></span> #1 Leak Found</div>
           <h3 id="v-title"></h3>
           <p class="impact" id="v-impact"></p>
@@ -895,9 +903,9 @@ footer .flinks a:hover{color:var(--gold)}
               <svg width="120" height="120" viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="54"></circle><circle class="bar" id="gr-bar" cx="60" cy="60" r="54"></circle></svg>
               <b id="gr-grade">·</b>
             </div>
-            <div class="gr-score-txt"><b id="gr-title">Answer the five questions</b><span id="gr-sub">Your grade and gap show up here, live.</span></div>
+            <div class="gr-score-txt" aria-live="polite"><b id="gr-title">Answer the eight questions</b><span id="gr-sub">Your grade and gap show up here, live.</span></div>
           </div>
-          <div class="gr-gap">
+          <div class="gr-gap" aria-live="polite">
             <div class="co-label">Estimated monthly revenue gap</div>
             <b id="gr-gap-num">$0</b>
             <span id="gr-gap-sub">on the table, every month</span>
@@ -1153,6 +1161,34 @@ document.querySelectorAll('[data-monday]').forEach(function(el){ el.textContent 
 document.querySelectorAll('[data-month]').forEach(function(el){ el.textContent = months[now.getMonth()]; });
 document.querySelectorAll('[data-nextmonth]').forEach(function(el){ el.textContent = months[(now.getMonth()+1)%12]; });
 
+/* ---------- ANALYTICS + CAL-LINK CONTEXT ---------- */
+function track(name, props){
+  try{
+    if(typeof window.plausible === 'function') window.plausible(name, props ? {props:props} : undefined);
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push(Object.assign({event:name}, props||{}));
+  }catch(e){}
+}
+var CAL_BASE = 'https://cal.com/godwin-rayen/30min';
+function calHref(opts){
+  opts = opts || {};
+  var q = ['utm_source=vyrrahlabs','utm_medium=site'];
+  if(opts.utm_content) q.push('utm_content=' + encodeURIComponent(opts.utm_content));
+  if(opts.notes) q.push('notes=' + encodeURIComponent(opts.notes));
+  return CAL_BASE + '?' + q.join('&');
+}
+function calLinks(scope){ return (scope||document).querySelectorAll('a[href*="cal.com/godwin-rayen"]'); }
+calLinks().forEach(function(a){ if(a.href.indexOf('utm_source') === -1) a.href = calHref({}); });
+function setCalContext(scopeEl, content, notes){
+  if(!scopeEl) return;
+  calLinks(scopeEl).forEach(function(a){ a.href = calHref({utm_content:content, notes:notes}); });
+}
+calLinks().forEach(function(a){
+  a.addEventListener('click', function(){
+    track('Book click', { cta: (a.textContent||'').trim().replace(/\s+/g,' ').slice(0,40) });
+  });
+});
+
 /* ---------- PRELOADER ---------- */
 var loader = document.getElementById('loader');
 function finishLoad(){
@@ -1214,6 +1250,7 @@ function showExit(){
   exitShown = true;
   sessionStorage.setItem('vy_exit','1');
   exitEl.classList.add('show');
+  track('Exit modal shown');
 }
 function hideExit(){ exitEl.classList.remove('show'); }
 document.getElementById('exit-x').addEventListener('click', hideExit);
@@ -1409,9 +1446,13 @@ function calc(){
   countTo(missedEl, missed, 500);
   countTo(goneEl, gone, 500);
   countTo(lossEl, loss, 500);
+  setCalContext(document.getElementById('calculator'), 'calculator',
+    'From the calculator: about $' + fmt(loss) + '/yr walking out the door (' + c + ' calls/week, $' + fmt(v) + ' avg customer). I want to catch them.');
 }
-calls.addEventListener('input', calc);
-value.addEventListener('input', calc);
+var calcTracked = false;
+function onCalcInput(){ calc(); if(!calcTracked){ calcTracked = true; track('Calculator used'); } }
+calls.addEventListener('input', onCalcInput);
+value.addEventListener('input', onCalcInput);
 calc();
 
 /* ---------- PHONE SMS DEMO LOOP ---------- */
@@ -1510,6 +1551,9 @@ function showVerdict(data){
   document.getElementById('v-title').textContent = data.leak_title;
   document.getElementById('v-impact').textContent = data.impact;
   document.getElementById('v-fix').textContent = data.fix;
+  setCalContext(document.getElementById('leak'), 'leak-finder',
+    'From the leak finder, my #1 leak: ' + data.leak_title + ' I want the other 8.');
+  track('Leak verdict', { leak: String(data.leak_title).slice(0,60) });
   setTimeout(function(){ leakStage('verdict'); }, 500);
 }
 leakForm.addEventListener('submit', function(e){
@@ -1523,6 +1567,7 @@ leakForm.addEventListener('submit', function(e){
   if(!/\./.test(u.hostname)){ leakErr.textContent = 'That doesn\'t look like a web address. Try something like yourbusiness.com'; leakErr.style.display = 'block'; return; }
   leakStage('scan');
   runScanAnim();
+  track('Leak scan');
   var ctl = new AbortController();
   var to = setTimeout(function(){ ctl.abort(); }, 30000);
   fetch('/api/analyze', {
@@ -1612,6 +1657,7 @@ function grade(){
   grGrade.textContent = letterFor(yes);
   grGrade.style.fontSize = letterFor(yes).length > 1 ? '26px' : '34px';
   grGrade.style.color = nos === 0 ? 'var(--gold2)' : nos >= 4 ? 'var(--red2)' : 'var(--gold)';
+  var gNote;
   if(nos === 0){
     grBar.style.stroke = 'var(--gold2)';
     grTitle.textContent = 'Eight for eight. Top 1%.';
@@ -1619,13 +1665,19 @@ function grade(){
     grGapNum.textContent = "Let's scale";
     grGapNum.style.fontSize = '30px';
     grGapSub.textContent = 'new channels, bigger spend, better unit economics. That is the retainer conversation.';
+    gNote = "Growth gap grader: 8 of 8 systems running (top 1%). I want to talk about scaling, not repair.";
   }else{
     grBar.style.stroke = nos >= 4 ? 'var(--red2)' : 'var(--gold)';
     grTitle.textContent = nos + ' of ' + GTOTAL + ' systems missing.';
     grSub.textContent = "Every gap is money on the table, and a job I'd take off your plate.";
     grGapNum.textContent = '$' + fmt(lo) + ' to $' + fmt(hi);
     grGapSub.textContent = 'on the table, every month. Estimated.';
+    var missing = [];
+    togs.forEach(function(t){ if(t.dataset.v === 'no'){ var lbl = t.closest('.gq').querySelector('.gq-txt b'); if(lbl) missing.push(lbl.textContent.replace(/\?$/,'')); } });
+    gNote = 'Growth gap grader: grade ' + letterFor(yes) + ', est $' + fmt(lo) + '-$' + fmt(hi) + '/mo gap. Missing: ' + missing.join('; ') + '.';
   }
+  setCalContext(document.getElementById('gap'), 'grader', gNote);
+  if(!window._graderTracked){ window._graderTracked = true; track('Grader completed', { grade: letterFor(yes), missing: nos }); }
 }
 togs.forEach(function(t){
   function flip(toYes){
