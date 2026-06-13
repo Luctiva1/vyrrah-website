@@ -1335,7 +1335,10 @@ async function handleSms(req, res) {
       // If we couldn't map the number, fall through to normal AI handling.
     }
 
-    const bookingIntent = /\b(yes|yeah|sure|book|appointment|ok|please)\b/i.test(body);
+    // Broad booking-intent detection — catch natural phrasings, not just keywords.
+    // Affirmatives, scheduling words, time references, and questions about availability.
+    const bookingIntent = /\b(yes|yeah|yep|yup|sure|ok|okay|please|book|booking|appointment|appt|schedule|reschedule|opening|openings|available|availability|slot|slots|time|times|when|visit|come in|get in|see (you|the|dr|doctor)|interested|today|tomorrow|this week|next week|morning|afternoon|evening)\b/i.test(body)
+      || /\?\s*$/.test((body || '').trim());  // any question defaults to helpful booking offer
     const mode = client.booking_mode || 'native';
     const offersSlots = (mode === 'native' || mode === 'google');
 
