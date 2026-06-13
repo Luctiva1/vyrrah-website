@@ -90,8 +90,8 @@ nav.hidden{transform:translateY(-110%)}
 .js [data-reveal][data-d="1"]{transition-delay:.08s}
 .js [data-reveal][data-d="2"]{transition-delay:.16s}
 .js [data-reveal][data-d="3"]{transition-delay:.24s}
-.lmask{display:block;overflow:hidden}
-.lmask>span{display:block;transform:translateY(115%);transition:transform 1s var(--ease)}
+.lmask{display:block;overflow:hidden;padding-bottom:.16em;margin-bottom:-.16em}
+.lmask>span{display:block;transform:translateY(122%);transition:transform 1s var(--ease)}
 .js .in .lmask>span,.js .lmask.in>span{transform:translateY(0)}
 
 /* EYEBROW + HEADINGS */
@@ -114,8 +114,8 @@ nav.hidden{transform:translateY(-110%)}
 .htag{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);margin-bottom:26px;display:flex;align-items:center;gap:12px}
 .htag::before{content:'';width:28px;height:1px;background:var(--gold)}
 .hero h1{font-family:'Fraunces',serif;font-size:clamp(42px,5.2vw,82px);font-weight:900;line-height:1.02;letter-spacing:-2px;margin-bottom:30px}
-.hero h1 .hl{display:block;overflow:hidden;padding-bottom:.08em;margin-bottom:-.08em}
-.hero h1 .hl>span{display:block;transform:translateY(115%)}
+.hero h1 .hl{display:block;overflow:hidden;padding-bottom:.16em;margin-bottom:-.16em}
+.hero h1 .hl>span{display:block;transform:translateY(122%)}
 html.loaded .hero h1 .hl>span{animation:lineup 1s var(--ease) forwards}
 .hero h1 .hl:nth-child(1)>span{animation-delay:.15s}
 .hero h1 .hl:nth-child(2)>span{animation-delay:.3s}
@@ -871,8 +871,8 @@ footer .flinks a:hover{color:var(--gold)}
   <div class="wrap">
     <div class="tool-head">
       <div class="ey g" data-reveal>Service 3 · The retainer · what I'd own</div>
-      <h2 class="sh" data-reveal>Five questions. <span class="lmask"><span>Your growth gap, <em>in dollars.</em></span></span></h2>
-      <p class="sb" data-reveal>These are the five systems I build and run as your fractional head of growth. Answer honestly. Every "no" is money sitting on the table, and a job I'd take off your plate.</p>
+      <h2 class="sh" data-reveal>Eight questions. <span class="lmask"><span>Your growth gap, <em>in dollars.</em></span></span></h2>
+      <p class="sb" data-reveal>These are the eight systems I build and run as your fractional head of growth. The first five most owners have heard of. The last three are where the real money hides. Every "no" is a job I'd take off your plate.</p>
     </div>
     <div class="app" data-tilt data-reveal>
       <div class="glare"></div>
@@ -884,6 +884,9 @@ footer .flinks a:hover{color:var(--gold)}
           <div class="gq"><div class="gq-txt"><b>Do you ask every happy customer for a review?</b><span>Systematically, by text, same day. Not "when we remember"</span></div><div class="tog" data-v="" data-lo="1000" data-hi="4000" role="switch" tabindex="0" aria-label="Review system"><i class="y">YES</i><i class="n">NO</i></div></div>
           <div class="gq"><div class="gq-txt"><b>Do you know your cost per new customer?</b><span>The actual number, per channel, not a gut feel</span></div><div class="tog" data-v="" data-lo="1000" data-hi="3000" role="switch" tabindex="0" aria-label="Cost per customer tracking"><i class="y">YES</i><i class="n">NO</i></div></div>
           <div class="gq"><div class="gq-txt"><b>Do you reactivate past customers?</b><span>A list of people who already paid you, sitting in your system, untouched</span></div><div class="tog" data-v="" data-lo="2000" data-hi="5000" role="switch" tabindex="0" aria-label="Customer reactivation"><i class="y">YES</i><i class="n">NO</i></div></div>
+          <div class="gq"><div class="gq-txt"><b>When a call rings out, does a text go back in 60 seconds?</b><span>62% of calls to local businesses go unanswered. Almost nobody texts back</span></div><div class="tog" data-v="" data-lo="2000" data-hi="6000" role="switch" tabindex="0" aria-label="Missed call recaller"><i class="y">YES</i><i class="n">NO</i></div></div>
+          <div class="gq"><div class="gq-txt"><b>Do referrals and local partners send you steady business?</b><span>An actual system for it, not the occasional word of mouth</span></div><div class="tog" data-v="" data-lo="2500" data-hi="7000" role="switch" tabindex="0" aria-label="Referral and partnership engine"><i class="y">YES</i><i class="n">NO</i></div></div>
+          <div class="gq"><div class="gq-txt"><b>Can you see which channel each new customer came from?</b><span>One dashboard, not guessing or logging into four tools</span></div><div class="tog" data-v="" data-lo="1500" data-hi="4000" role="switch" tabindex="0" aria-label="Analytics and attribution"><i class="y">YES</i><i class="n">NO</i></div></div>
         </div>
         <div class="gr-out">
           <div class="glow c"></div>
@@ -1573,15 +1576,17 @@ var grSub = document.getElementById('gr-sub');
 var grGapNum = document.getElementById('gr-gap-num');
 var grGapSub = document.getElementById('gr-gap-sub');
 var CIRC = 339.3;
-var grades = ['A','B','C','D','E','F'];
-var gradeTitles = [
-  'All five systems running. Rare.',
-  'One system missing.',
-  'Two systems missing.',
-  'Three systems missing.',
-  'Four systems missing.',
-  'Five for five. All of it is on the table.'
-];
+var GTOTAL = togs.length;
+function letterFor(yes){
+  var r = yes / GTOTAL;
+  if(r >= 1) return 'A+';
+  if(r >= 0.8) return 'A';
+  if(r >= 0.62) return 'B';
+  if(r >= 0.48) return 'C';
+  if(r >= 0.34) return 'D';
+  if(r >= 0.18) return 'E';
+  return 'F';
+}
 function grade(){
   var answered = 0, nos = 0, lo = 0, hi = 0;
   togs.forEach(function(t){
@@ -1589,26 +1594,35 @@ function grade(){
     if(t.dataset.v === 'no'){ nos++; lo += +t.dataset.lo; hi += +t.dataset.hi; }
   });
   if(answered === 0) return;
-  var pct = (answered - nos) / 5;
-  grBar.style.strokeDashoffset = CIRC * (1 - Math.max(pct, 0.04));
-  grBar.style.stroke = nos >= 3 ? 'var(--red2)' : 'var(--gold)';
-  if(answered < 5){
-    grGrade.textContent = answered + '/5';
-    grGrade.style.fontSize = '22px';
+  var yes = answered - nos;
+  var ringP = answered ? yes / answered : 0;
+  grBar.style.strokeDashoffset = CIRC * (1 - Math.max(ringP, 0.04));
+  grGapNum.style.fontSize = '';
+  if(answered < GTOTAL){
+    grBar.style.stroke = 'var(--gold)';
+    grGrade.textContent = answered + '/' + GTOTAL;
+    grGrade.style.fontSize = '20px';
     grGrade.style.color = 'var(--white)';
-    grTitle.textContent = 'Keep going, ' + (5 - answered) + ' to answer';
-    grSub.textContent = 'The grade locks in after all five.';
-  }else{
-    grGrade.textContent = grades[nos];
-    grGrade.style.fontSize = '34px';
-    grGrade.style.color = nos >= 3 ? 'var(--red2)' : nos >= 1 ? 'var(--gold)' : 'var(--gold2)';
-    grTitle.textContent = gradeTitles[nos];
-    grSub.textContent = nos === 0 ? 'You run a tighter ship than most. Imagine the five compounding.' : 'Every missing system is a monthly leak. Estimated below.';
+    grTitle.textContent = (GTOTAL - answered) + ' to go';
+    grSub.textContent = 'Answer all ' + GTOTAL + ' and your grade and gap lock in.';
+    grGapNum.textContent = nos ? '$' + fmt(lo) + ' to $' + fmt(hi) : '·';
+    grGapSub.textContent = nos ? 'so far, every month. Keep going.' : 'on the table, every month';
+    return;
   }
+  grGrade.textContent = letterFor(yes);
+  grGrade.style.fontSize = letterFor(yes).length > 1 ? '26px' : '34px';
+  grGrade.style.color = nos === 0 ? 'var(--gold2)' : nos >= 4 ? 'var(--red2)' : 'var(--gold)';
   if(nos === 0){
-    grGapNum.textContent = answered === 5 ? '$0' : '·';
-    grGapSub.textContent = answered === 5 ? 'no gap from these five. Want to find the sixth?' : 'on the table, every month';
+    grBar.style.stroke = 'var(--gold2)';
+    grTitle.textContent = 'Eight for eight. Top 1%.';
+    grSub.textContent = "I almost never see this. You don't need leak repair, you need a bigger ceiling.";
+    grGapNum.textContent = "Let's scale";
+    grGapNum.style.fontSize = '30px';
+    grGapSub.textContent = 'new channels, bigger spend, better unit economics. That is the retainer conversation.';
   }else{
+    grBar.style.stroke = nos >= 4 ? 'var(--red2)' : 'var(--gold)';
+    grTitle.textContent = nos + ' of ' + GTOTAL + ' systems missing.';
+    grSub.textContent = "Every gap is money on the table, and a job I'd take off your plate.";
     grGapNum.textContent = '$' + fmt(lo) + ' to $' + fmt(hi);
     grGapSub.textContent = 'on the table, every month. Estimated.';
   }
