@@ -42,7 +42,21 @@
   .tabbar{display:flex;gap:8px;margin:20px 0 4px}
   .tabbtn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;padding:11px 22px;cursor:pointer;transition:border-color .2s,color .2s,background .2s}
   .tabbtn.on{border-color:var(--red);color:var(--text);background:rgba(200,37,30,.12)}
-  #viewOverview,#viewInbox{display:none}
+  #viewOverview,#viewInbox,#viewAppts{display:none}
+  .convoright{display:flex;flex-direction:column;gap:12px}
+  .composer{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .composer textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:11px 13px;resize:vertical;outline:none}
+  .composer textarea:focus{border-color:rgba(240,165,0,.55)}
+  .composer-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px}
+  .composer-note{font-size:11.5px;color:var(--muted)}
+  .composer-note.ok{color:var(--green)} .composer-note.bad{color:var(--red2)}
+  .composer .btn{margin:0;width:auto;padding:10px 22px}
+  .composer .btn[disabled]{opacity:.5;cursor:wait}
+  .appt{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:10px}
+  .appt .al{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--gold)}
+  .appt .ar{text-align:right}
+  .appt .ac{font-size:13px}
+  .appt .as{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 
   /* HERO — giant money recovered */
   .hero{position:relative;overflow:hidden;border:1px solid rgba(240,165,0,.4);border-radius:22px;padding:40px 34px 32px;margin:24px 0 14px;background:radial-gradient(130% 150% at 50% 0%,rgba(240,165,0,.16),rgba(240,165,0,.03) 55%,transparent),var(--panel);display:none}
@@ -201,6 +215,7 @@
     <div class="tabbar">
       <button class="tabbtn on" id="tabOverview" data-view="Overview">Overview</button>
       <button class="tabbtn" id="tabInbox" data-view="Inbox">Inbox</button>
+      <button class="tabbtn" id="tabAppts" data-view="Appts">Appointments</button>
     </div>
 
     <div id="viewOverview" style="display:block">
@@ -254,11 +269,25 @@
     <div id="viewInbox">
       <div class="inbox">
         <div class="convolist" id="convoList"></div>
-        <div class="convopanel" id="convoPanel">
-          <div class="panel-empty">Select a conversation to see its full timeline.</div>
+        <div class="convoright">
+          <div class="convopanel" id="convoPanel">
+            <div class="panel-empty">Select a conversation to see its full timeline.</div>
+          </div>
+          <div class="composer" id="composer" style="display:none">
+            <textarea id="replyText" rows="2" placeholder="Reply as your front desk… (takes over the AI for 24h)"></textarea>
+            <div class="composer-row">
+              <span class="composer-note" id="composerNote">You reply, the AI stands down on this thread for 24h.</span>
+              <button class="btn" id="replyBtn" type="button">Send</button>
+            </div>
+          </div>
         </div>
       </div>
     </div><!-- /viewInbox -->
+
+    <div id="viewAppts">
+      <h2 style="margin-top:18px">Upcoming appointments</h2>
+      <div id="apptList"><div class="empty">Loading…</div></div>
+    </div><!-- /viewAppts -->
   </div>
 </div>
 
@@ -496,9 +525,11 @@
 
   function renderPanel(){
     var panel = document.getElementById('convoPanel');
-    if(!inboxData || selectedCaller==null){ panel.innerHTML = '<div class="panel-empty">Select a conversation to see its full timeline.</div>'; return; }
+    var comp = document.getElementById('composer');
+    if(!inboxData || selectedCaller==null){ panel.innerHTML = '<div class="panel-empty">Select a conversation to see its full timeline.</div>'; comp.style.display='none'; return; }
     var c = (inboxData.conversations||[]).filter(function(x){ return x.caller_raw_last4===selectedCaller; })[0];
-    if(!c){ panel.innerHTML = '<div class="panel-empty">Conversation not found.</div>'; return; }
+    if(!c){ panel.innerHTML = '<div class="panel-empty">Conversation not found.</div>'; comp.style.display='none'; return; }
+    comp.style.display = 'block';
     panel.innerHTML = '<div class="convo-head"><span class="caller">'+esc(c.caller)+
       (c.booked?'<span class="tag">BOOKED</span>':'')+'</span></div>' +
       c.timeline.map(function(t){
@@ -529,16 +560,75 @@
       .catch(function(){});
   }
 
+  /* ── owner reply / takeover (POST /api/tool/reply {token,last4,body}) ── */
+  function sendReply(){
+    var btn = document.getElementById('replyBtn');
+    var ta = document.getElementById('replyText');
+    var note = document.getElementById('composerNote');
+    var text = (ta.value || '').trim();
+    if(!text || selectedCaller == null) return;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    fetch('/api/tool/reply', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token: token, last4: selectedCaller, body: text })
+    })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d && d.ok){
+          ta.value = '';
+          note.className = 'composer-note ok'; note.textContent = 'Sent to ' + (d.sent_to || 'the caller') + '. You\'ve taken over this thread for 24h.';
+          loadInbox();
+        } else if(d && d.takeover){
+          note.className = 'composer-note bad'; note.textContent = (d.error || 'Could not deliver') + ' — but the thread is yours now.';
+          loadInbox();
+        } else {
+          note.className = 'composer-note bad'; note.textContent = (d && d.error) || 'Could not send. Try again.';
+        }
+      })
+      .catch(function(){ note.className = 'composer-note bad'; note.textContent = 'Could not send. Try again.'; })
+      .finally(function(){ btn.disabled = false; btn.textContent = 'Send'; });
+  }
+  document.getElementById('replyBtn').addEventListener('click', sendReply);
+  document.getElementById('replyText').addEventListener('keydown', function(e){
+    if((e.metaKey || e.ctrlKey) && e.key === 'Enter') sendReply();
+  });
+
+  /* ── appointments (GET /api/tool/appointments?token) ── */
+  function renderAppts(d){
+    var list = document.getElementById('apptList');
+    var appts = (d && d.appointments) || [];
+    if(!appts.length){
+      list.innerHTML = '<div class="empty">No upcoming appointments yet. When a recovered caller books, it shows up here.</div>';
+      return;
+    }
+    list.innerHTML = appts.map(function(a){
+      var who = a.caller_name ? esc(a.caller_name) : esc(a.caller || 'Caller');
+      var svc = a.service ? ' · ' + esc(a.service) : '';
+      return '<div class="appt"><div class="al">'+esc(a.label || '')+'</div>'+
+        '<div class="ar"><div class="ac">'+who+svc+'</div><div class="as">'+esc(a.status||'booked')+'</div></div></div>';
+    }).join('');
+  }
+  function loadAppts(){
+    fetch('/api/tool/appointments?token=' + encodeURIComponent(token))
+      .then(function(r){ if(!r.ok) throw new Error('bad'); return r.json(); })
+      .then(renderAppts)
+      .catch(function(){ document.getElementById('apptList').innerHTML = '<div class="empty">Could not load appointments right now.</div>'; });
+  }
+
   function setView(view){
     activeView = view;
     document.getElementById('tabOverview').className = 'tabbtn' + (view==='Overview'?' on':'');
     document.getElementById('tabInbox').className = 'tabbtn' + (view==='Inbox'?' on':'');
+    document.getElementById('tabAppts').className = 'tabbtn' + (view==='Appts'?' on':'');
     document.getElementById('viewOverview').style.display = view==='Overview' ? 'block' : 'none';
     document.getElementById('viewInbox').style.display = view==='Inbox' ? 'block' : 'none';
+    document.getElementById('viewAppts').style.display = view==='Appts' ? 'block' : 'none';
     if(view==='Inbox') loadInbox();
+    if(view==='Appts') loadAppts();
   }
   document.getElementById('tabOverview').addEventListener('click', function(){ setView('Overview'); });
   document.getElementById('tabInbox').addEventListener('click', function(){ setView('Inbox'); });
+  document.getElementById('tabAppts').addEventListener('click', function(){ setView('Appts'); });
 
   function load(){
     if(!token){ show('error'); return; }
@@ -549,7 +639,7 @@
   }
 
   load();
-  setInterval(function(){ if(activeView==='Inbox') loadInbox(); else load(); }, 60000);
+  setInterval(function(){ if(activeView==='Inbox') loadInbox(); else if(activeView==='Appts') loadAppts(); else load(); }, 60000);
 
   /* iOS add-to-home hint, once */
   (function(){
