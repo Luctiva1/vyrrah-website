@@ -1223,8 +1223,11 @@ async function handleSms(req, res) {
       twilio_sid: msgSid
     });
 
-    // STOP handling: log only, never reply
-    if (/^\s*(stop|unsubscribe)\s*$/i.test(body)) return twiml(res);
+    // STOP handling: log only, never reply (also opt out any matching patient).
+    if (/^\s*(stop|unsubscribe)\s*$/i.test(body)) {
+      await markPatientStatus(supabase, client.id, caller, 'opted_out');
+      return twiml(res);
+    }
 
     // Suppress all outbound if caller previously opted out
     if (await callerOptedOut(supabase, client.id, caller)) return twiml(res);
@@ -1233,6 +1236,9 @@ async function handleSms(req, res) {
     if (callRow && !callRow.recovered) {
       await supabase.from('tool_calls').update({ recovered: true }).eq('id', callRow.id);
     }
+
+    // Reactivation: any inbound from a known patient counts as a reply.
+    await markPatientStatus(supabase, client.id, caller, 'replied');
 
     // HUMAN TAKEOVER: if the owner has taken over this caller (active window),
     // skip the AI auto-reply — but still do booking marking + owner alert below.
@@ -1318,6 +1324,8 @@ async function handleSms(req, res) {
           if (callRow) {
             await supabase.from('tool_calls').update({ booked: true, recovered: true }).eq('id', callRow.id);
           }
+          // Reactivation: a slot pick = rebooked.
+          await markPatientStatus(supabase, client.id, caller, 'rebooked');
           // createBooking already sent caller confirmation + owner alert.
           return twiml(res);
         }
@@ -1337,6 +1345,7 @@ async function handleSms(req, res) {
         // Mark booked only for handoff/calcom (no in-SMS confirmation step).
         if (mode === 'handoff' || mode === 'calcom') {
           await supabase.from('tool_calls').update({ booked: true }).eq('id', callRow.id);
+          await markPatientStatus(supabase, client.id, caller, 'rebooked');
         }
       }
       // Notify the practice owner (still fires under human takeover)
@@ -1475,6 +1484,8 @@ async function handleCronWeekly(req, res) {
       try {
         const stats = await computeStats(supabase, client.id, 7);
         const estSaved = stats.recovered * (Number(client.avg_customer_value) || 500);
+        let insights = null;
+        try { insights = await buildInsights(supabase, client, 7); } catch (e) { console.error('weekly insights error', client.id, e); }
         const lines = [
           `Hi ${client.owner_name || 'there'},`,
           '',
@@ -1486,6 +1497,18 @@ async function handleCronWeekly(req, res) {
           `- Estimated revenue saved: $${estSaved}`,
           ''
         ];
+        if (insights) {
+          lines.push(`You recovered ~$${insights.headline_roi.revenue_saved} this week — that's ${insights.headline_roi.roi_multiple}x the $500 cost.`, '');
+          const recs = (insights.recommendations || []).slice(0, 3);
+          if (recs.length) {
+            lines.push('A few things worth knowing:');
+            for (const r of recs) lines.push(`- ${r}`);
+            lines.push('');
+          }
+          if (insights.reactivation && insights.reactivation.rebooked > 0) {
+            lines.push(`Reactivation rebooked ${insights.reactivation.rebooked} lapsed patient(s) (~$${insights.reactivation.est_revenue}).`, '');
+          }
+        }
         if (client.status === 'trial') {
           lines.push("Your free week ends soon — let's talk: cal.com/godwin-rayen/30min", '');
         }
@@ -1995,7 +2018,36 @@ async function handleCronFlush(req, res) {
       console.error('appointment reminders query error:', e);
     }
 
-    return res.status(200).json({ ok: true, flushed: results.length, results, trial_lifecycle, reminders });
+    // ── Engine 2: review-request loop ──
+    let reviews = [];
+    try {
+      reviews = await reviewLoopPass(supabase);
+    } catch (e) {
+      console.error('review loop error:', e);
+    }
+
+    // ── Engine 1: reactivation drip pass per active/trial client ──
+    const reactivation = [];
+    try {
+      const { data: reactClients } = await supabase
+        .from('tool_clients')
+        .select('*')
+        .in('status', ['trial', 'active'])
+        .eq('reactivation_enabled', true);
+      for (const client of reactClients || []) {
+        try {
+          const r = await reactivationPass(supabase, client, { limit: 25 });
+          reactivation.push({ client_id: client.id, ...r });
+        } catch (e) {
+          console.error('reactivationPass error for client', client.id, e);
+          reactivation.push({ client_id: client.id, error: e.message });
+        }
+      }
+    } catch (e) {
+      console.error('reactivation cron query error:', e);
+    }
+
+    return res.status(200).json({ ok: true, flushed: results.length, results, trial_lifecycle, reminders, reviews, reactivation });
   } catch (err) {
     console.error('tool/cron-flush error:', err);
     return res.status(500).json({ error: err.message });
@@ -2827,6 +2879,622 @@ async function handleGoogleCallback(req, res) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ENGINE 1 — REACTIVATION (win back lapsed patients)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Is this patient lapsed? (no visit within client.lapsed_months; null last_visit
+// counts as lapsed/eligible — they're an 'idle' unknown.)
+function isLapsed(patient, lapsedMonths) {
+  if (!patient.last_visit) return true;
+  const lv = new Date(patient.last_visit).getTime();
+  if (Number.isNaN(lv)) return true;
+  const months = Number.isFinite(lapsedMonths) ? lapsedMonths : 7;
+  const cutoff = Date.now() - months * 30 * 24 * 3600 * 1000;
+  return lv < cutoff;
+}
+
+// One reactivation drip pass for a single client. Returns { contacted, rebooked_pending }.
+// Shared by the manual /reactivation/run endpoint and the daily cron.
+async function reactivationPass(supabase, client, { limit = 25 } = {}) {
+  const out = { contacted: 0, rebooked_pending: 0 };
+  if (!client || !client.reactivation_enabled) return out;
+  if (!['active', 'trial'].includes(client.status)) return out;
+  if (!client.twilio_number) return out;
+
+  const lapsedMonths = Number.isFinite(client.lapsed_months) ? client.lapsed_months : 7;
+  const ownerDigits = normalizePhone(client.owner_phone);
+  const lineDigits = normalizePhone(client.real_line);
+  const bookingLink = client.booking_link || null;
+  const offersSlots = (client.booking_mode === 'native' || client.booking_mode === 'google');
+
+  // Eligible: not yet replied/rebooked/opted_out/unreachable, and not exhausted (step<3).
+  const { data: patients, error } = await supabase
+    .from('tool_patients')
+    .select('*')
+    .eq('client_id', client.id)
+    .in('reactivation_status', ['idle', 'queued', 'contacted'])
+    .lt('reactivation_step', 3)
+    .order('est_value', { ascending: false, nullsFirst: false })
+    .order('last_visit', { ascending: true })
+    .limit(500);
+  if (error) { console.error('reactivationPass query error:', error); return out; }
+
+  let sent = 0;
+  for (const p of patients || []) {
+    if (sent >= limit) break;
+    if (!p.phone) continue;
+    if (!isLapsed(p, lapsedMonths)) continue;
+
+    const pDigits = normalizePhone(p.phone);
+    // Skip the practice's own lines.
+    if (pDigits === ownerDigits || pDigits === lineDigits) continue;
+    // Skip non-textable.
+    if (isNonTextableCaller(p.phone)) continue;
+    // Respect opt-out (STOP previously, or marked).
+    if (await callerOptedOut(supabase, client.id, p.phone)) {
+      await supabase.from('tool_patients')
+        .update({ reactivation_status: 'opted_out' }).eq('id', p.id);
+      continue;
+    }
+
+    const step = p.reactivation_step || 0;
+    const lastContacted = p.last_contacted_at ? new Date(p.last_contacted_at).getTime() : 0;
+    const ageDays = lastContacted ? (Date.now() - lastContacted) / 86400000 : Infinity;
+
+    let nextStep = null;
+    if (step === 0) nextStep = 1;
+    else if (step === 1 && ageDays >= 3) nextStep = 2;
+    else if (step === 2 && ageDays >= 4) nextStep = 3;
+    if (nextStep === null) continue; // not due yet
+
+    // Build the message for this step.
+    const name = p.name || 'there';
+    const practice = client.practice_name;
+    let bookingTail = '';
+    if (offersSlots) {
+      try {
+        const slots = await getOpenSlots(supabase, client, { days: 5, maxSlots: 3 });
+        if (slots.length) {
+          stashOffer(client.id, p.phone, slots);
+          bookingTail = ' I can get you in: ' +
+            slots.map((s, i) => `${i + 1}) ${s.label}`).join('  ') + ' — reply with the number.';
+        } else if (bookingLink) {
+          bookingTail = ` Book here: ${bookingLink}`;
+        }
+      } catch (e) { console.error('reactivation getOpenSlots error:', e); }
+    } else if (bookingLink) {
+      bookingTail = ` Book here: ${bookingLink}`;
+    }
+
+    let purpose, fallback;
+    if (nextStep === 1) {
+      purpose = `This is a former patient we haven't seen in a while. Warmly say we miss them and invite them to rebook.`;
+      fallback = `Hi ${name}, it's ${practice} — it's been a while since your last visit! We'd love to get you back in. Want me to find you a time?`;
+    } else if (nextStep === 2) {
+      const incentive = /vip|loyal|premium|high.?value/i.test(String(p.tags || ''))
+        ? ' As a valued patient, we\'d love to take care of you.' : '';
+      purpose = `Light, friendly follow-up nudge to a former patient who didn't reply to our first message. Keep it brief and low-pressure.${incentive ? ' Mention we value them.' : ''}`;
+      fallback = `Hi ${name}, just checking in from ${practice} — still happy to get you booked whenever suits.${incentive}`;
+    } else {
+      purpose = `Final, gentle message to a former patient. Say we'll stop reaching out but we're here whenever they're ready. Include the booking option.`;
+      fallback = `Hi ${name}, we'll stop reaching out for now — but ${practice} is here whenever you're ready to come back.`;
+    }
+
+    let body = await generateAiMessage({ client, purpose, fallback });
+    if (bookingTail && !body.includes(bookingTail.trim().slice(0, 12))) body = body + bookingTail;
+
+    try {
+      await sendOrDefer(supabase, client, { caller: p.phone, body, ai_generated: aiAvailable() });
+    } catch (e) {
+      console.error('reactivation send error:', e);
+      continue;
+    }
+    // Tag the most recent outbound row for this caller as reactivation (best-effort).
+    try {
+      const { data: lastOut } = await supabase
+        .from('tool_messages')
+        .select('id')
+        .eq('client_id', client.id)
+        .eq('caller_phone', p.phone)
+        .eq('direction', 'outbound')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (lastOut && lastOut[0]) {
+        await supabase.from('tool_messages')
+          .update({ reactivation: true }).eq('id', lastOut[0].id);
+      }
+    } catch (e) { /* column optional — ignore */ }
+
+    await supabase.from('tool_patients').update({
+      reactivation_status: 'contacted',
+      reactivation_step: nextStep,
+      last_contacted_at: new Date().toISOString()
+    }).eq('id', p.id);
+
+    out.contacted++;
+    out.rebooked_pending++;
+    sent++;
+  }
+  return out;
+}
+
+// POST /api/tool/patients/import { token|client_id, patients:[...] }
+async function handlePatientsImport(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const b = req.body || {};
+    const { token, client_id } = b;
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+
+    let rows = Array.isArray(b.patients) ? b.patients : [];
+    if (rows.length > 2000) rows = rows.slice(0, 2000);
+
+    let imported = 0, skipped = 0;
+    for (const r of rows) {
+      const phoneRaw = r && r.phone;
+      const phone = normalizePhone(phoneRaw);
+      if (!phone || phone.length < 10) { skipped++; continue; }
+      let last_visit = null;
+      if (r.last_visit) {
+        const d = new Date(r.last_visit);
+        if (!Number.isNaN(d.getTime())) last_visit = d.toISOString().slice(0, 10);
+      }
+      const record = {
+        client_id: client.id,
+        name: (r.name && String(r.name).slice(0, 120)) || null,
+        phone,
+        last_visit,
+        tags: (r.tags && String(r.tags).slice(0, 200)) || null,
+        est_value: (r.est_value != null && Number.isFinite(Number(r.est_value))) ? Number(r.est_value) : null
+      };
+      const { error } = await supabase
+        .from('tool_patients')
+        .upsert(record, { onConflict: 'client_id,phone' });
+      if (error) { console.error('patient upsert error:', error); skipped++; continue; }
+      imported++;
+    }
+
+    const { count } = await supabase
+      .from('tool_patients')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', client.id);
+
+    return res.status(200).json({ imported, skipped, total: count || null });
+  } catch (err) {
+    console.error('tool/patients/import error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// GET /api/tool/patients?token|client_id&status= — list + counts by status.
+async function handlePatients(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const token = req.query.token;
+    const client_id = req.query.client_id;
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const isClientView = !!token;
+
+    let q = supabase.from('tool_patients').select('*').eq('client_id', client.id);
+    if (req.query.status) q = q.eq('reactivation_status', req.query.status);
+    const { data: patients } = await q
+      .order('est_value', { ascending: false, nullsFirst: false })
+      .limit(500);
+
+    const list = patients || [];
+    const counts = {};
+    for (const p of list) {
+      counts[p.reactivation_status] = (counts[p.reactivation_status] || 0) + 1;
+    }
+    const out = list.map((p) => ({
+      id: p.id,
+      name: p.name || null,
+      phone: isClientView ? maskPhone(p.phone) : p.phone,
+      last_visit: p.last_visit,
+      tags: p.tags,
+      est_value: p.est_value,
+      reactivation_status: p.reactivation_status,
+      reactivation_step: p.reactivation_step,
+      last_contacted_at: p.last_contacted_at
+    }));
+    return res.status(200).json({ counts, patients: out });
+  } catch (err) {
+    console.error('tool/patients error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// POST /api/tool/reactivation/run { token|client_id } — manual one-pass trigger.
+async function handleReactivationRun(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const { token, client_id } = req.body || {};
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (!client.reactivation_enabled) {
+      return res.status(200).json({ contacted: 0, rebooked_pending: 0, disabled: true });
+    }
+    const result = await reactivationPass(supabase, client, { limit: 25 });
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error('tool/reactivation/run error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// POST /api/tool/reactivation/toggle { token|client_id, enabled }
+async function handleReactivationToggle(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const { token, client_id, enabled } = req.body || {};
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const { data: updated, error } = await supabase
+      .from('tool_clients')
+      .update({ reactivation_enabled: !!enabled })
+      .eq('id', client.id)
+      .select('id, reactivation_enabled')
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ ok: true, reactivation_enabled: updated.reactivation_enabled });
+  } catch (err) {
+    console.error('tool/reactivation/toggle error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// Helper: if an inbound caller matches a tool_patients row, mark a new status
+// (only "advancing" — never downgrade a rebooked/opted_out). Best-effort.
+async function markPatientStatus(supabase, clientId, callerPhone, status) {
+  try {
+    const digits = normalizePhone(callerPhone);
+    if (!digits) return;
+    const { data: rows } = await supabase
+      .from('tool_patients')
+      .select('id, reactivation_status')
+      .eq('client_id', clientId)
+      .eq('phone', digits)
+      .limit(1);
+    const p = rows && rows[0];
+    if (!p) return;
+    // Ranking so we never regress: opted_out/rebooked are terminal-ish.
+    const rank = { idle: 0, queued: 1, contacted: 2, replied: 3, rebooked: 4, opted_out: 5, unreachable: 1 };
+    if ((rank[status] || 0) < (rank[p.reactivation_status] || 0) &&
+        !(status === 'opted_out')) {
+      return; // don't downgrade (except opt-out always wins)
+    }
+    await supabase.from('tool_patients')
+      .update({ reactivation_status: status }).eq('id', p.id);
+  } catch (e) {
+    console.error('markPatientStatus error:', e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENGINE 2 — REVIEW LOOP
+// ═══════════════════════════════════════════════════════════════════════════
+
+// POST /api/tool/reviews/mark { token|client_id, caller_phone, status }
+async function handleReviewsMark(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const { token, client_id, caller_phone, status } = req.body || {};
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (!caller_phone) return res.status(400).json({ error: 'caller_phone required' });
+    const allowed = ['requested', 'clicked', 'left', 'declined'];
+    const st = allowed.includes(status) ? status : 'left';
+    const digits = normalizePhone(caller_phone);
+
+    const { data: rows } = await supabase
+      .from('tool_reviews')
+      .select('id')
+      .eq('client_id', client.id)
+      .eq('caller_phone', digits)
+      .order('requested_at', { ascending: false })
+      .limit(1);
+    if (rows && rows[0]) {
+      await supabase.from('tool_reviews').update({ status: st }).eq('id', rows[0].id);
+    } else {
+      await supabase.from('tool_reviews').insert({
+        client_id: client.id, caller_phone: digits, status: st,
+        requested_at: new Date().toISOString()
+      });
+    }
+    return res.status(200).json({ ok: true, status: st });
+  } catch (err) {
+    console.error('tool/reviews/mark error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// GET /api/tool/reviews?token|client_id — counts + recent list.
+async function handleReviews(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const token = req.query.token;
+    const client_id = req.query.client_id;
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const isClientView = !!token;
+
+    const { data: reviews } = await supabase
+      .from('tool_reviews')
+      .select('*')
+      .eq('client_id', client.id)
+      .order('requested_at', { ascending: false })
+      .limit(100);
+    const list = reviews || [];
+    const counts = { requested: 0, clicked: 0, left: 0, declined: 0 };
+    for (const r of list) counts[r.status] = (counts[r.status] || 0) + 1;
+    const recent = list.slice(0, 25).map((r) => ({
+      caller: isClientView ? maskPhone(r.caller_phone) : r.caller_phone,
+      status: r.status,
+      requested_at: r.requested_at
+    }));
+    return res.status(200).json({ counts, recent });
+  } catch (err) {
+    console.error('tool/reviews error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// Cron sub-task: send review requests for recently-booked appointments whose
+// start_at is in the past 1-3 days, for review-enabled clients with a url, and
+// for which we have no tool_reviews row for that caller in the last 30 days.
+async function reviewLoopPass(supabase) {
+  const results = [];
+  try {
+    const now = Date.now();
+    const from = new Date(now - 3 * 86400000).toISOString();
+    const to = new Date(now - 1 * 86400000).toISOString();
+    const { data: appts } = await supabase
+      .from('tool_appointments')
+      .select('*')
+      .eq('status', 'booked')
+      .gte('start_at', from)
+      .lte('start_at', to)
+      .limit(200);
+    const clientCache = new Map();
+    for (const appt of appts || []) {
+      try {
+        if (!appt.caller_phone) continue;
+        let client = clientCache.get(appt.client_id);
+        if (client === undefined) {
+          const { data: c } = await supabase
+            .from('tool_clients').select('*').eq('id', appt.client_id).single();
+          client = c || null; clientCache.set(appt.client_id, client);
+        }
+        if (!client) continue;
+        if (!client.review_requests_enabled || !client.google_review_url) continue;
+        if (!client.twilio_number) continue;
+        if (!['active', 'trial'].includes(client.status)) continue;
+
+        const digits = normalizePhone(appt.caller_phone);
+        // One per caller per 30 days.
+        const since = new Date(now - 30 * 86400000).toISOString();
+        const { data: existing } = await supabase
+          .from('tool_reviews')
+          .select('id')
+          .eq('client_id', client.id)
+          .eq('caller_phone', digits)
+          .gte('requested_at', since)
+          .limit(1);
+        if (existing && existing[0]) continue;
+
+        if (await callerOptedOut(supabase, client.id, appt.caller_phone)) continue;
+
+        const body = `Hi! Thanks for choosing ${client.practice_name}. If you have 30 seconds, we'd love a quick review: ${client.google_review_url}`;
+        await sendOrDefer(supabase, client, { caller: appt.caller_phone, body, ai_generated: false });
+        await supabase.from('tool_reviews').insert({
+          client_id: client.id,
+          caller_phone: digits,
+          call_id: null,
+          status: 'requested',
+          requested_at: new Date().toISOString()
+        });
+        results.push({ appointment_id: appt.id, requested: true });
+      } catch (e) {
+        console.error('reviewLoopPass appt error:', e);
+        results.push({ appointment_id: appt.id, error: e.message });
+      }
+    }
+  } catch (e) {
+    console.error('reviewLoopPass error:', e);
+  }
+  return results;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENGINE 3 — INTELLIGENCE REPORT v2
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DOW_LABELS = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+function hourBucketLabel(h) {
+  const fmt = (x) => { const ap = x < 12 ? 'am' : 'pm'; let hr = x % 12; if (hr === 0) hr = 12; return `${hr}${ap}`; };
+  const start = Math.floor(h / 2) * 2;
+  return `${fmt(start)}-${fmt((start + 2) % 24)}`;
+}
+
+async function buildInsights(supabase, client, days = 30) {
+  const tz = client.timezone || 'America/New_York';
+  const avgValue = Number(client.avg_customer_value) || 500;
+  const now = Date.now();
+  const since = new Date(now - days * 86400000).toISOString();
+  const priorSince = new Date(now - 2 * days * 86400000).toISOString();
+  const missedOutcomes = ['missed', 'busy', 'failed', 'voicemail'];
+
+  // Calls (current + prior window for trend).
+  const { data: calls } = await supabase
+    .from('tool_calls')
+    .select('outcome, recovered, booked, created_at')
+    .eq('client_id', client.id)
+    .gte('created_at', priorSince)
+    .order('created_at', { ascending: true });
+  const all = calls || [];
+  const cur = all.filter((c) => c.created_at >= since);
+  const prior = all.filter((c) => c.created_at < since);
+
+  const curMissed = cur.filter((c) => missedOutcomes.includes(c.outcome));
+  const curRecovered = cur.filter((c) => c.recovered);
+  const curBooked = cur.filter((c) => c.booked);
+  const priorMissed = prior.filter((c) => missedOutcomes.includes(c.outcome));
+  const priorRecovered = prior.filter((c) => c.recovered);
+
+  // Peak missed-call window: day-of-week + 2h bucket (in client tz).
+  const heat = {};
+  let peakKey = null, peakCount = 0;
+  for (const c of curMissed) {
+    try {
+      const d = new Date(c.created_at);
+      const dow = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'numeric' }).format(d), 10);
+      // weekday 'numeric' isn't standard; derive via short name instead.
+      const wdShort = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(d).toLowerCase().slice(0, 3);
+      const dowIdx = WEEKDAY_KEYS.indexOf(wdShort);
+      const hr = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(d), 10) % 24;
+      const key = `${dowIdx}:${Math.floor(hr / 2) * 2}`;
+      heat[key] = (heat[key] || 0) + 1;
+      if (heat[key] > peakCount) { peakCount = heat[key]; peakKey = key; }
+    } catch (e) { /* ignore */ }
+  }
+  let peak_missed = null;
+  if (peakKey && peakCount > 0) {
+    const [dowIdx, hr] = peakKey.split(':').map((x) => parseInt(x, 10));
+    peak_missed = {
+      label: `${DOW_LABELS[dowIdx] || 'weekdays'} ${hourBucketLabel(hr)}`,
+      count: peakCount
+    };
+  }
+
+  // Recovery-rate trend.
+  const curRate = curMissed.length ? curRecovered.length / curMissed.length : 0;
+  const priorRate = priorMissed.length ? priorRecovered.length / priorMissed.length : 0;
+  const trendPct = priorRate > 0 ? Math.round(((curRate - priorRate) / priorRate) * 100)
+    : (curRate > 0 ? 100 : 0);
+  const recovery_rate = {
+    current_pct: Math.round(curRate * 100),
+    prior_pct: Math.round(priorRate * 100),
+    trend_pct: trendPct,
+    direction: trendPct > 0 ? 'up' : trendPct < 0 ? 'down' : 'flat'
+  };
+
+  const booking_rate = {
+    booked: curBooked.length,
+    recovered: curRecovered.length,
+    pct: curRecovered.length ? Math.round((curBooked.length / curRecovered.length) * 100) : 0
+  };
+
+  // Top enquiry themes from inbound messages.
+  const { data: inbound } = await supabase
+    .from('tool_messages')
+    .select('body')
+    .eq('client_id', client.id)
+    .eq('direction', 'inbound')
+    .gte('created_at', since)
+    .limit(500);
+  const inboundBodies = (inbound || []).map((m) => m.body || '').filter(Boolean);
+  const themes = keywordThemes(inboundBodies);
+
+  // Reactivation results.
+  const { data: patients } = await supabase
+    .from('tool_patients')
+    .select('reactivation_status, est_value')
+    .eq('client_id', client.id);
+  const pList = patients || [];
+  const contacted = pList.filter((p) => ['contacted', 'replied', 'rebooked'].includes(p.reactivation_status)).length;
+  const rebookedRows = pList.filter((p) => p.reactivation_status === 'rebooked');
+  const rebooked = rebookedRows.length;
+  const reactRevenue = rebookedRows.reduce((s, p) => s + (Number(p.est_value) || avgValue), 0);
+  const reactivation = { contacted, rebooked, est_revenue: reactRevenue };
+
+  // ROI: revenue saved (recovered missed calls + reactivation) vs $500 cost.
+  const recoveredRevenue = curRecovered.length * avgValue;
+  const totalSaved = recoveredRevenue + reactRevenue;
+  const cost = 500;
+  const roiMultiple = Math.round((totalSaved / cost) * 10) / 10;
+  const headline_roi = {
+    revenue_saved: totalSaved,
+    recovered_revenue: recoveredRevenue,
+    reactivation_revenue: reactRevenue,
+    cost,
+    roi_multiple: roiMultiple
+  };
+
+  // Recommendations.
+  const recommendations = [];
+  if (peak_missed) {
+    recommendations.push(`Most missed calls: ${peak_missed.label}. Consider phone coverage then.`);
+  }
+  if (recovery_rate.direction === 'down') {
+    recommendations.push(`Recovery rate dropped ${Math.abs(trendPct)}% vs the prior period — review response times.`);
+  }
+  if (booking_rate.pct < 30 && booking_rate.recovered > 0) {
+    recommendations.push(`Only ${booking_rate.pct}% of recovered conversations booked — tightening the booking ask could lift this.`);
+  }
+  if (client.reactivation_enabled && rebooked > 0) {
+    recommendations.push(`Reactivation rebooked ${rebooked} lapsed patient(s) (~$${reactRevenue}). Keep the list fresh by re-importing monthly.`);
+  }
+  if (!recommendations.length) {
+    recommendations.push('Everything is running smoothly — keep the line forwarded and the patient list current.');
+  }
+
+  return { days, headline_roi, peak_missed, recovery_rate, booking_rate, themes, reactivation, recommendations };
+}
+
+// Simple keyword tally fallback for enquiry themes.
+function keywordThemes(bodies) {
+  const buckets = {
+    insurance: /\b(insurance|insur|cover|hicaps|medicare|claim)\b/i,
+    hours: /\b(hours|open|close|closing|opening|today|tomorrow|weekend)\b/i,
+    pricing: /\b(price|cost|how much|fee|quote|charge|expensive)\b/i,
+    cancel: /\b(cancel|resched|reschedule|move|change my)\b/i,
+    booking: /\b(book|appointment|appt|availab|slot|time)\b/i
+  };
+  const counts = {};
+  for (const b of bodies) {
+    for (const [k, re] of Object.entries(buckets)) {
+      if (re.test(b)) counts[k] = (counts[k] || 0) + 1;
+    }
+  }
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([theme, count]) => ({ theme, count }));
+}
+
+// GET /api/tool/insights?token|client_id&days=30
+async function handleInsights(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const token = req.query.token;
+    const client_id = req.query.client_id;
+    if (!token && !requireAuth(req, res)) return;
+    const client = await resolveClient(supabase, { token, client_id });
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const days = parseInt(req.query.days, 10) || 30;
+    const insights = await buildInsights(supabase, client, days);
+    return res.status(200).json({ practice_name: client.practice_name, insights });
+  } catch (err) {
+    console.error('tool/insights error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 module.exports = async (req, res) => {
@@ -2865,6 +3533,13 @@ module.exports = async (req, res) => {
   if (seg0 === 'config') return handleConfig(req, res);
   if (seg0 === 'google' && seg1 === 'connect') return handleGoogleConnect(req, res);
   if (seg0 === 'google' && seg1 === 'callback') return handleGoogleCallback(req, res);
+  if (seg0 === 'patients' && seg1 === 'import') return handlePatientsImport(req, res);
+  if (seg0 === 'patients' && !seg1) return handlePatients(req, res);
+  if (seg0 === 'reactivation' && seg1 === 'run') return handleReactivationRun(req, res);
+  if (seg0 === 'reactivation' && seg1 === 'toggle') return handleReactivationToggle(req, res);
+  if (seg0 === 'reviews' && seg1 === 'mark') return handleReviewsMark(req, res);
+  if (seg0 === 'reviews' && !seg1) return handleReviews(req, res);
+  if (seg0 === 'insights') return handleInsights(req, res);
 
   return res.status(404).json({ error: 'Route not found' });
 };
