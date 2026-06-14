@@ -721,7 +721,7 @@ footer .flinks a:hover{color:var(--gold)}
       </h1>
       <p class="hsub fade f2">I'm Godwin. My AI catches every call your business misses, texts the caller back from <strong>your number</strong> inside 60 seconds, and books the job while your competitor's phone is still ringing. <strong>One week on your line, free.</strong> You keep the data either way.</p>
       <div class="hbtns fade f3">
-        <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Start the free week <span class="arr">→</span></a>
+        <a class="btnr" data-mag href="/start">Start the free week <span class="arr">→</span></a>
         <a class="btng" data-mag href="#calculator">What's it costing you?</a>
       </div>
       <p class="hmicro fade f4">No card. 15 minute setup. Book today and your first report lands <b data-monday>Monday</b>.</p>
@@ -854,7 +854,7 @@ footer .flinks a:hover{color:var(--gold)}
       </div>
       <div class="calc-foot">
         <p class="fine">Estimates, not a guarantee. The math: 38% industry missed call rate, 85% of missed callers never calling back, and I only count half of those as real lost jobs to stay conservative. Screenshot this and show your business partner. Then run the free week and replace the estimate with your actual number.</p>
-        <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Stop the bleed, free <span class="arr">→</span></a>
+        <a class="btnr" data-mag href="/start">Stop the bleed, free <span class="arr">→</span></a>
       </div>
     </div>
   </div>
@@ -1039,7 +1039,7 @@ footer .flinks a:hover{color:var(--gold)}
           </div>
           <p class="rdesc">My AI texts every missed caller back from your number in 60 seconds and books the job. It plugs the one leak you can already see: the phone. <b>One recovered job usually covers the whole month.</b> Start with a free week on your real line, no card.</p>
           <div class="rfeat"><span>24/7 from your number</span><span>AI books the appointment</span><span>Monday revenue report</span><span>Cancel any month</span></div>
-          <a class="btnr" data-mag href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Start the free week <span class="arr">→</span></a>
+          <a class="btnr" data-mag href="/start">Start the free week <span class="arr">→</span></a>
           <div class="slotline">1 of 3 <span data-month>June</span> slots left</div>
         </div>
       </div>
@@ -1211,6 +1211,10 @@ footer .flinks a:hover{color:var(--gold)}
         <button class="fq" type="button">What kind of businesses is this for?</button>
         <div class="fa"><p>Local service businesses that live on inbound calls. Dental, medspa, law, home services, auto, vet, anything where a missed call is a missed job. If your phone rings and money is on the other end, <b>this works.</b></p></div>
       </div>
+      <div class="fitem">
+        <button class="fq" type="button">Is my patients' data safe?</button>
+        <div class="fa"><p>Texts go out from <b>your own business number</b>, every conversation stays private to your practice, and I <b>never sell or share</b> your data or your patients'. If you have specific compliance needs (a BAA, retention rules, anything), tell me on the call and we'll sort out exactly what works for you.</p></div>
+      </div>
       </div>
     </div>
     <p class="faq-foot" data-reveal>Still have one? <a href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Ask me on the call →</a></p>
@@ -1264,7 +1268,7 @@ footer .flinks a:hover{color:var(--gold)}
 <div id="claim" role="complementary">
   <span class="pulse"></span>
   <p><b><span data-month>June</span>: 1 founding slot left.</b> <span class="sub">Free week, 15 minute setup, first report <span data-monday>Monday</span>.</span></p>
-  <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Claim it <span class="arr">→</span></a>
+  <a class="btnr" href="/start">Claim it <span class="arr">→</span></a>
   <button class="x" id="claim-x" aria-label="Dismiss">×</button>
 </div>
 
@@ -1326,6 +1330,12 @@ function setCalContext(scopeEl, content, notes){
 calLinks().forEach(function(a){
   a.addEventListener('click', function(){
     track('Book click', { cta: (a.textContent||'').trim().replace(/\s+/g,' ').slice(0,40) });
+  });
+});
+// self-serve funnel: track every "start free" → /start click
+document.querySelectorAll('a[href^="/start"]').forEach(function(a){
+  a.addEventListener('click', function(){
+    track('Start free click', { cta: (a.textContent||'').trim().replace(/\s+/g,' ').slice(0,40) });
   });
 });
 
@@ -2022,7 +2032,7 @@ if(ladder){
     box.classList.add('you');
     labEl.textContent = 'Walking out of your business';
     numEl.textContent = money(weekly) + '/wk';
-    subEl.innerHTML = 'about ' + money(weekly / 7) + ' a day, at your numbers. <a href="https://cal.com/godwin-rayen/30min?utm_source=vyrrahlabs&utm_medium=site&utm_content=ticker" target="_blank" rel="noopener">Catch it free →</a>';
+    subEl.innerHTML = 'about ' + money(weekly / 7) + ' a day, at your numbers. <a href="/start">Catch it free →</a>';
     shown = true; sync();
   };
 })();
