@@ -3,8 +3,90 @@
 
 const crypto = require('crypto');
 const twilio = require('twilio');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { getSupabase } = require('./_lib/supabase');
 const { requireAuth, cors } = require('./_lib/auth');
+
+// ─── Auth: real signups + logins (client + admin), JWT sessions ──────────────
+// Sessions are JWTs (stored client-side, sent as `Authorization: Bearer`), not
+// bookmarkable URLs. A valid client JWT is translated to the client's magic_token
+// by applyBearerSession() so every existing ?token= handler keeps working.
+function issueClientToken(client) {
+  return jwt.sign({ kind: 'client', cid: client.id, mt: client.magic_token }, process.env.JWT_SECRET, { expiresIn: '30d' });
+}
+function issueAdminToken() {
+  return jwt.sign({ kind: 'admin' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+}
+function applyBearerSession(req) {
+  try {
+    const h = req.headers['authorization'] || '';
+    if (!h.startsWith('Bearer ') || !process.env.JWT_SECRET) return;
+    const d = jwt.verify(h.slice(7), process.env.JWT_SECRET);
+    if (d && d.kind === 'client' && d.mt && !(req.query && req.query.token)) {
+      req.query = req.query || {};
+      req.query.token = d.mt; // a logged-in session stands in for the magic link
+    }
+  } catch (e) { /* invalid/expired → fall through to normal auth */ }
+}
+function adminCredsValid(username, password) {
+  // Password-only: the password IS the secret. Username is cosmetic so a stray
+  // ADMIN_USERNAME can never lock you out. Accept ADMIN_PASSWORD or ADMIN_KEY,
+  // trimmed so a paste-newline doesn't reject a correct value.
+  const pass = String(password == null ? '' : password).trim();
+  if (!pass) return false;
+  const valid = [process.env.ADMIN_PASSWORD, process.env.ADMIN_KEY]
+    .filter(Boolean).map((v) => String(v).trim());
+  return valid.includes(pass);
+}
+// POST /api/tool/auth/login {email, password} → client session JWT
+async function handleAuthLogin(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!rateLimit(req, { max: 10, windowMs: 60000 })) return res.status(429).json({ error: 'Too many attempts, slow down.' });
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required.' });
+  const supabase = getSupabase();
+  const { data: rows } = await supabase.from('tool_clients').select('*').ilike('owner_email', String(email).trim()).limit(1);
+  const client = rows && rows[0];
+  if (!client || !client.password_hash) {
+    return res.status(401).json({ error: 'Wrong email or password. No password set yet? Use "Email me a link" below.' });
+  }
+  const ok = await bcrypt.compare(String(password), client.password_hash);
+  if (!ok) return res.status(401).json({ error: 'Wrong email or password.' });
+  // Return the JWT (future-proof) AND the magic_token, which the dashboard uses as
+  // its session credential — stored in localStorage, never in a bookmarkable URL.
+  return res.status(200).json({ ok: true, token: issueClientToken(client), magic_token: client.magic_token });
+}
+// POST /api/tool/auth/magic {email} → emails a one-click login link (passwordless backup)
+async function handleAuthMagic(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!rateLimit(req, { max: 5, windowMs: 60000 })) return res.status(429).json({ error: 'Too many requests.' });
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'Email required.' });
+  const supabase = getSupabase();
+  const { data: rows } = await supabase.from('tool_clients').select('*').ilike('owner_email', String(email).trim()).limit(1);
+  const client = rows && rows[0];
+  if (client && client.owner_email && client.magic_token) {
+    const link = `${PUBLIC_BASE}/recover?token=${encodeURIComponent(client.magic_token)}`;
+    try {
+      await sendEmail({
+        to: client.owner_email, toName: client.owner_name,
+        subject: `Your ${BRAND.name} login link`,
+        body: `Hi ${client.owner_name || 'there'},\n\nHere's your one-click login to your dashboard:\n${link}\n\nIt signs you straight in. Keep it private.\n\n— ${BRAND.from}`
+      });
+    } catch (e) { /* email best-effort */ }
+  }
+  // Always the same response — never reveal whether an email has an account.
+  return res.status(200).json({ ok: true, sent: true, message: 'If that email has an account, we just sent a login link.' });
+}
+// POST /api/tool/auth/admin {username, password} → admin session JWT
+async function handleAuthAdmin(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!rateLimit(req, { max: 8, windowMs: 60000 })) return res.status(429).json({ error: 'Too many attempts.' });
+  const { username, password } = req.body || {};
+  if (!adminCredsValid(username, password)) return res.status(401).json({ error: 'Wrong username or password.' });
+  return res.status(200).json({ ok: true, token: issueAdminToken() });
+}
 
 const BRAND = { name: 'Vyrrah Recaller', from: 'Vyrrah Labs' }; // single place to rename later
 
@@ -58,6 +140,21 @@ function maskPhone(p) {
   const s = String(p || '');
   if (s.length < 7) return s;
   return s.slice(0, 5) + '•••' + s.slice(-4);
+}
+
+// One-line, zero-cost summary of a recovered conversation for at-a-glance scanning.
+// Uses the caller's first inbound message + outcome — no AI call, so it's instant
+// and free on every dashboard load. Example: ""do you take Delta Dental?" · booked".
+function summarizeConversation(messages, booked) {
+  const firstInbound = (messages || []).find((m) => m.direction === 'inbound' && (m.body || '').trim());
+  let topic = '';
+  if (firstInbound) {
+    topic = String(firstInbound.body).replace(/\s+/g, ' ').trim();
+    if (topic.length > 70) topic = topic.slice(0, 67) + '…';
+    topic = '“' + topic + '”';
+  }
+  const tag = booked ? 'booked' : ((messages || []).some((m) => m.direction === 'outbound') ? 'replied' : 'recovered');
+  return topic ? `${topic} · ${tag}` : tag;
 }
 
 // Toll-free / short-code detection — skip text-backs to these
@@ -156,14 +253,54 @@ async function sendEmail({ to, toName, subject, body }) {
   return { status: r.status };
 }
 
-// AI message generation — OpenAI gpt-5-nano preferred, Anthropic (Claude) fallback, templates if neither
+// AI message generation — Gemini Flash-Lite preferred (free tier, same as the
+// leak-finder), OpenAI gpt-5-nano next, Anthropic (Claude) last, templates if none.
 function aiAvailable() {
-  return !!(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY);
+  return !!(process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY);
 }
+// ─── Vertical / niche awareness ──────────────────────────────────────────────
+// Use an explicit client.vertical if set, else infer from services + name.
+function clientVertical(client) {
+  if (client && client.vertical) return String(client.vertical).toLowerCase();
+  const t = (((client && client.services) || '') + ' ' + ((client && client.practice_name) || '')).toLowerCase();
+  if (/\broof|storm|hail|shingle|gutter/.test(t)) return 'roofing';
+  if (/restoration|water damage|fire damage|flood|\bmold|mitigation|smoke damage|biohazard|sewage/.test(t)) return 'restoration';
+  if (/plumb|drain|sewer|burst|leak/.test(t)) return 'plumbing';
+  if (/hvac|heating|cooling|air condition|furnace|\bac\b/.test(t)) return 'hvac';
+  if (/electric/.test(t)) return 'electrical';
+  if (/locksmith|towing|garage door|pest|septic/.test(t)) return 'emergency-home';
+  if (/dental|dentist|orthodon|ortho\b/.test(t)) return 'dental';
+  if (/\blaw\b|attorney|legal|injury|firm/.test(t)) return 'legal';
+  if (/real estate|realtor|realty|brokerage|\bbroker\b|\bhomes\b/.test(t)) return 'realestate';
+  return 'generic';
+}
+// Niches where a missed call is time-sensitive — emergency OR speed-to-lead: respond 24/7, never defer.
+const EMERGENCY_VERTICALS = new Set(['roofing','restoration','plumbing','hvac','electrical','emergency-home','legal','realestate']);
+function isEmergencyClient(client) {
+  if (client && client.always_on === true) return true;
+  if (client && client.always_on === false) return false;
+  return EMERGENCY_VERTICALS.has(clientVertical(client));
+}
+// Niche-specific behaviour for the AI receptionist.
+function verticalPersona(client) {
+  switch (clientVertical(client)) {
+    case 'roofing': return 'This is a roofing company and callers are usually comparing contractors fast after storm, hail or leak damage. Sound confident and quick, say you can get someone out for a free inspection soon, and ask for the property address and what happened (leak, storm, age of roof).';
+    case 'restoration': return 'This is a water/fire damage restoration company and the caller may be in an active emergency. First check they are safe and ask whether water or damage is still active, reassure that a crew can be dispatched fast, and capture the property address and the type of damage.';
+    case 'plumbing': return 'This is a plumbing company and the caller likely has an urgent leak or blockage. Convey fast dispatch and capture the address and the problem.';
+    case 'hvac': return 'This is an HVAC company and the caller likely has no heating or cooling. Convey fast scheduling and capture the address and the issue.';
+    case 'electrical': return 'This is an electrical contractor. Treat power issues as urgent, convey fast dispatch, and capture the address and the problem.';
+    case 'dental': return 'This is a dental practice. Be warm and reassuring and work to book an appointment.';
+    case 'legal': return 'This is a law firm and the caller may have just been in an accident or have an urgent legal matter — the first firm to respond usually wins the case. Be calm, professional and reassuring, check they are okay if it sounds like an injury, and work to book a free consultation. Capture their name, the type of matter, and the best number.';
+    case 'realestate': return 'This is a real estate team and the caller is a buyer or seller lead — responding first wins the client. Be warm and quick, work to book a call or showing, and capture their name, whether they are buying or selling, and the area or price range.';
+    default: return 'Work to understand what they need and book them in.';
+  }
+}
+
 async function generateAiMessage({ client, history = [], purpose, fallback, contactName = null }) {
   if (!aiAvailable()) return fallback;
   let system =
-    `You are the friendly front-desk assistant for ${client.practice_name}, a local practice. ` +
+    `You are the front-desk assistant for ${client.practice_name}. ` +
+    `${verticalPersona(client)} ` +
     `Services: ${client.services || 'general services'}. ` +
     `Business hours: ${client.business_hours || 'standard business hours'}. ` +
     (client.booking_link ? `Booking link: ${client.booking_link}. ` : '');
@@ -171,7 +308,7 @@ async function generateAiMessage({ client, history = [], purpose, fallback, cont
     system += `The caller's name is ${contactName}, use it naturally. `;
   }
   system +=
-    `Write as the practice itself in a warm, human tone. ${purpose} ` +
+    `Write as the business itself, in a warm, human, confident tone. ${purpose} ` +
     `Keep it to 1-2 short sentences suitable for SMS. No emojis, no sign-offs.`;
 
   const turns = [];
@@ -183,14 +320,48 @@ async function generateAiMessage({ client, history = [], purpose, fallback, cont
   }
 
   try {
+    if (process.env.GEMINI_API_KEY) {
+      // Primary: Gemini Flash-Lite — same free-tier provider the leak-finder uses.
+      // Gemini wants role "model" (not "assistant") and a nested parts[] shape.
+      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: system }] },
+          contents: turns.map((t) => ({ role: t.role === 'assistant' ? 'model' : 'user', parts: [{ text: t.content }] })),
+          generationConfig: { temperature: 0.6, maxOutputTokens: 200 }
+        })
+      });
+      if (!r.ok) { console.error('Gemini error', r.status, await r.text()); return fallback; }
+      const data = await r.json();
+      const text = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('').trim();
+      return text || fallback;
+    }
     if (process.env.OPENAI_API_KEY) {
-      // Primary: OpenAI gpt-5-nano (standard /v1/chat/completions shape).
-      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      const model = process.env.OPENAI_MODEL || 'gpt-5-nano';
+      const messages = [{ role: 'system', content: system }, ...turns];
+      const callOpenAI = (tokenField) => fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-5-nano', max_tokens: 120, messages: [{ role: 'system', content: system }, ...turns] })
+        body: JSON.stringify({ model, [tokenField]: 200, messages })
       });
-      if (!r.ok) { console.error('OpenAI error', r.status, await r.text()); return fallback; }
+      // Classic models want `max_tokens`; gpt-5 / reasoning models want
+      // `max_completion_tokens`. Try one, and on the specific 400 about the wrong
+      // field, transparently retry with the other — so it works whatever the key's
+      // default model turns out to be (no silent fallback to templates).
+      let r = await callOpenAI('max_tokens');
+      if (!r.ok) {
+        const errText = await r.text();
+        if (r.status === 400 && /max_tokens|max_completion_tokens|unsupported/i.test(errText)) {
+          r = await callOpenAI('max_completion_tokens');
+        } else {
+          console.error('OpenAI error', r.status, errText);
+          return fallback;
+        }
+      }
+      if (!r.ok) { console.error('OpenAI retry error', r.status, await r.text()); return fallback; }
       const data = await r.json();
       return data?.choices?.[0]?.message?.content?.trim() || fallback;
     }
@@ -283,7 +454,7 @@ async function callerOptedOut(supabase, clientId, callerPhone) {
     .eq('client_id', clientId)
     .eq('caller_phone', callerPhone)
     .eq('direction', 'inbound');
-  return (data || []).some((m) => /^\s*(stop|unsubscribe)\s*$/i.test(m.body || ''));
+  return (data || []).some((m) => /^\s*(stop|stopall|unsubscribe|cancel|end|quit)\b/i.test(m.body || ''));
 }
 
 // ─── #10 Error alerting to Godwin (throttled) ────────────────────────────────
@@ -451,7 +622,11 @@ function nextAllowedSendUtc(client, now = new Date()) {
 // sends via Twilio, persists as queued with the twilio_sid, returns { sid }.
 async function sendOrDefer(supabase, client, { call_id, caller, body, ai_generated }) {
   const { hour } = clientLocalClock(client);
-  const quiet = isQuietHour(hour, client.quiet_start, client.quiet_end);
+  // Emergency niches (roofing/restoration/plumbing/HVAC/etc.) reply 24/7 — a 2am
+  // storm or flood call must be answered now, not deferred to morning. Replying to
+  // a call the caller just placed is solicited, so it stays TCPA-safe. Non-emergency
+  // niches keep their quiet hours.
+  const quiet = !isEmergencyClient(client) && isQuietHour(hour, client.quiet_start, client.quiet_end);
   if (quiet) {
     const deferred_until = nextAllowedSendUtc(client);
     const { error } = await supabase.from('tool_messages').insert({
@@ -656,8 +831,8 @@ async function provisionTwilioNumber(supabase, client, areaCode) {
   // Pool first — instant, no Twilio API call (webhooks already set at refill).
   const fromPool = await assignFromPool(supabase, client, areaCode);
   if (fromPool) {
-    // #9 Proactively refill the pool (fire-and-forget) since we just consumed one.
-    try { ensurePoolStock(supabase, 3, 5).catch((e) => console.error('proactive ensurePoolStock error:', e)); } catch (e) { /* ignore */ }
+    // Pool auto-refill PAUSED while Twilio balance is low — buy strictly 1-per-signup via the
+    // live fallback below (never a surprise batch buy). Re-enable for scale: ensurePoolStock(supabase, 3, 5).
     return fromPool;
   }
 
@@ -1128,13 +1303,18 @@ async function createBooking(supabase, client, { caller_phone, caller_name, star
       });
     } catch (e) { console.error('booking confirm SMS failed:', e); }
   }
-  // Owner alert (best-effort).
+  // Owner alert — value-framed "activation moment" (best-effort). Every booking
+  // reminds the owner that Recaller just made them money: the #1 trial->paid lever.
   if (client.owner_phone && client.twilio_number) {
     try {
+      const v = clientVertical(client);
+      const valNoun = ({ legal: 'case', realestate: 'commission' })[v] || 'job';
+      const av = Number(client.avg_customer_value) || 0;
+      const worth = av > 0 ? ` — about $${av.toLocaleString('en-US')} in ${valNoun} value you'd have lost to voicemail` : '';
       await sendSms(getTwilioClient(), {
         from: client.twilio_number,
         to: client.owner_phone,
-        body: `${BRAND.name}: ${caller_name || maskPhone(caller_phone)} booked ${label}${service ? ' (' + service + ')' : ''}.`
+        body: `🎉 ${BRAND.name}: ${caller_name || maskPhone(caller_phone)} just booked ${label}${service ? ' (' + service + ')' : ''}${worth}. A lead you weren't getting back — caught while you were busy.`
       });
     } catch (e) { console.error('owner booking alert failed:', e); }
   }
@@ -1148,6 +1328,271 @@ async function cancelBooking(supabase, client, appt) {
     await googleDeleteEvent(client, appt.google_event_id);
   }
   await supabase.from('tool_appointments').update({ status: 'cancelled' }).eq('id', appt.id);
+}
+
+// ─── Referral loop (#65) ──────────────────────────────────────────────────────
+// All referral helpers are GUARDED: if the referral_* columns aren't migrated yet,
+// they no-op silently, so nothing breaks pre-migration. After the 1-line migration
+// they're fully live — "add it and it's done".
+
+// Ensure a client has a shareable referral code; create + persist on first need.
+async function ensureReferralCode(supabase, client) {
+  try {
+    if (client.referral_code) return client.referral_code;
+    const code = crypto.randomBytes(4).toString('hex'); // 8-char, e.g. 3f9a1c44
+    const { error } = await supabase.from('tool_clients')
+      .update({ referral_code: code }).eq('id', client.id);
+    if (error) return null; // column missing → referral feature dormant
+    client.referral_code = code;
+    return code;
+  } catch (e) { return null; }
+}
+
+// On signup with ?ref=CODE, link the new client to its referrer.
+async function wireReferral(supabase, newClient, refCode) {
+  try {
+    if (!refCode) return;
+    const { data: ref } = await supabase.from('tool_clients')
+      .select('id').eq('referral_code', String(refCode)).limit(1);
+    const referrer = ref && ref[0];
+    if (!referrer || referrer.id === newClient.id) return;
+    await supabase.from('tool_clients')
+      .update({ referred_by: referrer.id }).eq('id', newClient.id);
+  } catch (e) { /* column missing → dormant */ }
+}
+
+// When a referred client converts to paid, credit the referrer one free month (once).
+async function creditReferrerOnActivation(supabase, client) {
+  try {
+    if (!client || !client.referred_by || client.referral_credited) return;
+    const { data: rows } = await supabase.from('tool_clients')
+      .select('id, referral_credit_months, practice_name, owner_email, owner_name')
+      .eq('id', client.referred_by).limit(1);
+    const referrer = rows && rows[0];
+    if (!referrer) return;
+    const credits = (Number(referrer.referral_credit_months) || 0) + 1;
+    await supabase.from('tool_clients').update({ referral_credit_months: credits }).eq('id', referrer.id);
+    await supabase.from('tool_clients').update({ referral_credited: true }).eq('id', client.id);
+    if (referrer.owner_email) {
+      try {
+        await sendEmail({
+          to: referrer.owner_email, toName: referrer.owner_name,
+          subject: `You just earned a free month of ${BRAND.name} 🎉`,
+          body: `Hi ${referrer.owner_name || 'there'},\n\n${client.practice_name} signed up with your referral and is now a paying customer — so your next month is on us. You now have ${credits} free month(s) banked.\n\nThanks for spreading the word.\n\n— ${BRAND.from}`
+        });
+      } catch (e) { /* email best-effort */ }
+    }
+    await alertGodwin(supabase, 'referral_converted', `${referrer.practice_name} referred ${client.practice_name} → credited 1 free month (${credits} total).`);
+  } catch (e) { /* dormant pre-migration */ }
+}
+
+// GET /api/tool/referral?token=MAGIC → shareable link + referral stats.
+async function handleReferral(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const token = req.query.token;
+    if (!token) return res.status(400).json({ error: 'token required' });
+    const { data: client } = await supabase.from('tool_clients').select('*').eq('magic_token', token).single();
+    if (!client) return res.status(404).json({ error: 'Invalid token' });
+
+    const code = await ensureReferralCode(supabase, client);
+    if (!code) {
+      // Referral columns not migrated yet — return a graceful "coming soon" shape.
+      return res.status(200).json({ enabled: false, message: 'Referrals activate after setup.' });
+    }
+    let referred = 0, converted = 0;
+    try {
+      const { data: kids } = await supabase.from('tool_clients')
+        .select('status').eq('referred_by', client.id);
+      referred = (kids || []).length;
+      converted = (kids || []).filter((k) => k.status === 'active').length;
+    } catch (e) { /* ignore */ }
+    return res.status(200).json({
+      enabled: true,
+      referral_link: `${PUBLIC_BASE}/start?ref=${code}`,
+      referred_count: referred,
+      converted_count: converted,
+      free_months_earned: Number(client.referral_credit_months) || 0
+    });
+  } catch (err) {
+    console.error('tool/referral error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── Concierge forwarding setup (#40 done-for-you) ────────────────────────────
+// The #1 non-key friction in onboarding is the carrier forwarding step. This lets
+// a client say "just do it for me": we ping Godwin to call them and email them a
+// scheduling link + their number. Turns a drop-off point into a white-glove moment.
+async function handleConcierge(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    if (!rateLimit(req, { max: 6, windowMs: 60000 })) {
+      return res.status(429).json({ error: 'Too many requests, slow down' });
+    }
+    const { token } = req.body || {};
+    if (!token) return res.status(400).json({ error: 'token required' });
+    const { data: client } = await supabase.from('tool_clients').select('*').eq('magic_token', token).single();
+    if (!client) return res.status(404).json({ error: 'Invalid token' });
+
+    const bookingLink = process.env.SETUP_CALL_LINK || 'https://cal.com/godwin-rayen/30min';
+    // Confirm to the client.
+    if (client.owner_email) {
+      try {
+        await sendEmail({
+          to: client.owner_email, toName: client.owner_name,
+          subject: `We'll set up your ${BRAND.name} forwarding for you`,
+          body: [
+            `Hi ${client.owner_name || 'there'},`, '',
+            `No problem — we'll turn on call-forwarding for you so you don't have to touch any phone codes.`,
+            client.twilio_number ? `Your recovery number is ${client.twilio_number}.` : `Your recovery number is being assigned and we'll have it ready on the call.`, '',
+            `Grab the quickest slot that suits you and we'll do it together (takes ~5 minutes):`,
+            bookingLink, '',
+            `— ${BRAND.from}`
+          ].join('\n')
+        });
+      } catch (e) { /* best-effort */ }
+    }
+    // Ping Godwin to reach out fast.
+    await alertGodwin(supabase, 'concierge_setup', `${client.practice_name} (${client.owner_phone || client.owner_email || 'no contact'}) asked for done-for-you forwarding setup. Number: ${client.twilio_number || 'pending'}.`);
+
+    return res.status(200).json({ ok: true, booking_link: bookingLink });
+  } catch (err) {
+    console.error('tool/concierge error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── Self-serve account + retention (manage everything from the dashboard) ────
+// GET  /api/tool/account?token=        → status, trial days, billing, referral, value-at-stake
+// POST /api/tool/account/action {token, action, reason, confirm}
+//        action = pause | resume | cancel | subscribe
+// Cancel runs a SAVE-FLOW: the first call (confirm!=true) returns what they'd lose
+// + a pause offer instead of churning. Only confirm:true actually cancels. This is
+// the retention layer — a client never has to email or call to manage anything.
+
+async function handleAccount(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    const token = req.query.token;
+    if (!token) return res.status(400).json({ error: 'token required' });
+    const { data: client } = await supabase.from('tool_clients').select('*').eq('magic_token', token).single();
+    if (!client) return res.status(404).json({ error: 'Invalid token' });
+
+    let trial_days_left = null;
+    if (client.status === 'trial' && client.trial_started_at) {
+      const used = Math.floor((Date.now() - new Date(client.trial_started_at).getTime()) / 86400000);
+      trial_days_left = Math.max(0, 7 - used);
+    }
+    const last30 = await computeStats(supabase, client.id, 30);
+
+    return res.status(200).json({
+      practice_name: client.practice_name,
+      status: client.status,                 // trial | active | paused | past_due | churned
+      trial_days_left,
+      billing_enabled: !!process.env.DODO_API_KEY,
+      can_pause: ['trial', 'active'].includes(client.status),
+      can_resume: client.status === 'paused',
+      monthly_price: 500,
+      value_last_30d: { recovered: last30.recovered, est_revenue_saved: last30.est_revenue_saved, booked: last30.booked }
+    });
+  } catch (err) {
+    console.error('tool/account error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function handleAccountAction(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const supabase = getSupabase();
+  try {
+    if (!rateLimit(req, { max: 10, windowMs: 60000 })) return res.status(429).json({ error: 'Too many requests' });
+    const { token, action, reason, confirm } = req.body || {};
+    if (!token) return res.status(400).json({ error: 'token required' });
+    const { data: client } = await supabase.from('tool_clients').select('*').eq('magic_token', token).single();
+    if (!client) return res.status(404).json({ error: 'Invalid token' });
+
+    const releasePool = async () => {
+      try {
+        await supabase.from('number_pool').update({ status: 'available', assigned_client_id: null }).eq('assigned_client_id', client.id);
+      } catch (e) { /* best-effort */ }
+    };
+
+    if (action === 'pause') {
+      await supabase.from('tool_clients').update({ status: 'paused' }).eq('id', client.id);
+      await alertGodwin(supabase, 'self_pause', `${client.practice_name} self-paused${reason ? ' — ' + String(reason).slice(0,120) : ''}.`);
+      return res.status(200).json({ ok: true, status: 'paused', message: 'Paused. Your number still rings through to your line — we just stop texting missed callers. Resume anytime.' });
+    }
+
+    if (action === 'resume') {
+      await supabase.from('tool_clients').update({ status: 'active' }).eq('id', client.id);
+      return res.status(200).json({ ok: true, status: 'active', message: "You're back on. We'll resume recovering your missed calls right away." });
+    }
+
+    if (action === 'subscribe') {
+      // Self-serve conversion to paid (Dodo when configured, else mark active).
+      if (process.env.DODO_API_KEY) {
+        return res.status(200).json({ ok: true, redirect: `${PUBLIC_BASE}/api/tool/checkout?token=${encodeURIComponent(token)}` });
+      }
+      await supabase.from('tool_clients').update({ status: 'active' }).eq('id', client.id);
+      await alertGodwin(supabase, 'self_subscribe', `${client.practice_name} chose to subscribe (manual billing — invoice them).`);
+      return res.status(200).json({ ok: true, status: 'active', message: "You're subscribed. We'll send your first invoice shortly." });
+    }
+
+    if (action === 'update_billing') {
+      // Self-serve "update card" — completes the dunning loop. With Dodo configured we
+      // hand back a fresh secure payment link; without it, we ping Godwin to follow up.
+      if (process.env.DODO_API_KEY) {
+        return res.status(200).json({ ok: true, redirect: `${PUBLIC_BASE}/api/tool/checkout?token=${encodeURIComponent(token)}` });
+      }
+      await alertGodwin(supabase, 'update_billing', `${client.practice_name} wants to update their payment method (manual billing — send a link).`);
+      return res.status(200).json({ ok: true, message: "We'll send you a secure link to update your card shortly." });
+    }
+
+    if (action === 'cancel') {
+      // SAVE-FLOW: don't churn on the first click — show what's at stake + offer pause.
+      if (confirm !== true) {
+        const last30 = await computeStats(supabase, client.id, 30);
+        return res.status(200).json({
+          ok: true,
+          save_flow: true,
+          message: 'Before you cancel — here’s what Vyrrah recovered for you in the last 30 days.',
+          value_last_30d: { recovered: last30.recovered, est_revenue_saved: last30.est_revenue_saved, booked: last30.booked },
+          offers: [
+            { id: 'pause', label: 'Pause instead (keep your number, no charge)', action: 'pause' },
+            { id: 'keep', label: 'Never mind — keep it running', action: 'keep' }
+          ],
+          confirm_hint: 'Still want to cancel? Send the same request again with confirm:true.'
+        });
+      }
+      await supabase.from('tool_clients').update({ status: 'churned' }).eq('id', client.id);
+      await releasePool();
+      await alertGodwin(supabase, 'self_cancel', `${client.practice_name} self-cancelled${reason ? ' — ' + String(reason).slice(0,140) : ''}.`);
+      if (client.owner_email) {
+        try {
+          await sendEmail({
+            to: client.owner_email, toName: client.owner_name,
+            subject: `Your ${BRAND.name} account is cancelled`,
+            body: [
+              `Hi ${client.owner_name || 'there'},`, '',
+              `Your ${BRAND.name} account is cancelled and your recovery number has been released. No further charges.`, '',
+              `If you ever want it back, you can restart anytime at ${PUBLIC_BASE}/start — and we'll have you live again in minutes.`, '',
+              `— ${BRAND.from}`
+            ].join('\n')
+          });
+        } catch (e) { /* best-effort */ }
+      }
+      return res.status(200).json({ ok: true, status: 'churned', message: 'Cancelled. No further charges. You can restart anytime.' });
+    }
+
+    return res.status(400).json({ error: 'unknown action' });
+  } catch (err) {
+    console.error('tool/account/action error:', err);
+    return res.status(500).json({ error: err.message });
+  }
 }
 
 // ─── 1 & 8. /api/tool/clients ────────────────────────────────────────────────
@@ -1231,6 +1676,19 @@ async function handleClients(req, res) {
         .select()
         .single();
       if (error) throw error;
+
+      // Referral wiring (guarded — dormant until referral columns are migrated).
+      await wireReferral(supabase, client, (req.body || {}).ref);
+      await ensureReferralCode(supabase, client);
+
+      // Optional login password set at signup (guarded — no-op until password_hash migrated).
+      if ((req.body || {}).password) {
+        try {
+          await supabase.from('tool_clients')
+            .update({ password_hash: await bcrypt.hash(String((req.body).password), 10) })
+            .eq('id', client.id);
+        } catch (e) { /* password_hash column not migrated yet */ }
+      }
 
       // Provision Twilio number — soft-fail so onboarding can retry later
       try {
@@ -1410,13 +1868,16 @@ async function handleVoiceStatus(req, res) {
         (client.booking_link ? ` Or book directly: ${client.booking_link}` : '');
 
       const knownName = await getContactName(supabase, client.id, caller);
-      const body = await generateAiMessage({
+      let body = await generateAiMessage({
         client,
         contactName: knownName,
-        purpose: 'The practice just missed this person\'s call. Apologize warmly for missing them and ask if they would like to book an appointment.' +
-          (knownName ? '' : " If it feels natural, ask for their name once (\"...and what's your name so I can note it for the doctor?\")."),
+        purpose: 'The business just missed this person\'s call. Apologize warmly for missing them and work to book them in or get them helped, following the guidance above.' +
+          (knownName ? '' : " If it feels natural, ask for their name once (\"...and what's your name so I can note it for the team?\")."),
         fallback
       });
+      // TCPA / carrier compliance: the FIRST message to a caller must disclose opt-out.
+      // Appended once here (this is the initial text-back); also aids A2P 10DLC approval.
+      if (!/\bstop\b/i.test(body)) body += ' Reply STOP to opt out.';
 
       try {
         const result = await sendOrDefer(supabase, client, {
@@ -1427,6 +1888,17 @@ async function handleVoiceStatus(req, res) {
         });
         if (callRow) {
           await supabase.from('tool_calls').update({ textback_sent: true }).eq('id', callRow.id);
+        }
+        // Hot-lead alert: for emergency niches, tell the owner instantly that a call
+        // was missed + auto-recovered, so they can jump in too. Non-blocking.
+        if (!result.deferred && isEmergencyClient(client) && client.owner_phone && client.twilio_number) {
+          try {
+            await sendSms(getTwilioClient(), {
+              from: client.twilio_number,
+              to: client.owner_phone,
+              body: `${BRAND.name}: missed call from ${caller} just now — we've texted them back automatically. Open your dashboard to jump in.`
+            });
+          } catch (e) { /* non-blocking owner alert */ }
         }
         if (result.deferred) {
           return twiml(res, '<Say voice="alice">Sorry we missed you. We\'ll text you first thing in the morning.</Say><Hangup/>');
@@ -1877,7 +2349,20 @@ async function handleCronWeekly(req, res) {
           subject: `${client.practice_name}: your week with ${BRAND.name}`,
           body: lines.join('\n')
         });
-        results.push({ client_id: client.id, emailed: true });
+
+        // #4 Owner weekly SMS — owners live in texts, not dashboards. Short + a link.
+        let smsed = false;
+        if (client.owner_phone && client.twilio_number) {
+          try {
+            await getTwilioClient().messages.create({
+              from: client.twilio_number,
+              to: client.owner_phone,
+              body: `${BRAND.name}: this week we caught ${stats.missed} missed call(s), recovered ${stats.recovered}, booked ${stats.booked} — ~$${estSaved} back on your books. Full view: ${PUBLIC_BASE}/recaller?token=${client.magic_token}`
+            });
+            smsed = true;
+          } catch (e) { console.error('weekly owner SMS failed', client.id, e); }
+        }
+        results.push({ client_id: client.id, emailed: true, smsed });
       } catch (e) {
         console.error('Weekly email failed for client', client.id, e);
         results.push({ client_id: client.id, error: e.message });
@@ -1907,6 +2392,8 @@ async function handleDashboard(req, res) {
     if (!client) return res.status(404).json({ error: 'Invalid token' });
 
     const stats = await computeStats(supabase, client.id, 30);
+    // Lifetime totals power the live "money recovered" clock on the dashboard.
+    const lifetime = await computeStats(supabase, client.id, 3650);
 
     // Last 10 recovered calls with their messages, callers masked
     const { data: recoveredCalls } = await supabase
@@ -1931,8 +2418,27 @@ async function handleDashboard(req, res) {
         booked: call.booked,
         est_value: call.est_value,
         created_at: call.created_at,
+        summary: summarizeConversation(msgs || [], call.booked),
         messages: msgs || []
       });
+    }
+
+    // First-win moment: the earliest recovered call, for the onboarding celebration.
+    let first_win = null;
+    if (lifetime.recovered > 0) {
+      const { data: firstCall } = await supabase
+        .from('tool_calls')
+        .select('caller_phone, est_value, booked, created_at')
+        .eq('client_id', client.id).eq('recovered', true)
+        .order('created_at', { ascending: true }).limit(1);
+      if (firstCall && firstCall[0]) {
+        first_win = {
+          caller: maskPhone(firstCall[0].caller_phone),
+          est_value: firstCall[0].est_value,
+          booked: firstCall[0].booked,
+          created_at: firstCall[0].created_at
+        };
+      }
     }
 
     return res.status(200).json({
@@ -1941,6 +2447,12 @@ async function handleDashboard(req, res) {
       twilio_number: client.twilio_number || null,
       date_range_days: 30,
       stats,
+      lifetime: {
+        recovered: lifetime.recovered,
+        booked: lifetime.booked,
+        est_revenue_saved: lifetime.est_revenue_saved
+      },
+      first_win,
       recovered_conversations: conversations
     });
   } catch (err) {
@@ -2068,13 +2580,14 @@ async function handleCheckout(req, res) {
     }
 
     const clientId = req.query.client_id;
-    if (!clientId) return res.status(400).json({ error: 'client_id required' });
+    const token = req.query.token;
+    if (!clientId && !token) return res.status(400).json({ error: 'client_id or token required' });
 
     const supabase = getSupabase();
     const { data: client } = await supabase
       .from('tool_clients')
       .select('*')
-      .eq('id', clientId)
+      .eq(token ? 'magic_token' : 'id', token || clientId)
       .single();
     if (!client) return res.status(404).json({ error: 'Client not found' });
 
@@ -2459,6 +2972,111 @@ async function handleCronFlush(req, res) {
       console.error('monthly report query error:', e);
     }
 
+    // ── #4 First-win celebration text ──
+    // The moment a client gets their FIRST recovered call, text the owner a little
+    // celebration. First impressions drive trial→paid; "you just caught your first
+    // patient" lands far harder than a dashboard they may not have opened.
+    const first_wins = [];
+    try {
+      const { data: fwClients } = await supabase
+        .from('tool_clients').select('*').in('status', ['trial', 'active']);
+      for (const client of fwClients || []) {
+        try {
+          if (!client.owner_phone || !client.twilio_number) continue;
+          const kind = 'firstwin_' + client.id;
+          const { data: already } = await supabase.from('tool_alerts').select('id').eq('kind', kind).limit(1);
+          if (already && already[0]) continue; // already celebrated
+          const { data: firstRec } = await supabase
+            .from('tool_calls').select('est_value, booked')
+            .eq('client_id', client.id).eq('recovered', true)
+            .order('created_at', { ascending: true }).limit(1);
+          if (!firstRec || !firstRec[0]) continue; // no recovery yet
+          await supabase.from('tool_alerts').insert({ kind, detail: `${client.practice_name} first win`, created_at: new Date().toISOString() });
+          const val = Number(firstRec[0].est_value) || Number(client.avg_customer_value) || 500;
+          await getTwilioClient().messages.create({
+            from: client.twilio_number, to: client.owner_phone,
+            body: `🎉 ${BRAND.name}: you just recovered your first patient — about $${val} you'd otherwise have lost to voicemail. This is what it does every day now. See it: ${PUBLIC_BASE}/recaller?token=${client.magic_token}`
+          });
+          first_wins.push({ client_id: client.id, sent: true });
+        } catch (e) { console.error('first-win error for client', client.id, e); }
+      }
+    } catch (e) { console.error('first-win query error:', e); }
+
+    // ── Self-healing forwarding watchdog ──
+    // The #1 silent churn cause: a carrier update quietly switches off call
+    // forwarding, so the practice bleeds leads with no symptom. We catch it:
+    // a client that WAS receiving calls (>=3 in the prior 14d) but has had ZERO
+    // in the last 48h almost certainly has broken forwarding. Alert owner + Godwin.
+    // Throttled to once / 72h per client via a tool_alerts marker row.
+    const forwarding_watchdog = [];
+    try {
+      const now = Date.now();
+      const h48 = new Date(now - 48 * 3600 * 1000).toISOString();
+      const d14 = new Date(now - 16 * 24 * 3600 * 1000).toISOString();
+      const { data: fwClients } = await supabase
+        .from('tool_clients')
+        .select('*')
+        .in('status', ['trial', 'active']);
+      for (const client of fwClients || []) {
+        try {
+          // Only watch clients whose forwarding was verified long enough ago to judge.
+          const verifiedAt = client.verified_at ? new Date(client.verified_at).getTime() : 0;
+          if (!verifiedAt || (now - verifiedAt) < 48 * 3600 * 1000) continue;
+
+          const { count: recent } = await supabase
+            .from('tool_calls').select('id', { count: 'exact', head: true })
+            .eq('client_id', client.id).gte('created_at', h48);
+          if (recent && recent > 0) continue; // calls still flowing — healthy
+
+          const { count: prior } = await supabase
+            .from('tool_calls').select('id', { count: 'exact', head: true })
+            .eq('client_id', client.id).gte('created_at', d14).lt('created_at', h48);
+          if (!prior || prior < 3) continue; // never had meaningful volume — not a regression
+
+          // 72h throttle: skip if we already warned this client recently.
+          const kind = 'fwd_down_' + client.id;
+          const since = new Date(now - 72 * 3600 * 1000).toISOString();
+          const { data: warned } = await supabase
+            .from('tool_alerts').select('id').eq('kind', kind).gte('created_at', since).limit(1);
+          if (warned && warned[0]) continue;
+          await supabase.from('tool_alerts').insert({ kind, detail: `${client.practice_name}: 0 calls 48h, ${prior} prior`, created_at: new Date().toISOString() });
+
+          // Tell the owner (gentle, actionable) ...
+          if (client.owner_phone) {
+            try {
+              await getTwilioClient().messages.create({
+                from: client.twilio_number || process.env.TWILIO_PHONE_NUMBER,
+                to: client.owner_phone,
+                body: `${BRAND.from}: heads up — we haven't seen any calls reach ${BRAND.name} in 48h. Your call-forwarding may have switched off (carriers reset it sometimes). Reply HELP and we'll get it back on in 2 minutes so you stop missing patients.`
+              });
+            } catch (e) { /* SMS best-effort */ }
+          }
+          if (client.owner_email) {
+            try {
+              await sendEmail({
+                to: client.owner_email, toName: client.owner_name,
+                subject: `Action needed: ${client.practice_name}'s call recovery looks paused`,
+                body: [
+                  `Hi ${client.owner_name || 'there'},`, '',
+                  `We haven't seen a single call reach ${BRAND.name} in the last 48 hours, after a steady stream before that. The most common cause is call-forwarding getting switched off by your carrier — it happens after some network updates.`, '',
+                  `Until it's back on, missed calls aren't being recovered. The fix takes about 2 minutes:`,
+                  `${PUBLIC_BASE}/start#forwarding`, '',
+                  `Reply to this email and we'll walk you through it. — ${BRAND.from}`
+                ].join('\n')
+              });
+            } catch (e) { /* email best-effort */ }
+          }
+          // ... and tell Godwin so he can proactively save the account.
+          await alertGodwin(supabase, 'forwarding_down', `${client.practice_name} (${client.twilio_number}): 0 calls in 48h, ${prior} in prior 14d. Likely broken forwarding — reach out.`);
+          forwarding_watchdog.push({ client_id: client.id, alerted: true, prior_calls: prior });
+        } catch (e) {
+          console.error('forwarding watchdog error for client', client.id, e);
+        }
+      }
+    } catch (e) {
+      console.error('forwarding watchdog query error:', e);
+    }
+
     // ── #9 Daily pool top-up ──
     let pool_refill = null;
     try {
@@ -2467,7 +3085,7 @@ async function handleCronFlush(req, res) {
       console.error('cron ensurePoolStock error:', e);
     }
 
-    return res.status(200).json({ ok: true, flushed: results.length, results, trial_lifecycle, reminders, reviews, reactivation, monthly_reports, pool_refill });
+    return res.status(200).json({ ok: true, flushed: results.length, results, trial_lifecycle, reminders, reviews, reactivation, monthly_reports, first_wins, forwarding_watchdog, pool_refill });
   } catch (err) {
     console.error('tool/cron-flush error:', err);
     return res.status(500).json({ error: err.message });
@@ -2572,6 +3190,11 @@ async function handleDodoWebhook(req, res) {
       .update({ status })
       .eq('id', client.id);
     if (error) console.error('dodo-webhook: status update failed', error);
+
+    // On conversion to paid, credit the referrer one free month (once, guarded).
+    if (activate) {
+      try { await creditReferrerOnActivation(supabase, client); } catch (e) { console.error('referral credit error', e); }
+    }
 
     // On payment failure: enter dunning — service continues, email the owner.
     if (failed && client.owner_email) {
@@ -3357,6 +3980,14 @@ async function reactivationPass(supabase, client, { limit = 25 } = {}) {
   if (!client || !client.reactivation_enabled) return out;
   if (!['active', 'trial'].includes(client.status)) return out;
   if (!client.twilio_number) return out;
+  // TCPA consent gate: texting a practice's uploaded patient list is marketing
+  // outreach, so it requires the practice to have confirmed it holds prior consent.
+  // Fail SAFE: if the consent column isn't present yet (pre-migration) or is false,
+  // we do NOT send. Becomes live the moment the practice confirms consent.
+  if (client.reactivation_consent_confirmed !== true) {
+    out.blocked = 'consent_required';
+    return out;
+  }
 
   const lapsedMonths = Number.isFinite(client.lapsed_months) ? client.lapsed_months : 7;
   const ownerDigits = normalizePhone(client.owner_phone);
@@ -3592,16 +4223,29 @@ async function handleReactivationToggle(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const supabase = getSupabase();
   try {
-    const { token, client_id, enabled } = req.body || {};
+    const { token, client_id, enabled, consent_confirmed } = req.body || {};
     if (!token && !requireAuth(req, res)) return;
     const client = await resolveClient(supabase, { token, client_id });
     if (!client) return res.status(404).json({ error: 'Client not found' });
-    const { data: updated, error } = await supabase
-      .from('tool_clients')
-      .update({ reactivation_enabled: !!enabled })
-      .eq('id', client.id)
-      .select('id, reactivation_enabled')
-      .single();
+
+    const patch = { reactivation_enabled: !!enabled };
+    // If the UI passes consent_confirmed, record it (+ timestamp). Guarded below so
+    // a pre-migration DB (columns absent) still toggles the enable flag cleanly.
+    if (typeof consent_confirmed === 'boolean') {
+      patch.reactivation_consent_confirmed = consent_confirmed;
+      patch.reactivation_consent_at = consent_confirmed ? new Date().toISOString() : null;
+    }
+
+    let updated, error;
+    ({ data: updated, error } = await supabase
+      .from('tool_clients').update(patch).eq('id', client.id)
+      .select('id, reactivation_enabled').single());
+    if (error && /reactivation_consent/i.test(error.message || '')) {
+      // Consent columns not migrated yet — apply just the enable flag so the call succeeds.
+      ({ data: updated, error } = await supabase
+        .from('tool_clients').update({ reactivation_enabled: !!enabled }).eq('id', client.id)
+        .select('id, reactivation_enabled').single());
+    }
     if (error) throw error;
     return res.status(200).json({ ok: true, reactivation_enabled: updated.reactivation_enabled });
   } catch (err) {
@@ -3787,6 +4431,24 @@ function hourBucketLabel(h) {
   return `${fmt(start)}-${fmt((start + 2) % 24)}`;
 }
 
+// Industry benchmark so a quiet or brand-new week still yields a compelling audit
+// number. Scaled by niche call volume + the client's own avg customer value.
+function benchmarkFor(client, days) {
+  const avgValue = Number(client.avg_customer_value) || 500;
+  const v = clientVertical(client);
+  const callsPerWeek = ({ roofing: 40, restoration: 35, plumbing: 55, hvac: 45, electrical: 35, 'emergency-home': 40, dental: 120, legal: 30, realestate: 40 })[v] || 50;
+  const missedRate = 0.38, recoverShare = 0.30, weeks = (days || 30) / 7;
+  const projMissed = Math.round(callsPerWeek * missedRate * weeks);
+  const projRecoverable = Math.round(projMissed * recoverShare);
+  return {
+    basis: v,
+    projected_missed: projMissed,
+    projected_recoverable: projRecoverable,
+    projected_value_at_risk: projRecoverable * avgValue,
+    assumptions: { calls_per_week: callsPerWeek, missed_rate: missedRate, recover_share: recoverShare }
+  };
+}
+
 async function buildInsights(supabase, client, days = 30) {
   const tz = client.timezone || 'America/New_York';
   const avgValue = Number(client.avg_customer_value) || 500;
@@ -3891,6 +4553,11 @@ async function buildInsights(supabase, client, days = 30) {
     roi_multiple: roiMultiple
   };
 
+  // Real + benchmark blend: lean on the benchmark when the line is new/quiet so the
+  // audit still lands, while always showing what we've actually caught.
+  const benchmark = benchmarkFor(client, days);
+  benchmark.use_benchmark = curMissed.length < 5;
+
   // Recommendations.
   const recommendations = [];
   if (peak_missed) {
@@ -3905,11 +4572,14 @@ async function buildInsights(supabase, client, days = 30) {
   if (client.reactivation_enabled && rebooked > 0) {
     recommendations.push(`Reactivation rebooked ${rebooked} lapsed patient(s) (~$${reactRevenue}). Keep the list fresh by re-importing monthly.`);
   }
+  if (benchmark.use_benchmark) {
+    recommendations.unshift(`Your recovery line is still warming up. A ${benchmark.basis} business your size typically misses ~${benchmark.projected_missed} calls and risks ~$${benchmark.projected_value_at_risk.toLocaleString()} over ${days} days — here's what we've caught so far.`);
+  }
   if (!recommendations.length) {
-    recommendations.push('Everything is running smoothly — keep the line forwarded and the patient list current.');
+    recommendations.push('Everything is running smoothly — keep the line forwarded and your lead list current.');
   }
 
-  return { days, headline_roi, peak_missed, recovery_rate, booking_rate, themes, reactivation, recommendations };
+  return { days, headline_roi, peak_missed, recovery_rate, booking_rate, themes, reactivation, recommendations, benchmark };
 }
 
 // Simple keyword tally fallback for enquiry themes.
@@ -4019,6 +4689,118 @@ async function handleDemo(req, res) {
   }
 }
 
+// ─── Onboard-by-URL — paste a website, we autofill the onboarding form ────────
+// GET /api/tool/enrich?url=practice.com  → { ok, suggested:{practice_name, phone,
+// email, business_hours, services} }. Server-side fetch + lightweight extraction.
+// No DB writes, no auth — it only reads a public page the prospect gave us.
+async function handleEnrich(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    let url = (req.query.url || '').trim();
+    if (!url) return res.status(400).json({ ok: false, error: 'url required' });
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    let parsed;
+    try { parsed = new URL(url); } catch (e) { return res.status(400).json({ ok: false, error: 'Invalid URL' }); }
+    // SSRF guard: only fetch public http(s) hosts, never internal/loopback.
+    const host = parsed.hostname;
+    if (/^(localhost|127\.|10\.|192\.168\.|169\.254\.|::1)/i.test(host) || !host.includes('.')) {
+      return res.status(400).json({ ok: false, error: 'That URL is not reachable.' });
+    }
+
+    let html = '';
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      const r = await fetch(parsed.toString(), {
+        signal: ctrl.signal,
+        redirect: 'follow',
+        headers: { 'User-Agent': 'VyrrahRecaller/1.0 (+https://vyrrahlabs.com)' }
+      });
+      clearTimeout(t);
+      html = (await r.text()).slice(0, 400000); // cap to keep parsing cheap
+    } catch (e) {
+      return res.status(200).json({ ok: false, error: 'Could not load that site — fill the form manually.' });
+    }
+
+    const pick = (re) => { const m = html.match(re); return m ? m[1].trim() : ''; };
+    const decode = (s) => s.replace(/&amp;/g, '&').replace(/&#0?39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, '').trim();
+
+    // Practice name: og:site_name → <title> (strip trailing " | Home" etc.)
+    let practice_name =
+      pick(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)["']/i) ||
+      pick(/<meta[^>]+name=["']application-name["'][^>]+content=["']([^"']+)["']/i) ||
+      pick(/<title[^>]*>([^<]+)<\/title>/i);
+    practice_name = decode(practice_name).split(/\s[|\-–—·]\s/)[0].trim().slice(0, 80);
+
+    const text = decode(html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' '));
+
+    // Phone: prefer tel: links, then a US-style number in the text.
+    let phone = pick(/href=["']tel:([+0-9()\-.\s]{7,})["']/i) ||
+      ((text.match(/(\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}/) || [])[0] || '');
+    phone = phone.trim();
+
+    // Email: first mailto or plain address.
+    let email = pick(/href=["']mailto:([^"'?]+)["']/i) ||
+      ((text.match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i) || [])[0] || '');
+
+    // Hours: grab a line mentioning days + times if present.
+    let business_hours = '';
+    const hoursMatch = text.match(/((mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s*[^.\n]{0,60}?\d{1,2}\s*(:\d{2})?\s*(am|pm)[^.\n]{0,60})/i);
+    if (hoursMatch) business_hours = hoursMatch[1].replace(/\s+/g, ' ').trim().slice(0, 140);
+
+    // Services: detect common practice service keywords mentioned on the page.
+    const SERVICE_WORDS = ['cleaning', 'checkup', 'check-up', 'whitening', 'crown', 'crowns', 'implant', 'implants', 'invisalign', 'braces', 'orthodontic', 'root canal', 'extraction', 'veneers', 'filling', 'fillings', 'emergency', 'cosmetic', 'hygiene', 'dentures', 'consultation', 'massage', 'facial', 'botox', 'adjustment', 'physio', 'therapy'];
+    const lower = text.toLowerCase();
+    const services = [...new Set(SERVICE_WORDS.filter((w) => lower.includes(w)))].slice(0, 8).join(', ');
+
+    return res.status(200).json({
+      ok: true,
+      source: parsed.toString(),
+      suggested: { practice_name, phone, email, business_hours, services }
+    });
+  } catch (err) {
+    console.error('tool/enrich error:', err);
+    return res.status(200).json({ ok: false, error: 'Could not analyze that site.' });
+  }
+}
+
+// ─── #7 Carrier auto-detect → exact forwarding code ───────────────────────────
+// GET /api/tool/carrier?phone=&target=  → { carrier, type, codes:{ all, noanswer } }
+// Uses Twilio Lookup v2 to identify the caller's carrier so onboarding can show the
+// precise conditional-forwarding code instead of a scary generic one.
+async function handleCarrier(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const phone = normalizePhone(req.query.phone || '');
+    const target = normalizePhone(req.query.target || '');
+    if (!phone || phone.length < 10) return res.status(400).json({ ok: false, error: 'valid phone required' });
+    const e164 = '+' + (phone.length === 10 ? '1' + phone : phone);
+
+    let carrier = null, type = null;
+    try {
+      const lk = await getTwilioClient().lookups.v2.phoneNumbers(e164).fetch({ fields: 'line_type_intelligence' });
+      const lti = lk && lk.lineTypeIntelligence;
+      if (lti) { carrier = lti.carrier_name || null; type = lti.type || null; }
+    } catch (e) {
+      console.error('carrier lookup failed', e.message);
+      // Soft-fail: still return generic codes so onboarding never blocks.
+    }
+
+    // Conditional-forward codes. The all-conditions GSM code works on most US mobile
+    // carriers; *61* is the no-answer-only fallback if the combined code is rejected.
+    const t = target ? ('+' + (target.length === 10 ? '1' + target : target)) : '<your recovery number>';
+    const codes = {
+      all: `*004*${t}#`,
+      noanswer: `*61*${t}#`,
+      cancel: '##004#'
+    };
+    return res.status(200).json({ ok: true, carrier, type, codes });
+  } catch (err) {
+    console.error('tool/carrier error:', err);
+    return res.status(200).json({ ok: false, error: 'lookup unavailable' });
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 module.exports = async (req, res) => {
@@ -4031,9 +4813,21 @@ module.exports = async (req, res) => {
   const seg0 = route[0];
   const seg1 = route[1];
 
+  // Translate a logged-in client JWT into ?token= so existing handlers work.
+  applyBearerSession(req);
+
   try {
+  if (seg0 === 'auth' && seg1 === 'login') return await handleAuthLogin(req, res);
+  if (seg0 === 'auth' && seg1 === 'magic') return await handleAuthMagic(req, res);
+  if (seg0 === 'auth' && seg1 === 'admin') return await handleAuthAdmin(req, res);
   if (seg0 === 'clients' && seg1 === 'provision') return await handleClientsProvision(req, res);
   if (seg0 === 'clients' && !seg1) return await handleClients(req, res);
+  if (seg0 === 'enrich') return await handleEnrich(req, res);
+  if (seg0 === 'referral') return await handleReferral(req, res);
+  if (seg0 === 'concierge') return await handleConcierge(req, res);
+  if (seg0 === 'carrier') return await handleCarrier(req, res);
+  if (seg0 === 'account' && seg1 === 'action') return await handleAccountAction(req, res);
+  if (seg0 === 'account') return await handleAccount(req, res);
   if (seg0 === 'verify-status') return await handleVerifyStatus(req, res);
   if (seg0 === 'pool' && seg1 === 'refill') return await handlePoolRefill(req, res);
   if (seg0 === 'pool' && !seg1) return await handlePool(req, res);

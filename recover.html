@@ -27,10 +27,24 @@
   a{color:var(--gold)}
   #grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:0;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");animation:grain 7s steps(8) infinite}
   @keyframes grain{0%,100%{transform:translate(0,0)}50%{transform:translate(-2%,1%)}}
+  body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(620px circle at 88% -4%,rgba(200,37,30,.10),transparent 60%),radial-gradient(540px circle at -5% 24%,rgba(240,165,0,.05),transparent 55%)}
   .wrap{width:100%;max-width:900px;margin:0 auto;padding:24px 20px 70px;flex:1;position:relative;z-index:1}
 
   header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-bottom:20px;border-bottom:1px solid var(--line)}
   .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;letter-spacing:.04em}
+  #login{max-width:380px;margin:50px auto}
+  .loginbox{display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:30px}
+  .loginmark{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;letter-spacing:.06em;color:var(--muted)}
+  .loginmark .dot{color:var(--red)}
+  .loginh{font-family:'Fraunces',serif;font-weight:900;font-size:22px;margin-bottom:4px}
+  .loginbox input{background:var(--panel2);border:1px solid var(--line2);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:13px 14px;outline:none}
+  .loginbox input:focus{border-color:var(--gold)}
+  .loginbox .btn{width:100%;margin:2px 0 0}
+  .loginerr{font-size:13px;color:var(--red2);line-height:1.5}
+  .liLink{background:none;border:none;color:var(--gold);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-decoration:underline;padding:2px;text-align:left}
+  .loginhint{font-size:11.5px;color:var(--muted);line-height:1.5}
+  .logoutlink{font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline;margin-left:10px}
+  .logoutlink:hover{color:var(--text)}
   .wordmark .dot{color:var(--red)}
   .who{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .practice{font-family:'Fraunces',serif;font-weight:900;font-size:22px}
@@ -42,7 +56,30 @@
   .tabbar{display:flex;gap:8px;margin:20px 0 4px}
   .tabbtn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;padding:11px 22px;cursor:pointer;transition:border-color .2s,color .2s,background .2s}
   .tabbtn.on{border-color:var(--red);color:var(--text);background:rgba(200,37,30,.12)}
-  #viewOverview,#viewInbox,#viewAppts{display:none}
+  #viewOverview,#viewInbox,#viewAppts,#viewAccount{display:none}
+  .acct-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;margin:18px 0}
+  .acct-card.refer{background:linear-gradient(135deg,rgba(240,165,0,.08),transparent);border-color:rgba(240,165,0,.3)}
+  .acct-h{font-family:'Fraunces',serif;font-weight:900;font-size:19px;margin-bottom:6px}
+  .acct-sub{font-size:14px;color:var(--muted);line-height:1.55;margin-bottom:16px}
+  .acct-status{font-size:15px;color:var(--text);margin-bottom:10px}
+  .statuspill{display:inline-block;font-family:'Syne',sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:4px 11px;border-radius:999px;margin-left:8px}
+  .statuspill.trial{color:var(--gold);border:1px solid rgba(240,165,0,.45);background:rgba(240,165,0,.08)}
+  .statuspill.active{color:var(--green);border:1px solid rgba(47,191,113,.45);background:rgba(47,191,113,.08)}
+  .statuspill.paused,.statuspill.churned,.statuspill.past_due{color:var(--muted);border:1px solid var(--line2)}
+  .acct-value{font-size:13.5px;color:var(--muted);margin-bottom:16px;line-height:1.6}
+  .acct-value b{color:var(--gold)}
+  .acct-actions{display:flex;gap:10px;flex-wrap:wrap}
+  .acct-actions .btn{margin:0}
+  .acct-actions .btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--muted)}
+  .acct-actions .btn.ghost::before{display:none}
+  .acct-actions .btn.ghost:hover{border-color:var(--red2);color:var(--red2);box-shadow:none}
+  .acct-msg{font-size:13.5px;margin-top:14px;line-height:1.55}
+  .acct-msg.ok{color:var(--green)} .acct-msg.bad{color:var(--red2)} .acct-msg.info{color:var(--muted)}
+  .refer-linkrow{display:flex;gap:10px;margin-bottom:18px}
+  .refer-linkrow input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:12px 13px;min-width:0}
+  .refer-stats{display:flex;gap:26px;flex-wrap:wrap}
+  .refer-stat .rv{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--gold);line-height:1}
+  .refer-stat .rl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:5px}
   .convoright{display:flex;flex-direction:column;gap:12px}
   .composer{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
   .composer textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:11px 13px;resize:vertical;outline:none}
@@ -106,8 +143,12 @@
 
   .banner{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:linear-gradient(135deg,rgba(240,165,0,.14),rgba(240,165,0,.05));border:1px solid rgba(240,165,0,.4);border-radius:14px;padding:18px 20px;margin:18px 0 0}
   .banner p{font-family:'Fraunces',serif;font-weight:900;font-size:16px;color:var(--gold)}
-  .btn{display:inline-block;background:var(--red);color:var(--text);text-decoration:none;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.06em;padding:12px 22px;border-radius:10px;white-space:nowrap;transition:filter .2s}
-  .btn:hover{filter:brightness(1.12)}
+  .btn{position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--red);color:#fff;text-decoration:none;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.06em;padding:13px 24px;border-radius:11px;white-space:nowrap;border:none;cursor:pointer;overflow:hidden;transition:transform .25s var(--ease),box-shadow .25s}
+  .btn::before{content:'';position:absolute;inset:0;background:var(--red2);transform:translateX(-101%);transition:transform .35s var(--ease);z-index:-1}
+  .btn:hover::before{transform:translateX(0)}
+  .btn:hover{box-shadow:0 12px 32px rgba(200,37,30,.32)}
+  .btn[disabled]{opacity:.5;cursor:wait}
+  .btn[disabled]::before{display:none}
 
   h2{font-family:'Fraunces',serif;font-weight:900;font-size:20px;margin:26px 0 14px}
   .convo{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:12px}
@@ -203,12 +244,26 @@
     <p>It may have expired or been copied incorrectly.<br>Contact <a href="mailto:godwin@vyrrahlabs.com">godwin@vyrrahlabs.com</a> and we'll sort it out.</p>
   </div>
 
+  <div id="login" class="state">
+    <div class="loginbox">
+      <div class="loginmark">VYRRAH RECALLER<span class="dot">.</span></div>
+      <div class="loginh">Sign in to your dashboard</div>
+      <input id="liEmail" type="email" placeholder="Your email" autocomplete="email">
+      <input id="liPass" type="password" placeholder="Password" autocomplete="current-password">
+      <button class="btn" id="liBtn" type="button">Sign in</button>
+      <button class="liLink" id="liMagic" type="button">Email me a login link instead</button>
+      <div class="loginerr" id="liErr" style="display:none"></div>
+      <div class="loginhint">No password set? Use the email link — it signs you straight in.</div>
+    </div>
+  </div>
+
   <div id="app">
     <header>
       <div class="wordmark">VYRRAH RECALLER<span class="dot">.</span></div>
       <div class="who">
         <span class="practice" id="practiceName"></span>
         <span class="pill" id="statusPill"></span>
+        <a class="logoutlink" id="logoutLink">Log out</a>
       </div>
     </header>
 
@@ -216,6 +271,7 @@
       <button class="tabbtn on" id="tabOverview" data-view="Overview">Overview</button>
       <button class="tabbtn" id="tabInbox" data-view="Inbox">Inbox</button>
       <button class="tabbtn" id="tabAppts" data-view="Appts">Appointments</button>
+      <button class="tabbtn" id="tabAccount" data-view="Account">Account</button>
     </div>
 
     <div id="viewOverview" style="display:block">
@@ -288,6 +344,26 @@
       <h2 style="margin-top:18px">Upcoming appointments</h2>
       <div id="apptList"><div class="empty">Loading…</div></div>
     </div><!-- /viewAppts -->
+
+    <div id="viewAccount">
+      <div class="acct-card" id="subCard">
+        <div class="acct-h">Your subscription</div>
+        <div class="acct-status" id="subStatus">Loading…</div>
+        <div class="acct-value" id="subValue"></div>
+        <div class="acct-actions" id="subActions"></div>
+        <div class="acct-msg" id="subMsg"></div>
+      </div>
+      <div class="acct-card refer" id="referCard">
+        <div class="acct-h">Refer an owner — you both get a free month</div>
+        <p class="acct-sub">Send another owner your link. The moment they become a paying customer, you each get a month on us.</p>
+        <div class="refer-linkrow" id="referLinkRow" style="display:none">
+          <input id="referLink" readonly>
+          <button class="btn" id="referCopy" type="button">Copy</button>
+        </div>
+        <div class="refer-stats" id="referStats"></div>
+        <div class="acct-msg" id="referMsg"></div>
+      </div>
+    </div><!-- /viewAccount -->
   </div>
 </div>
 
@@ -312,14 +388,19 @@
 
 <script>
 (function(){
-  var token = new URLSearchParams(location.search).get('token');
+  // Session: a magic-link ?token= (from the emailed login link) or a stored session
+  // from password login. URL token is persisted to localStorage and stripped from
+  // the address bar, so the dashboard URL is never a bookmarkable key.
+  var urlTok = new URLSearchParams(location.search).get('token');
+  if(urlTok){ try{ localStorage.setItem('vy_client_token', urlTok); }catch(e){} try{ history.replaceState(null, '', location.pathname); }catch(e){} }
+  var token = urlTok || (function(){ try{ return localStorage.getItem('vy_client_token') || ''; }catch(e){ return ''; } })();
   var firstLoad = true;
   var activeView = 'Overview';
   var inboxData = null;
   var selectedCaller = null;
 
   function show(id){
-    ['loading','error','app'].forEach(function(x){
+    ['loading','error','app','login'].forEach(function(x){
       document.getElementById(x).style.display = x===id ? 'block' : 'none';
     });
   }
@@ -615,31 +696,119 @@
       .catch(function(){ document.getElementById('apptList').innerHTML = '<div class="empty">Could not load appointments right now.</div>'; });
   }
 
+  /* ── Account: subscription + referral ── */
+  var STATUS_LABEL = { trial:'On your free trial', active:'Active subscription', paused:'Paused', past_due:'Payment past due', churned:'Cancelled' };
+  function renderAccount(a){
+    if(!a || a.error){ document.getElementById('subStatus').textContent='Could not load your account right now.'; return; }
+    var pill = String(a.status||'').toLowerCase();
+    var html = '<b>'+(STATUS_LABEL[a.status]||a.status||'')+'</b><span class="statuspill '+pill+'">'+(a.status||'')+'</span>';
+    if(a.trial_days_left!=null) html += '<div style="margin-top:8px;font-size:13px;color:var(--muted)">'+a.trial_days_left+' day(s) left on your free trial.</div>';
+    document.getElementById('subStatus').innerHTML = html;
+    var v = a.value_last_30d || {};
+    document.getElementById('subValue').innerHTML = 'Last 30 days: <b>'+(v.recovered||0)+'</b> recovered · <b>'+(v.booked||0)+'</b> booked · <b>$'+Number(v.est_revenue_saved||0).toLocaleString()+'</b> saved. Plan: $'+(a.monthly_price||500)+'/mo.';
+    var acts = [];
+    if(a.status==='trial') acts.push('<button class="btn" data-act="subscribe">Subscribe · $'+(a.monthly_price||500)+'/mo</button>');
+    if(a.status==='past_due') acts.push('<button class="btn" data-act="update_billing">Update card</button>');
+    if(a.can_resume) acts.push('<button class="btn" data-act="resume">Resume</button>');
+    if(a.can_pause && a.status!=='trial') acts.push('<button class="btn ghost" data-act="pause">Pause</button>');
+    if(['trial','active','paused'].indexOf(a.status)>=0) acts.push('<button class="btn ghost" data-act="cancel">Cancel</button>');
+    document.getElementById('subActions').innerHTML = acts.join('');
+    document.querySelectorAll('#subActions .btn').forEach(function(b){ b.addEventListener('click', function(){ acctAction(b.getAttribute('data-act')); }); });
+  }
+  function acctAction(action, confirmIt){
+    var msg = document.getElementById('subMsg'); msg.className='acct-msg info'; msg.textContent='Working…';
+    fetch('/api/tool/account/action', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: token, action: action, confirm: confirmIt===true }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.redirect){ window.location.href = d.redirect; return; }
+        if(d.save_flow){
+          var v = d.value_last_30d || {};
+          msg.className='acct-msg info';
+          msg.innerHTML = (d.message||'Before you cancel…') + '<br>In the last 30 days we saved you <b>$'+Number(v.est_revenue_saved||0).toLocaleString()+'</b>.<br>' +
+            '<button class="btn ghost" id="reallyCancel" style="margin-top:12px">Cancel anyway</button> <button class="btn" id="keepIt" style="margin-top:12px">Keep it running</button>';
+          document.getElementById('reallyCancel').addEventListener('click', function(){ acctAction('cancel', true); });
+          document.getElementById('keepIt').addEventListener('click', function(){ msg.textContent=''; });
+          return;
+        }
+        msg.className = 'acct-msg ' + (d.ok ? 'ok' : 'bad');
+        msg.textContent = d.message || (d.ok ? 'Done.' : (d.error || 'Something went wrong.'));
+        if(d.ok && d.status) loadAccount();
+      })
+      .catch(function(){ msg.className='acct-msg bad'; msg.textContent='Could not complete that. Try again.'; });
+  }
+  function renderReferral(d){
+    if(!d || !d.enabled){ var m=document.getElementById('referMsg'); m.className='acct-msg info'; m.textContent=(d&&d.message)||'Referrals activate after setup.'; return; }
+    document.getElementById('referLinkRow').style.display='flex';
+    document.getElementById('referLink').value = d.referral_link;
+    document.getElementById('referStats').innerHTML =
+      '<div class="refer-stat"><div class="rv">'+(d.referred_count||0)+'</div><div class="rl">Referred</div></div>' +
+      '<div class="refer-stat"><div class="rv">'+(d.converted_count||0)+'</div><div class="rl">Became customers</div></div>' +
+      '<div class="refer-stat"><div class="rv">'+(d.free_months_earned||0)+'</div><div class="rl">Free months earned</div></div>';
+  }
+  function loadAccount(){
+    fetch('/api/tool/account?token=' + encodeURIComponent(token)).then(function(r){ return r.json(); }).then(renderAccount).catch(function(){});
+    fetch('/api/tool/referral?token=' + encodeURIComponent(token)).then(function(r){ return r.json(); }).then(renderReferral).catch(function(){});
+  }
+  document.getElementById('referCopy').addEventListener('click', function(){
+    var i = document.getElementById('referLink'); i.select();
+    try{ navigator.clipboard.writeText(i.value); }catch(e){}
+    var b = this; b.textContent='Copied ✓'; setTimeout(function(){ b.textContent='Copy'; }, 1500);
+  });
+
+  var VIEWS = ['Overview','Inbox','Appts','Account'];
   function setView(view){
     activeView = view;
-    document.getElementById('tabOverview').className = 'tabbtn' + (view==='Overview'?' on':'');
-    document.getElementById('tabInbox').className = 'tabbtn' + (view==='Inbox'?' on':'');
-    document.getElementById('tabAppts').className = 'tabbtn' + (view==='Appts'?' on':'');
-    document.getElementById('viewOverview').style.display = view==='Overview' ? 'block' : 'none';
-    document.getElementById('viewInbox').style.display = view==='Inbox' ? 'block' : 'none';
-    document.getElementById('viewAppts').style.display = view==='Appts' ? 'block' : 'none';
+    VIEWS.forEach(function(v){
+      var tab = document.getElementById('tab'+v); if(tab) tab.className = 'tabbtn' + (view===v ? ' on' : '');
+      var el = document.getElementById('view'+v); if(el) el.style.display = view===v ? 'block' : 'none';
+    });
     if(view==='Inbox') loadInbox();
     if(view==='Appts') loadAppts();
+    if(view==='Account') loadAccount();
   }
-  document.getElementById('tabOverview').addEventListener('click', function(){ setView('Overview'); });
-  document.getElementById('tabInbox').addEventListener('click', function(){ setView('Inbox'); });
-  document.getElementById('tabAppts').addEventListener('click', function(){ setView('Appts'); });
+  VIEWS.forEach(function(v){ var t=document.getElementById('tab'+v); if(t) t.addEventListener('click', function(){ setView(v); }); });
 
   function load(){
-    if(!token){ show('error'); return; }
+    if(!token){ show('login'); return; }
     fetch('/api/tool/dashboard?token=' + encodeURIComponent(token))
       .then(function(r){ if(!r.ok) throw new Error('bad'); return r.json(); })
       .then(render)
       .catch(function(){ if(firstLoad) show('error'); });
   }
 
-  load();
-  setInterval(function(){ if(activeView==='Inbox') loadInbox(); else if(activeView==='Appts') loadAppts(); else load(); }, 60000);
+  /* ── Client login (email+password) + passwordless email-link backup ── */
+  function liError(m){ var e=document.getElementById('liErr'); e.style.color='var(--red2)'; e.textContent=m; e.style.display='block'; }
+  function doClientLogin(){
+    var email=document.getElementById('liEmail').value.trim(), pass=document.getElementById('liPass').value;
+    if(!email||!pass){ liError('Enter your email and password.'); return; }
+    var b=document.getElementById('liBtn'); b.disabled=true; b.textContent='Signing in…';
+    fetch('/api/tool/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass})})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+      .then(function(res){
+        if(!res.ok || !res.d.magic_token) throw new Error(res.d.error || 'Login failed');
+        try{ localStorage.setItem('vy_client_token', res.d.magic_token); }catch(e){}
+        token = res.d.magic_token; firstLoad = true; load();
+      })
+      .catch(function(e){ liError(e.message); })
+      .finally(function(){ b.disabled=false; b.textContent='Sign in'; });
+  }
+  function doMagicLink(){
+    var email=document.getElementById('liEmail').value.trim();
+    if(!email){ liError("Enter your email and we'll send a login link."); return; }
+    var b=document.getElementById('liMagic'); b.disabled=true; b.textContent='Sending…';
+    fetch('/api/tool/auth/magic',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){ var e=document.getElementById('liErr'); e.style.color='var(--green)'; e.textContent=d.message||'Check your email for a login link.'; e.style.display='block'; })
+      .catch(function(){ liError('Could not send right now. Try again.'); })
+      .finally(function(){ b.disabled=false; b.textContent='Email me a login link instead'; });
+  }
+  document.getElementById('liBtn').addEventListener('click', doClientLogin);
+  document.getElementById('liPass').addEventListener('keydown', function(e){ if(e.key==='Enter') doClientLogin(); });
+  document.getElementById('liMagic').addEventListener('click', doMagicLink);
+  document.getElementById('logoutLink').addEventListener('click', function(){ try{ localStorage.removeItem('vy_client_token'); }catch(e){} token=''; show('login'); });
+
+  if(token){ load(); } else { show('login'); }
+  setInterval(function(){ if(!token) return; if(activeView==='Inbox') loadInbox(); else if(activeView==='Appts') loadAppts(); else load(); }, 60000);
 
   /* iOS add-to-home hint, once */
   (function(){

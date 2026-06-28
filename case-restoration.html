@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case Study: Texas Restoration Firm | Vyrrah Labs</title>
+<meta name="description" content="How we took a statewide restoration firm's cost-per-lead to ~$1 and ran their entire booking, collections, and scheduling on one AI control center.">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,300;1,9..144,700;1,9..144,900&family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070707;--bg2:#0f0f0f;--bg3:#161616;--white:#f2ede4;--red:#c8251e;--red2:#e03030;--gold:#f0a500;--gold2:#f5c030;--border:rgba(242,237,228,.07);--border2:rgba(242,237,228,.13);--gray:#666;--mid:#999}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--white);font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+::selection{background:var(--gold);color:var(--bg)}
+a{color:inherit}
+.glow{position:absolute;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:18px 52px;background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
+.nlt{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--white);letter-spacing:-.5px;text-decoration:none}
+.nlt span{color:var(--gold)}
+.nlinks{display:flex;gap:30px;align-items:center}
+.nlinks a{font-size:13px;color:var(--mid);text-decoration:none;transition:color .2s}
+.nlinks a:not(.ncta):hover{color:var(--white)}
+.ncta{background:var(--red);color:#fff!important;font-size:13px;font-weight:600;padding:10px 22px;text-decoration:none;transition:background .2s,transform .2s}
+.ncta:hover{background:var(--red2);transform:translateY(-1px)}
+@media(max-width:920px){.nlinks a:not(.ncta){display:none}}
+@media(max-width:720px){nav{padding:14px 20px}}
+.btnr{background:var(--red);color:#fff;font-size:15px;font-weight:600;padding:17px 36px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;transition:background .2s,transform .2s,box-shadow .25s;border:none}
+.btnr:hover{background:var(--red2);transform:translateY(-2px);box-shadow:0 14px 40px rgba(200,37,30,.3)}
+.ey{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:12px;font-weight:500;color:var(--gold)}
+.ey::before{content:'';width:28px;height:1px;background:currentColor}
+.back{display:inline-block;font-size:13px;color:var(--mid);text-decoration:none;margin-bottom:24px}
+.back:hover{color:var(--gold)}
+.head{padding:150px 52px 60px;position:relative;overflow:hidden;max-width:1100px;margin:0 auto}
+.head .glow.a{width:520px;height:520px;background:rgba(240,165,0,.07);top:-160px;right:-120px}
+.head h1{font-family:'Fraunces',serif;font-size:clamp(36px,5.5vw,68px);font-weight:900;line-height:1.04;letter-spacing:-1.5px;margin-bottom:22px;max-width:900px;position:relative;z-index:2}
+.head h1 em{font-style:italic;color:var(--gold)}
+.head .sub{font-size:18px;color:var(--mid);max-width:640px;line-height:1.7;position:relative;z-index:2}
+.head .sub b{color:var(--white);font-weight:500}
+.stats{max-width:1100px;margin:0 auto;padding:20px 52px 60px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border2);border:1px solid var(--border2)}
+.stat{background:var(--bg);padding:30px 24px;text-align:center}
+.stat .n{font-family:'Fraunces',serif;font-size:clamp(30px,4vw,46px);font-weight:900;color:var(--gold);line-height:1;letter-spacing:-1px}
+.stat .l{font-size:12.5px;color:var(--mid);margin-top:10px;line-height:1.4}
+.ph{color:var(--red2);font-style:italic;font-size:.6em;letter-spacing:0}
+@media(max-width:820px){.stats{grid-template-columns:repeat(2,1fr)}}
+.body{max-width:840px;margin:0 auto;padding:20px 52px 60px}
+.body section{margin-bottom:54px}
+.body h2{font-family:'Fraunces',serif;font-size:clamp(24px,3vw,34px);font-weight:900;margin-bottom:18px;letter-spacing:-.5px}
+.body h2 em{font-style:italic;color:var(--gold)}
+.body p{font-size:16.5px;color:var(--mid);line-height:1.8;margin-bottom:16px}
+.body p b{color:var(--white);font-weight:500}
+.build-list{list-style:none;margin-top:8px}
+.build-list li{padding:18px 0 18px 34px;border-bottom:1px solid var(--border);position:relative;color:var(--mid);font-size:15.5px;line-height:1.7}
+.build-list li:last-child{border-bottom:none}
+.build-list li::before{content:'';position:absolute;left:0;top:24px;width:12px;height:12px;background:var(--gold)}
+.build-list li b{color:var(--white);font-weight:600}
+.quote{border-left:3px solid var(--gold);background:rgba(240,165,0,.05);padding:28px 32px;margin:10px 0}
+.quote p{font-family:'Fraunces',serif;font-style:italic;font-size:20px;color:var(--white);line-height:1.5;margin:0}
+.quote .who{font-size:13px;color:var(--gold);margin-top:14px;font-style:normal;font-family:'DM Sans'}
+.vid{border:1px dashed rgba(240,165,0,.4);background:#120d02;padding:34px;text-align:center;margin-top:10px}
+.vid .vt{font-family:'Syne',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
+.vid p{font-size:14px;color:var(--mid);margin:0}
+.cta{max-width:1100px;margin:0 auto;padding:20px 52px 100px;text-align:center}
+.cta-box{border:1px solid rgba(240,165,0,.3);background:linear-gradient(180deg,rgba(240,165,0,.05),transparent);padding:56px 40px}
+.cta-box h2{font-family:'Fraunces',serif;font-size:clamp(26px,3.5vw,40px);font-weight:900;margin-bottom:14px;letter-spacing:-.5px}
+.cta-box h2 em{font-style:italic;color:var(--gold)}
+.cta-box p{color:var(--mid);font-size:16px;margin-bottom:28px;max-width:520px;margin-left:auto;margin-right:auto}
+footer{padding:54px 52px;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;border-top:1px solid var(--border)}
+footer .fl{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:-.5px}
+footer .fl span{color:var(--gold)}
+footer p{font-size:12.5px;color:var(--gray)}
+footer .flinks{display:flex;gap:24px}
+footer .flinks a{font-size:12.5px;color:var(--gray);text-decoration:none}
+footer .flinks a:hover{color:var(--gold)}
+.disc{max-width:840px;margin:0 auto;padding:0 52px 40px;font-size:12px;color:var(--gray);line-height:1.6}
+@media(max-width:720px){.head,.stats,.body,.cta{padding-left:20px;padding-right:20px}}
+</style>
+</head>
+<body>
+<div id="grain"></div>
+<nav>
+  <a href="/" class="nlt">VYRRAH<span>.</span></a>
+  <div class="nlinks">
+    <a href="/#pricing">Pricing</a>
+    <a href="/results">Results</a>
+    <a href="/start" class="ncta">Start free →</a>
+  </div>
+</nav>
+
+<header class="head">
+  <div class="glow a"></div>
+  <a href="/results" class="back">← All results</a>
+  <div class="ey">Case Study · Restoration · Texas</div>
+  <h1>A statewide restoration firm, drowning in <em>$400 leads</em> and manual chaos.</h1>
+  <p class="sub">We rebuilt their entire growth and operations engine on one AI control center — and took their cost-per-lead to <b>about a dollar.</b></p>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="n">~$1</div><div class="l">cost per lead<br>(from $150–400)</div></div>
+  <div class="stat"><div class="n">24/7</div><div class="l">AI booking capture<br>across the state</div></div>
+  <div class="stat"><div class="n"><span class="ph">[#]</span></div><div class="l">more booked jobs<br><span class="ph">confirm real #</span></div></div>
+  <div class="stat"><div class="n"><span class="ph">[#]%</span></div><div class="l">faster collections<br><span class="ph">confirm real #</span></div></div>
+</div>
+
+<div class="body">
+  <section>
+    <h2>The <em>challenge</em></h2>
+    <p>A multi-city restoration operation was paying <b>$150–400 for every exclusive water-damage lead</b> — and still losing jobs. Bookings lived in three places, collections dragged for weeks, and crews were dispatched across the state with no regard for travel cost, burning hours and fuel on inefficient routes.</p>
+    <p>They didn't have a lead problem. They had a <b>cost problem and an operations problem</b> stacked on top of each other.</p>
+  </section>
+
+  <section>
+    <h2>What we <em>built</em></h2>
+    <p>One AI control center that ran the whole business — acquisition through collections:</p>
+    <ul class="build-list">
+      <li><b>Lead engine at ~$1 CPL.</b> Replaced the $400 pay-per-lead habit with an owned acquisition system, dropping cost-per-lead by orders of magnitude.</li>
+      <li><b>Unified booking capture + organization.</b> Every inquiry — call, form, after-hours — captured, qualified, and organized into one pipeline automatically.</li>
+      <li><b>Automated debt collection.</b> Outstanding invoices chased on a structured, automated cadence instead of whenever someone remembered.</li>
+      <li><b>Cost-optimized statewide scheduling.</b> Jobs routed across the state for the lowest travel and dispatch cost — the AI sequences crews the cheapest way, not the first-come way.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>The <em>result</em></h2>
+    <p>Cost-per-lead fell from $150–400 to <b>roughly a dollar</b>. Bookings ran themselves, collections tightened, and statewide scheduling stopped bleeding hours and fuel. <span class="ph">[Confirm the real numbers: % more booked jobs, collection-time improvement, monthly hours saved, revenue lift — drop them in and this section closes hard.]</span></p>
+    <div class="quote">
+      <p>“[Client quote — capture on the video interview.]”</p>
+      <div class="who">— Owner, Texas restoration firm</div>
+    </div>
+    <div class="vid">
+      <div class="vt">▶ Video walkthrough</div>
+      <p>Client video interview slot — embed here once recorded.</p>
+    </div>
+  </section>
+</div>
+
+<div class="cta">
+  <div class="cta-box">
+    <h2>Want this run on <em>your</em> numbers?</h2>
+    <p>Start with the free week. I'll show you exactly what your phone is leaking — on your real line — before you pay a cent.</p>
+    <a href="/start" class="btnr">Start the free week <span class="arr">→</span></a>
+  </div>
+</div>
+
+<p class="disc">Client anonymized at their request; figures shown are the real results of work performed by Godwin Rayen. Placeholders marked in red are pending confirmed numbers and are not yet published claims.</p>
+
+<footer>
+  <div class="fl">VYRRAH<span>.</span> Labs</div>
+  <p>Speed-to-lead &amp; growth systems for service businesses.</p>
+  <div class="flinks"><a href="/">Home</a><a href="/results">Results</a><a href="/#pricing">Pricing</a><a href="/start">Start free</a></div>
+</footer>
+</body>
+</html>

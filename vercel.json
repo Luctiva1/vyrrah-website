@@ -26,8 +26,32 @@
       "dest": "/start.html"
     },
     {
+      "src": "/calculator",
+      "dest": "/calculator.html"
+    },
+    {
+      "src": "/work/restoration",
+      "dest": "/case-restoration.html"
+    },
+    {
+      "src": "/work/accounting",
+      "dest": "/case-accounting.html"
+    },
+    {
+      "src": "/work/production",
+      "dest": "/case-production.html"
+    },
+    {
       "src": "/command",
       "dest": "/command.html"
+    },
+    {
+      "src": "/privacy",
+      "dest": "/privacy.html"
+    },
+    {
+      "src": "/terms",
+      "dest": "/terms.html"
     },
     {
       "src": "/api/analyze",

@@ -13,13 +13,15 @@
 <style>
   :root{
     --bg:#070707; --panel:#0f0f0f; --panel2:#161616; --text:#f2ede4; --muted:rgba(242,237,228,.55);
-    --red:#c8251e; --red2:#e03030; --gold:#f0a500; --green:#2fbf71; --line:rgba(242,237,228,.09); --line2:rgba(242,237,228,.14);
+    --red:#c8251e; --red2:#e03030; --gold:#f0a500; --gold2:#f5c030; --green:#2fbf71; --line:rgba(242,237,228,.09); --line2:rgba(242,237,228,.14);
+    --ease:cubic-bezier(.22,1,.36,1);
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
   ::selection{background:var(--gold);color:var(--bg)}
   a{color:var(--gold);text-decoration:none}
   #grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:0;opacity:.04;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E")}
+  body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(640px circle at 92% -6%,rgba(200,37,30,.09),transparent 60%),radial-gradient(560px circle at -4% 18%,rgba(240,165,0,.045),transparent 55%)}
   .wrap{width:100%;max-width:1140px;margin:0 auto;padding:26px 18px 70px;position:relative;z-index:1}
   .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
   .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;letter-spacing:.04em}
@@ -29,12 +31,18 @@
   .refresh{font-size:11px;color:var(--muted)}
   .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 
-  .btn{background:var(--red);color:var(--text);border:none;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.05em;padding:11px 16px;border-radius:9px;transition:filter .2s}
-  .btn:hover{filter:brightness(1.12)}
+  .btn{position:relative;isolation:isolate;background:var(--red);color:#fff;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.05em;padding:11px 18px;border-radius:9px;overflow:hidden;transition:transform .25s var(--ease),box-shadow .25s}
+  .btn::before{content:'';position:absolute;inset:0;background:var(--red2);transform:translateX(-101%);transition:transform .35s var(--ease);z-index:-1}
+  .btn:hover::before{transform:translateX(0)}
+  .btn:hover{box-shadow:0 10px 26px rgba(200,37,30,.3)}
   .btn[disabled]{opacity:.5;cursor:wait}
+  .btn[disabled]::before{display:none}
   .btn.gold{background:var(--gold);color:#070707}
+  .btn.gold::before{background:var(--gold2)}
+  .btn.gold:hover{box-shadow:0 10px 26px rgba(240,165,0,.3)}
   .btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--muted)}
-  .btn.ghost:hover{border-color:var(--gold);color:var(--gold);filter:none}
+  .btn.ghost::before{display:none}
+  .btn.ghost:hover{border-color:var(--gold);color:var(--gold);box-shadow:none}
 
   .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:26px}
   @media(max-width:760px){.metrics{grid-template-columns:repeat(2,1fr)}}
@@ -42,6 +50,11 @@
   .metric .mv{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;font-variant-numeric:tabular-nums}
   .metric .ml{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-top:4px}
   .metric .mv.gold{color:var(--gold)} .metric .mv.green{color:var(--green)}
+  .healthbar{display:flex;align-items:center;gap:10px;border-radius:12px;padding:12px 16px;margin-bottom:18px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;border:1px solid var(--line)}
+  .healthbar .hdotx{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  .healthbar.ok{color:var(--green);background:rgba(47,191,113,.08);border-color:rgba(47,191,113,.3)} .healthbar.ok .hdotx{background:var(--green)}
+  .healthbar.warn{color:var(--gold);background:rgba(240,165,0,.08);border-color:rgba(240,165,0,.35)} .healthbar.warn .hdotx{background:var(--gold)}
+  .healthbar.bad{color:var(--red2);background:rgba(200,37,30,.1);border-color:rgba(200,37,30,.4)} .healthbar.bad .hdotx{background:var(--red)}
 
   .clients{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:760px){.clients{grid-template-columns:1fr}}
@@ -76,16 +89,51 @@
   .act.danger:hover{border-color:var(--red);color:var(--red2)}
   .err{display:none;background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4);border-radius:10px;padding:12px 14px;font-size:14px;margin:14px 0}
   .empty{color:var(--muted);text-align:center;padding:40px;font-size:14px}
+  .badge.ok{color:var(--green);background:rgba(47,191,113,.12);border:1px solid rgba(47,191,113,.4)}
+  .modal{position:fixed;inset:0;z-index:400;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;background:rgba(0,0,0,.72);backdrop-filter:blur(5px);overflow-y:auto}
+  .modal.on{display:flex}
+  .modal-card{position:relative;width:100%;max-width:640px;background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:26px}
+  .modal-x{position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:26px;cursor:pointer;line-height:1}
+  .modal-h{font-family:'Fraunces',serif;font-weight:900;font-size:22px}
+  .modal-sub{font-size:12.5px;color:var(--muted);margin:4px 0 18px}
+  .modal-body{display:flex;flex-direction:column;gap:10px}
+  .mconvo{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .mconvo-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .mconvo-caller{font-family:'Syne',sans-serif;font-weight:700;font-size:13px}
+  .mmsg{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:6px}
+  .mmsg b{color:var(--text);font-weight:500} .mmsg.out b{color:var(--gold)}
+  .detailLink{cursor:pointer}
+  .logingate{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;padding:20px;background:var(--bg)}
+  .loginbox{width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px;background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:30px}
+  .loginmark{font-family:'Syne',sans-serif;font-weight:800;font-size:12px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+  .loginh{font-family:'Fraunces',serif;font-weight:900;font-size:24px;margin-bottom:4px}
+  .loginbox input{background:var(--panel2);border:1px solid var(--line2);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:13px 14px;outline:none}
+  .loginbox input:focus{border-color:var(--gold)}
+  .loginbox .btn{margin-top:4px}
+  .loginerr{color:var(--red2);font-size:13px}
+  .loginhint{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:4px}
 </style>
 </head>
 <body>
 <div id="grain"></div>
+
+<div class="logingate" id="loginGate">
+  <div class="loginbox">
+    <div class="loginmark">VYRRAH RECALLER<span style="color:var(--red)">.</span> · COMMAND</div>
+    <div class="loginh">Sign in</div>
+    <input id="loginUser" placeholder="Username" autocomplete="username" value="admin">
+    <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password">
+    <button class="btn gold" id="loginBtn" type="button">Sign in</button>
+    <div class="loginerr" id="loginErr" style="display:none"></div>
+    <div class="loginhint">Leave username as <b>admin</b>. Password is your <b>ADMIN_KEY</b> (or ADMIN_PASSWORD) — copy it exactly from Vercel.</div>
+  </div>
+</div>
 <div class="wrap">
   <div class="top">
     <div class="wordmark">VYRRAH RECALLER<span class="dot">.</span> · COMMAND</div>
     <div class="toolbar">
       <span class="refresh" id="refresh">—</span>
-      <button class="btn ghost" id="keyBtn">Admin key</button>
+      <button class="btn ghost" id="logoutBtn">Log out</button>
       <button class="btn gold" id="refillBtn">Refill pool (+5)</button>
     </div>
   </div>
@@ -93,31 +141,185 @@
   <p class="sub">Every client, every signal. At-risk and unverified float to the top.</p>
 
   <div class="err" id="err"></div>
+  <div class="healthbar ok" id="healthbar"></div>
   <div class="metrics" id="metrics"></div>
+<!-- ── Funnel Scoreboard ── -->
+<style>
+  .fs{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:26px}
+  .fs-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .fs-title{font-family:'Fraunces',serif;font-weight:900;font-size:18px}
+  .fs-title .mo{color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-left:8px}
+  .fs-edit{background:var(--panel2);border:1px solid var(--line2);color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.04em;padding:7px 11px;border-radius:7px;cursor:pointer;transition:all .15s}
+  .fs-edit:hover{border-color:var(--gold);color:var(--gold)}
+  .fs-funnel{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+  @media(max-width:760px){.fs-funnel{grid-template-columns:repeat(2,1fr)}}
+  .fs-step{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px;position:relative}
+  .fs-step .fv{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;font-variant-numeric:tabular-nums}
+  .fs-step .fl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+  .fs-step .fr{font-size:10px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+  .fs-step .fv.gold{color:var(--gold)} .fs-step .fv.green{color:var(--green)} .fs-step .fv.red{color:var(--red2)}
+  .fs-step .src{position:absolute;top:10px;right:11px;font-family:'Syne',sans-serif;font-weight:700;font-size:8px;letter-spacing:.07em;text-transform:uppercase;padding:2px 6px;border-radius:5px}
+  .fs-step .src.live{color:var(--green);background:rgba(47,191,113,.12);border:1px solid rgba(47,191,113,.35)}
+  .fs-step .src.man{color:var(--muted);background:rgba(242,237,228,.05);border:1px solid var(--line2)}
+  .fs-cac{display:flex;gap:18px;border-top:1px solid var(--line);margin-top:14px;padding-top:14px;flex-wrap:wrap}
+  .fs-cac .fc{flex:0 0 auto}
+  .fs-cac .fc .cv{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;font-variant-numeric:tabular-nums}
+  .fs-cac .fc .cl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+  .fs-cac .fc .cv.gold{color:var(--gold)}
+  .fs-form{display:none;border-top:1px solid var(--line);margin-top:14px;padding-top:14px;grid-template-columns:repeat(2,1fr);gap:12px}
+  .fs-form.on{display:grid}
+  @media(max-width:760px){.fs-form.on{grid-template-columns:1fr}}
+  .fs-field{display:flex;flex-direction:column;gap:5px}
+  .fs-field label{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .fs-field input{background:var(--panel2);border:1px solid var(--line2);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 12px;outline:none}
+  .fs-field input:focus{border-color:var(--gold)}
+  .fs-form .fs-save{grid-column:1/-1;justify-self:start}
+</style>
+<div class="fs" id="funnelScore">
+  <div class="fs-head">
+    <div class="fs-title">Funnel Scoreboard<span class="mo" id="fsMonth"></span></div>
+    <button class="fs-edit" type="button" id="fsEditBtn">Edit inputs</button>
+  </div>
+  <div class="fs-funnel" id="fsFunnel"></div>
+  <div class="fs-cac" id="fsCac"></div>
+  <div class="fs-form" id="fsForm">
+    <div class="fs-field"><label>Conversations this month (override — leave 0 to use live)</label><input id="fsConvos" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+    <div class="fs-field"><label>Audits / discovery calls held</label><input id="fsAudits" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+    <div class="fs-field"><label>Retainers closed this month</label><input id="fsRetainers" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+    <div class="fs-field"><label>Total acquisition spend this month ($)</label><input id="fsSpend" type="number" min="0" inputmode="decimal" placeholder="0"></div>
+    <button class="fs-save btn gold" type="button" id="fsSaveBtn">Save inputs</button>
+  </div>
+</div>
+<script>
+(function(){
+  var KEY = 'vyrrah_funnel_inputs';
+  function ym(){ var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+  function load(){
+    var raw; try{ raw = JSON.parse(localStorage.getItem(KEY) || '{}'); }catch(e){ raw = {}; }
+    if(raw.month !== ym()) raw = { month: ym(), convos:0, audits:0, retainers:0, spend:0 };
+    return raw;
+  }
+  function save(o){ o.month = ym(); localStorage.setItem(KEY, JSON.stringify(o)); }
+  function num(v){ v = Number(v); return isFinite(v) && v>0 ? v : 0; }
+  function money(n){ return '$' + Math.round(Number(n)||0).toLocaleString(); }
+  function pct(a,b){ return b>0 ? Math.round((a/b)*100) + '%' : '—'; }
+
+  function liveSignals(){
+    var conversations = 0, trials = 0, active = 0;
+    document.querySelectorAll('#clients .c .cstats .cstat').forEach(function(st){
+      var lbl = (st.querySelector('.sl')||{}).textContent || '';
+      var val = Number(((st.querySelector('.sv')||{}).textContent||'0').replace(/[^0-9.]/g,'')) || 0;
+      if(/Recovered|Missed/i.test(lbl)) conversations += val;
+    });
+    document.querySelectorAll('#clients .c .pill').forEach(function(p){
+      var t = (p.textContent||'').trim().toLowerCase();
+      if(t === 'trial') trials++; if(t === 'active') active++;
+    });
+    return { conversations: conversations, trials: trials, active: active };
+  }
+
+  function step(v, l, ratio, cls, src){
+    return '<div class="fs-step"><span class="src '+src+'">'+(src==='live'?'live':'manual')+'</span>'+
+      '<div class="fv '+(cls||'')+'">'+v+'</div><div class="fl">'+l+'</div>'+
+      (ratio ? '<div class="fr">'+ratio+'</div>' : '')+'</div>';
+  }
+  function cac(v, l, cls){ return '<div class="fc"><div class="cv '+(cls||'')+'">'+v+'</div><div class="cl">'+l+'</div></div>'; }
+
+  function paint(){
+    var inp = load(), live = liveSignals();
+    var convos = inp.convos > 0 ? inp.convos : live.conversations;
+    var convoSrc = inp.convos > 0 ? 'man' : 'live';
+    var trials = live.trials;
+    var audits = num(inp.audits), retainers = num(inp.retainers), spend = num(inp.spend);
+
+    document.getElementById('fsMonth').textContent = ym();
+    document.getElementById('fsFunnel').innerHTML =
+      step(convos, 'Conversations', null, '', convoSrc) +
+      step(trials, 'Trials started', pct(trials, convos)+' of convos', 'gold', 'live') +
+      step(audits, 'Audits / calls held', pct(audits, trials)+' of trials', '', 'man') +
+      step(retainers, 'Retainers closed', pct(retainers, audits)+' of calls', 'green', 'man') +
+      step(pct(retainers, convos), 'Convo → close', null, retainers>0?'green':'', 'man');
+
+    var cacVal = retainers > 0 ? money(spend / retainers) : '—';
+    document.getElementById('fsCac').innerHTML =
+      cac(money(spend), 'Acquisition spend (mo)') +
+      cac(cacVal, 'Cost per client (CAC)', 'gold') +
+      cac(live.active + retainers, 'Clients incl. new');
+  }
+
+  var form = document.getElementById('fsForm');
+  document.getElementById('fsEditBtn').addEventListener('click', function(){
+    var inp = load();
+    document.getElementById('fsConvos').value = inp.convos || '';
+    document.getElementById('fsAudits').value = inp.audits || '';
+    document.getElementById('fsRetainers').value = inp.retainers || '';
+    document.getElementById('fsSpend').value = inp.spend || '';
+    form.classList.toggle('on');
+  });
+  document.getElementById('fsSaveBtn').addEventListener('click', function(){
+    save({
+      convos: num(document.getElementById('fsConvos').value),
+      audits: num(document.getElementById('fsAudits').value),
+      retainers: num(document.getElementById('fsRetainers').value),
+      spend: num(document.getElementById('fsSpend').value)
+    });
+    form.classList.remove('on');
+    paint();
+  });
+
+  var box = document.getElementById('clients');
+  if(box && window.MutationObserver){
+    new MutationObserver(function(){ paint(); }).observe(box, { childList:true, subtree:true });
+  }
+  paint();
+})();
+</script>
+<!-- ── /Funnel Scoreboard ── -->
   <div class="clients" id="clients"><div class="empty">Loading…</div></div>
+</div>
+
+<div class="modal" id="detailModal">
+  <div class="modal-card">
+    <button class="modal-x" id="modalX">&times;</button>
+    <div class="modal-h" id="modalTitle">Client</div>
+    <div class="modal-sub" id="modalSub">Live conversations</div>
+    <div class="modal-body" id="modalBody"><div class="empty">Loading…</div></div>
+  </div>
 </div>
 
 <script>
 (function(){
-  // ── Admin key (fail-closed auth). Stored locally, sent as x-admin-key on every call. ──
-  function getKey(){
-    var k = localStorage.getItem('vyrrah_admin_key');
-    if(!k){ k = prompt('Enter Command Center admin key'); if(k){ localStorage.setItem('vyrrah_admin_key', k); } }
-    return k || '';
-  }
-  function clearKey(){ localStorage.removeItem('vyrrah_admin_key'); }
+  // ── Admin auth: real username + password login → JWT session (sent as Bearer). ──
+  var JWT_KEY = 'vyrrah_admin_jwt';
+  function getJwt(){ return localStorage.getItem(JWT_KEY) || ''; }
+  function clearJwt(){ localStorage.removeItem(JWT_KEY); }
   function adminFetch(url, opts){
     opts = opts || {}; opts.headers = opts.headers || {};
-    opts.headers['x-admin-key'] = getKey();
+    opts.headers['Authorization'] = 'Bearer ' + getJwt();
     return fetch(url, opts).then(function(r){
-      if(r.status === 401){ clearKey(); throw new Error('Unauthorized — re-enter the admin key and reload.'); }
+      if(r.status === 401){ clearJwt(); showGate('Session expired — sign in again.'); throw new Error('Unauthorized'); }
       return r.json();
     });
   }
-  document.getElementById('keyBtn').addEventListener('click', function(){
-    var k = prompt('Admin key (stored on this device):', localStorage.getItem('vyrrah_admin_key') || '');
-    if(k != null){ if(k){ localStorage.setItem('vyrrah_admin_key', k); } else { clearKey(); } load(); }
-  });
+  function showGate(msg){
+    document.getElementById('loginGate').style.display = 'flex';
+    var e = document.getElementById('loginErr');
+    if(msg){ e.textContent = msg; e.style.display = 'block'; } else { e.style.display = 'none'; }
+  }
+  function hideGate(){ document.getElementById('loginGate').style.display = 'none'; }
+  function doLogin(){
+    var u = document.getElementById('loginUser').value.trim();
+    var p = document.getElementById('loginPass').value;
+    var btn = document.getElementById('loginBtn'); btn.disabled = true; btn.textContent = 'Signing in…';
+    fetch('/api/tool/auth/admin', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username:u, password:p }) })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){ if(!res.ok || !res.d.token) throw new Error(res.d.error || 'Login failed'); localStorage.setItem(JWT_KEY, res.d.token); hideGate(); load(); })
+      .catch(function(e){ var el=document.getElementById('loginErr'); el.textContent = e.message; el.style.display='block'; })
+      .finally(function(){ btn.disabled=false; btn.textContent='Sign in'; });
+  }
+  document.getElementById('loginBtn').addEventListener('click', doLogin);
+  document.getElementById('loginPass').addEventListener('keydown', function(e){ if(e.key === 'Enter') doLogin(); });
+  document.getElementById('logoutBtn').addEventListener('click', function(){ clearJwt(); showGate(); });
 
   function fmtMoney(n){ return '$' + Math.round(Number(n)||0).toLocaleString(); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
@@ -145,6 +347,7 @@
 
     var links = '';
     if(c.magic_token){
+      links += '<a class="detailLink" data-token="'+esc(c.magic_token)+'" data-name="'+esc(c.practice_name)+'">View activity →</a>';
       links += '<a href="/recaller?token='+encodeURIComponent(c.magic_token)+'" target="_blank">Dashboard ↗</a>';
       links += '<a href="/api/tool/report?token='+encodeURIComponent(c.magic_token)+'&days=7" target="_blank">Report ↗</a>';
     }
@@ -180,6 +383,21 @@
       metricCard(fmtMoney(t.total_revenue_recovered), 'Recovered (30d)', 'gold') +
       metricCard(t.pool_available || 0, 'Pool available', 'gold');
 
+    // System health (monitoring at a glance)
+    var cl = d.clients || [];
+    var atRisk = cl.filter(function(c){ return c.health === 'at_risk'; }).length;
+    var unver = cl.filter(function(c){ return !c.forwarding_verified && c.status !== 'churned'; }).length;
+    var trialEnd = cl.filter(function(c){ return c.status === 'trial' && c.trial_days_left != null && c.trial_days_left <= 2; }).length;
+    var poolLow = (t.pool_available || 0) < 3;
+    var parts = [];
+    if(atRisk) parts.push(atRisk + ' at-risk');
+    if(unver) parts.push(unver + ' unverified forwarding');
+    if(trialEnd) parts.push(trialEnd + ' trial(s) ending');
+    if(poolLow) parts.push('pool low (' + (t.pool_available || 0) + ')');
+    var hb = document.getElementById('healthbar');
+    hb.className = 'healthbar ' + (parts.length ? ((atRisk || poolLow) ? 'bad' : 'warn') : 'ok');
+    hb.innerHTML = '<span class="hdotx"></span>' + (parts.length ? ('Needs attention: ' + parts.join(' · ')) : ('All systems healthy · pool ' + (t.pool_available || 0)));
+
     var list = (d.clients || []).slice().sort(function(a,b){
       return (HEALTH_ORDER[a.health]==null?9:HEALTH_ORDER[a.health]) - (HEALTH_ORDER[b.health]==null?9:HEALTH_ORDER[b.health]);
     });
@@ -187,6 +405,9 @@
     box.innerHTML = list.length ? list.map(clientCard).join('') : '<div class="empty">No clients yet.</div>';
     box.querySelectorAll('.act').forEach(function(el){
       el.addEventListener('click', function(){ doAction(el.dataset.id, el.dataset.act, el); });
+    });
+    box.querySelectorAll('.detailLink').forEach(function(el){
+      el.addEventListener('click', function(ev){ ev.preventDefault(); openDetail(el.dataset.token, el.dataset.name); });
     });
     document.getElementById('refresh').textContent = 'updated ' + new Date().toLocaleTimeString();
   }
@@ -206,6 +427,30 @@
         var er = document.getElementById('err'); er.textContent = 'Action failed: ' + e.message; er.style.display = 'block';
       });
   }
+
+  /* ── Drill into a client's live conversations (issue management) ── */
+  function openDetail(tok, name){
+    var m = document.getElementById('detailModal');
+    document.getElementById('modalTitle').textContent = name || 'Client';
+    var body = document.getElementById('modalBody'); body.innerHTML = '<div class="empty">Loading…</div>';
+    m.classList.add('on');
+    fetch('/api/tool/inbox?token=' + encodeURIComponent(tok))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var convos = (d && d.conversations) || [];
+        if(!convos.length){ body.innerHTML = '<div class="empty">No conversations yet.</div>'; return; }
+        body.innerHTML = convos.map(function(c){
+          var tl = c.timeline || [], last = tl.length ? tl[tl.length-1] : null;
+          var tags = ''; if(c.recovered) tags += '<span class="badge ok">Recovered</span>'; if(c.booked) tags += '<span class="badge ok">Booked</span>';
+          var lastmsg = last ? '<div class="mmsg '+(last.direction==='outbound'?'out':'')+'"><b>'+(last.direction==='outbound'?'Us':'Caller')+':</b> '+esc((last.body||'').slice(0,180))+'</div>' : '';
+          return '<div class="mconvo"><div class="mconvo-head"><span class="mconvo-caller">'+esc(c.caller||'Unknown')+'</span>'+
+            '<span>'+tags+'<span style="font-size:11px;color:var(--muted);margin-left:8px">'+esc(since(c.last_contact))+'</span></span></div>'+lastmsg+'</div>';
+        }).join('');
+      })
+      .catch(function(){ body.innerHTML = '<div class="empty">Could not load conversations.</div>'; });
+  }
+  document.getElementById('modalX').addEventListener('click', function(){ document.getElementById('detailModal').classList.remove('on'); });
+  document.getElementById('detailModal').addEventListener('click', function(e){ if(e.target.id==='detailModal') this.classList.remove('on'); });
 
   function load(){
     adminFetch('/api/tool/admin-overview')
@@ -241,8 +486,8 @@
       });
   });
 
-  load();
-  setInterval(load, 30000);
+  if(getJwt()){ hideGate(); load(); } else { showGate(); }
+  setInterval(function(){ if(getJwt()) load(); }, 30000);
 })();
 </script>
 </body>

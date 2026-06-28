@@ -2,153 +2,282 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Meta Pixel — replace 2498792363942577 with your real Pixel ID, then redeploy -->
+<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init','2498792363942577');fbq('track','PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=2498792363942577&ev=PageView&noscript=1"/></noscript>
+<!-- End Meta Pixel -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vyrrah Recaller — Get Set Up</title>
+<title>Vyrrah Recaller, Get Set Up</title>
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#070707">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,900;1,9..144,900&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#070707; --panel:#0f0f0f; --panel2:#161616; --text:#f2ede4; --muted:rgba(242,237,228,.55);
-    --red:#c8251e; --gold:#f0a500; --gold2:#f5c030; --green:#2fbf71; --line:rgba(242,237,228,.09); --line2:rgba(242,237,228,.14);
+    --bg:#070707; --bg2:#0f0f0f; --bg3:#161616; --panel:#0f0f0f; --panel2:#161616;
+    --white:#f2ede4; --text:#f2ede4; --mid:#a6a6a6; --gray:#828282; --muted:rgba(242,237,228,.55);
+    --red:#c8251e; --red2:#e03030; --gold:#f0a500; --gold2:#f5c030; --green:#2fbf71;
+    --border:rgba(242,237,228,.07); --border2:rgba(242,237,228,.13); --line:rgba(242,237,228,.09); --line2:rgba(242,237,228,.14);
     --ease:cubic-bezier(.22,1,.36,1);
   }
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.6;min-height:100vh;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;overflow-x:hidden}
   ::selection{background:var(--gold);color:var(--bg)}
   a{color:var(--gold)}
-  #grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:0;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");animation:grain 7s steps(8) infinite}
-  @keyframes grain{0%,100%{transform:translate(0,0)}50%{transform:translate(-2%,1%)}}
-  .wrap{width:100%;max-width:680px;margin:0 auto;padding:26px 20px 60px;flex:1;position:relative;z-index:1}
-  .wordmark{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;letter-spacing:.04em;text-align:center}
-  .wordmark .dot{color:var(--red)}
-  h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(28px,6vw,34px);text-align:center;margin:20px 0 6px;line-height:1.08}
-  .sub{text-align:center;color:var(--muted);font-size:14.5px;margin-bottom:18px}
-  .center{text-align:center}
-  .nocard{display:inline-block;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--green);border:1px solid rgba(47,191,113,.45);background:rgba(47,191,113,.08);border-radius:999px;padding:5px 13px;margin-bottom:26px}
 
-  .howstrip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:8px 0 28px}
-  .howstep{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 14px}
-  .howstep .hn{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--gold)}
-  .howstep .ht{font-size:13px;line-height:1.5;color:var(--muted);margin-top:8px}
-  .howstep .ht b{color:var(--text);font-weight:500}
-  @media(max-width:560px){.howstrip{grid-template-columns:1fr;gap:10px}.howstep{display:flex;align-items:baseline;gap:12px}.howstep .ht{margin-top:0}}
+  /* ATMOSPHERE */
+  #grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:97;opacity:.05;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");animation:grain 7s steps(8) infinite}
+  @keyframes grain{0%,100%{transform:translate(0,0)}25%{transform:translate(-3%,2%)}50%{transform:translate(2%,-3%)}75%{transform:translate(-2%,-2%)}}
+  .glow{position:absolute;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0}
+
+  /* PRELOADER */
+  #loader{position:fixed;inset:0;background:var(--bg);z-index:500;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:transform .7s var(--ease)}
+  .js #loader{display:flex}
+  #loader.gone{transform:translateY(-100%)}
+  #loader .mark{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;letter-spacing:4px;color:var(--white)}
+  #loader .mark span{color:var(--red)}
+  #loader .bar{width:min(220px,55vw);height:1px;background:var(--border2);position:relative;overflow:hidden}
+  #loader .bar i{position:absolute;inset:0;background:linear-gradient(90deg,var(--red),var(--gold));transform:scaleX(0);transform-origin:left;animation:load 1s var(--ease) forwards}
+  @keyframes load{to{transform:scaleX(1)}}
+
+  /* NAV */
+  nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:18px 40px;transition:background .35s,border-color .35s,padding .35s;border-bottom:1px solid transparent}
+  nav.scrolled{background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom-color:var(--border);padding:13px 40px}
+  .nlt{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--white);letter-spacing:-.3px;text-decoration:none}
+  .nlt span{color:var(--red)}
+  .nback{font-size:12.5px;color:var(--mid);text-decoration:none;transition:color .2s;display:inline-flex;align-items:center;gap:7px}
+  .nback:hover{color:var(--white)}
+  @media(max-width:600px){nav,nav.scrolled{padding-left:20px;padding-right:20px}.nback span{display:none}}
+
+  /* REVEALS */
+  .js [data-reveal]{opacity:0;transform:translateY(26px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+  .js [data-reveal].in{opacity:1;transform:translateY(0)}
+  .js [data-reveal][data-d="1"]{transition-delay:.08s}
+  .js [data-reveal][data-d="2"]{transition-delay:.16s}
+  .js [data-reveal][data-d="3"]{transition-delay:.24s}
+
+  /* HERO */
+  .hero{position:relative;padding:128px 40px 44px;overflow:hidden}
+  .hero .glow.a{width:520px;height:520px;background:rgba(200,37,30,.15);top:-200px;right:-140px}
+  .hero .glow.b{width:440px;height:440px;background:rgba(240,165,0,.08);bottom:-220px;left:-160px}
+  .hero-ghost{position:absolute;top:44%;left:50%;transform:translate(-50%,-50%);font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(220px,32vw,440px);color:rgba(242,237,228,.022);letter-spacing:-16px;pointer-events:none;user-select:none;line-height:1;z-index:0;white-space:nowrap}
+  .hwrap{position:relative;z-index:2;max-width:920px;margin:0 auto;width:100%}
+  .ey{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:22px;display:flex;align-items:center;gap:12px;font-weight:500;color:var(--gold)}
+  .ey::before{content:'';width:28px;height:1px;background:currentColor}
+  h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(40px,6.6vw,76px);line-height:1.02;letter-spacing:-1.5px;margin-bottom:24px}
+  h1 em{font-style:italic;color:var(--gold)}
+  h1 .hl{display:block;overflow:hidden;padding-bottom:.12em;margin-bottom:-.12em}
+  h1 .hl>span{display:block;transform:translateY(122%)}
+  html.loaded h1 .hl>span{animation:lineup 1s var(--ease) forwards}
+  html.loaded h1 .hl:nth-child(1)>span{animation-delay:.12s}
+  html.loaded h1 .hl:nth-child(2)>span{animation-delay:.26s}
+  @keyframes lineup{to{transform:translateY(0)}}
+  .hsub{font-size:18px;color:var(--mid);max-width:560px;line-height:1.7;margin-bottom:26px}
+  .hsub strong{color:var(--white);font-weight:500}
+  .hbadges{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .nocard{display:inline-flex;align-items:center;gap:9px;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--green);border:1px solid rgba(47,191,113,.45);background:rgba(47,191,113,.08);border-radius:999px;padding:8px 16px}
+  .nocard .gdot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(47,191,113,.5);animation:gpulse 2s infinite}
+  @keyframes gpulse{0%{box-shadow:0 0 0 0 rgba(47,191,113,.4)}70%{box-shadow:0 0 0 7px rgba(47,191,113,0)}100%{box-shadow:0 0 0 0 rgba(47,191,113,0)}}
+  .scrolltip{font-size:12px;color:var(--gray);letter-spacing:.3px}
+
+  /* WRAP / FLOW */
+  .wrap{width:100%;max-width:760px;margin:0 auto;padding:18px 24px 70px;flex:1;position:relative;z-index:1}
+  .center{text-align:center}
+  .sub{color:var(--muted);font-size:14.5px}
+
+  /* HOW STRIP */
+  .howstrip{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:0 0 34px}
+  .howstep{position:relative;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:22px 20px;overflow:hidden;transition:border-color .25s,transform .25s var(--ease)}
+  .howstep:hover{border-color:var(--border2);transform:translateY(-3px)}
+  .howstep::after{content:'';position:absolute;top:0;left:0;width:100%;height:2px;background:linear-gradient(90deg,var(--red),var(--gold));transform:scaleX(0);transform-origin:left;transition:transform .3s var(--ease)}
+  .howstep:hover::after{transform:scaleX(1)}
+  .howstep .hn{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;letter-spacing:2px;color:var(--gold)}
+  .howstep .ht{font-size:14px;line-height:1.55;color:var(--mid);margin-top:12px}
+  .howstep .ht b{color:var(--white);font-weight:500}
+  @media(max-width:560px){.howstrip{grid-template-columns:1fr;gap:10px}.howstep{display:flex;align-items:center;gap:16px;padding:16px 18px}.howstep .ht{margin-top:0}.howstep::after{width:2px;height:100%;background:linear-gradient(180deg,var(--red),var(--gold));transform:scaleY(0);transform-origin:top}.howstep:hover::after{transform:scaleY(1)}}
+
+  /* SECTION HEADINGS */
+  .sech{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(22px,3.4vw,30px);line-height:1.1;letter-spacing:-.5px;margin-bottom:6px}
+  .sech em{font-style:italic;color:var(--gold)}
+
+  /* CARD SHELL */
+  .panelcard{position:relative;background:var(--bg3);border:1px solid var(--border2);border-radius:18px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.45)}
 
   /* ROI slider */
-  .roi{background:radial-gradient(120% 140% at 100% 0%,rgba(240,165,0,.12),transparent 55%),var(--panel);border:1px solid rgba(240,165,0,.34);border-radius:16px;padding:22px 24px;margin-bottom:18px}
-  .roi h2{font-family:'Fraunces',serif;font-weight:900;font-size:19px;margin-bottom:4px}
-  .roi .rp{font-size:13px;color:var(--muted);margin-bottom:16px}
-  .roirow{margin:14px 0}
-  .roirow label{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
-  .roirow label b{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);text-transform:none}
+  .roi{position:relative;background:radial-gradient(130% 150% at 100% 0%,rgba(240,165,0,.12),transparent 52%),var(--bg3);border:1px solid rgba(240,165,0,.3);border-radius:18px;padding:30px 30px;margin-bottom:18px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.45)}
+  .roi .glow.c{width:300px;height:300px;background:rgba(240,165,0,.07);top:-120px;right:-90px}
+  .roi .rp{font-size:14px;color:var(--mid);margin-bottom:22px;position:relative;z-index:2}
+  .roirow{margin:18px 0;position:relative;z-index:2}
+  .roirow label{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mid);margin-bottom:12px}
+  .roirow label b{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--white);text-transform:none;letter-spacing:-.5px}
   input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;background:linear-gradient(90deg,var(--gold) var(--f,50%),rgba(242,237,228,.14) var(--f,50%));outline:none;cursor:pointer}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--gold);border:4px solid var(--bg);box-shadow:0 0 0 1px var(--gold);cursor:pointer}
-  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--gold);border:none}
-  .roiout{border-top:1px solid var(--line);margin-top:18px;padding-top:16px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-  .roiout .rbig{font-family:'Syne',sans-serif;font-weight:800;font-size:34px;color:var(--gold);font-variant-numeric:tabular-nums}
-  .roiout .rlbl{font-size:13px;color:var(--muted)}
-  .roifine{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--gold);border:4px solid var(--bg);box-shadow:0 0 0 1px var(--gold),0 4px 14px rgba(240,165,0,.4);cursor:pointer;transition:transform .15s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.14)}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--gold);border:none;box-shadow:0 0 0 1px var(--gold)}
+  .roiout{position:relative;z-index:2;border-top:1px solid var(--border);margin-top:24px;padding-top:20px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .roiout .rbig{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(40px,8vw,56px);color:var(--gold);font-variant-numeric:tabular-nums;letter-spacing:-2px;line-height:1}
+  .roiout .rlbl{font-size:13.5px;color:var(--mid)}
+  .roifine{position:relative;z-index:2;font-size:12px;color:var(--gray);margin-top:12px;line-height:1.55}
 
   /* live demo */
-  .demo{background:radial-gradient(120% 140% at 0% 0%,rgba(200,37,30,.14),transparent 55%),var(--panel);border:1px solid rgba(200,37,30,.4);border-radius:16px;padding:24px;margin-bottom:30px}
-  .demo h2{font-family:'Fraunces',serif;font-weight:900;font-size:21px;margin-bottom:6px}
-  .demo p{font-size:13.5px;color:var(--muted);line-height:1.55;margin-bottom:16px}
-  .demorow{display:flex;gap:10px;flex-wrap:wrap}
-  .demorow input{flex:1;min-width:180px}
-  .demorow .btn{width:auto;margin-top:0;white-space:nowrap;padding:13px 20px}
-  .demomsg{display:none;margin-top:14px;font-size:14px;line-height:1.5;border-radius:10px;padding:12px 14px}
+  .demo{position:relative;background:radial-gradient(130% 150% at 0% 0%,rgba(200,37,30,.14),transparent 52%),var(--bg3);border:1px solid rgba(200,37,30,.36);border-radius:18px;padding:30px;margin-bottom:36px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.45)}
+  .demo .glow.c{width:280px;height:280px;background:rgba(200,37,30,.09);bottom:-130px;left:-80px}
+  .demo p{font-size:14px;color:var(--mid);line-height:1.6;margin:6px 0 20px;position:relative;z-index:2;max-width:520px}
+  .demorow{display:flex;gap:12px;flex-wrap:wrap;position:relative;z-index:2}
+  .demorow input{flex:1;min-width:190px}
+  .demorow .btn{width:auto;margin-top:0;white-space:nowrap;padding:15px 26px}
+  .demomsg{display:none;margin-top:16px;font-size:14px;line-height:1.5;border-radius:12px;padding:13px 16px;position:relative;z-index:2}
   .demomsg.ok{display:block;color:var(--green);background:rgba(47,191,113,.1);border:1px solid rgba(47,191,113,.4)}
   .demomsg.bad{display:block;color:var(--text);background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4)}
 
+  /* divider */
+  .formlead{text-align:center;margin:0 0 24px}
+  .formlead .ey{justify-content:center;color:var(--red2);margin-bottom:16px}
+  .formlead .ey::after{content:'';width:28px;height:1px;background:currentColor}
+
   /* progress rail */
-  .rail{display:flex;align-items:center;justify-content:center;margin-bottom:30px}
+  .rail{display:flex;align-items:center;justify-content:center;margin-bottom:34px}
   .rstep{display:flex;align-items:center}
-  .dot2{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--muted);transition:all .3s}
-  .rlbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-left:8px;display:none}
-  .rline{width:54px;height:1px;background:var(--line);margin:0 10px}
-  .rstep.on .dot2{border-color:var(--red);background:var(--red);color:var(--text)}
+  .dot2{width:38px;height:38px;border-radius:50%;border:1px solid var(--border2);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--gray);transition:all .3s var(--ease)}
+  .rlbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-left:9px;display:none}
+  .rline{width:54px;height:1px;background:var(--border2);margin:0 12px}
+  .rstep.on .dot2{border-color:var(--red);background:var(--red);color:var(--white);box-shadow:0 6px 20px rgba(200,37,30,.35)}
+  .rstep.on .rlbl{color:var(--white)}
   .rstep.done .dot2{border-color:var(--gold);color:var(--gold)}
   @media(min-width:560px){.rlbl{display:inline}}
 
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px}
-  label{display:block;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px}
+  .card{position:relative;background:var(--bg3);border:1px solid var(--border2);border-radius:18px;padding:32px;box-shadow:0 30px 70px rgba(0,0,0,.45)}
+  label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mid);margin:18px 0 7px}
   label:first-child{margin-top:0}
-  input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;transition:border-color .2s}
-  input:focus{border-color:rgba(240,165,0,.55)}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  input{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:11px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:13px 15px;outline:none;transition:border-color .2s,background .2s}
+  input:focus{border-color:rgba(240,165,0,.6);background:#121212}
+  input::placeholder{color:var(--gray)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:480px){.row{grid-template-columns:1fr}}
-  .hint{font-size:12px;color:var(--muted);margin-top:5px}
-  .autofill{font-size:12px;color:var(--green);margin-top:6px;display:none}
-  .btn{display:inline-block;width:100%;background:var(--red);color:var(--text);border:none;cursor:pointer;text-align:center;text-decoration:none;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;letter-spacing:.06em;padding:15px 22px;border-radius:10px;margin-top:24px;transition:filter .2s}
-  .btn:hover{filter:brightness(1.12)}
-  .btn[disabled]{opacity:.5;cursor:wait}
-  .err{display:none;background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4);border-radius:10px;padding:12px 14px;font-size:14px;margin-top:16px}
+  .hint{font-size:12px;color:var(--gray);margin-top:6px}
+  .autofill{font-size:12px;color:var(--green);margin-top:7px;display:none}
 
-  .website-band{background:var(--panel2);border:1px dashed var(--line2);border-radius:12px;padding:16px;margin-bottom:18px}
+  /* BUTTONS, marketing .btnr language */
+  .btn{position:relative;isolation:isolate;display:inline-flex;width:100%;align-items:center;justify-content:center;gap:9px;background:var(--red);color:#fff;border:none;cursor:pointer;text-align:center;text-decoration:none;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;letter-spacing:.05em;padding:17px 26px;border-radius:12px;margin-top:26px;overflow:hidden;transition:transform .25s var(--ease),box-shadow .25s}
+  .btn>*{position:relative;z-index:2}
+  .btn::before{content:'';position:absolute;inset:0;background:var(--red2);transform:translateX(-101%);transition:transform .35s var(--ease);z-index:-1}
+  .btn:hover::before{transform:translateX(0)}
+  .btn:hover{box-shadow:0 14px 38px rgba(200,37,30,.34)}
+  .btn[disabled]{opacity:.55;cursor:wait}
+  .btn[disabled]::before{display:none}
+  .btn.gold{background:var(--gold);color:#070707}
+  .btn.gold::before{background:var(--gold2)}
+  .btn.gold:hover{box-shadow:0 14px 38px rgba(240,165,0,.32)}
+  .err{display:none;background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4);border-radius:12px;padding:13px 16px;font-size:14px;margin-top:16px}
+
+  .website-band{background:var(--bg2);border:1px dashed var(--line2);border-radius:14px;padding:18px;margin-bottom:20px}
   .website-band label{margin-top:0}
 
-  .bignum{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;text-align:center;color:var(--gold);letter-spacing:.02em;background:var(--panel2);border:1px solid rgba(240,165,0,.35);border-radius:14px;padding:22px;margin-bottom:8px;word-break:break-all}
-  .pending{font-family:'Fraunces',serif;font-weight:900;font-size:19px;text-align:center;color:var(--gold);background:rgba(240,165,0,.08);border:1px dashed rgba(240,165,0,.4);border-radius:14px;padding:26px;margin-bottom:8px}
-  .pending small{display:block;font-family:'DM Sans',sans-serif;font-weight:400;font-size:13px;color:var(--muted);margin-top:10px}
+  .bignum{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(26px,6vw,34px);text-align:center;color:var(--gold);letter-spacing:.02em;background:radial-gradient(130% 150% at 50% 0%,rgba(240,165,0,.12),transparent 60%),var(--bg2);border:1px solid rgba(240,165,0,.32);border-radius:16px;padding:26px;margin-bottom:10px;word-break:break-all}
+  .pending{font-family:'Fraunces',serif;font-weight:900;font-size:19px;text-align:center;color:var(--gold);background:rgba(240,165,0,.08);border:1px dashed rgba(240,165,0,.4);border-radius:16px;padding:28px;margin-bottom:10px}
+  .pending small{display:block;font-family:'DM Sans',sans-serif;font-weight:400;font-size:13px;color:var(--mid);margin-top:11px;line-height:1.55}
 
-  .carriers{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
-  .carrier{background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.04em;padding:8px 13px;cursor:pointer}
+  .carriers{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0 12px}
+  .carrier{background:var(--bg2);border:1px solid var(--border);border-radius:9px;color:var(--mid);font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.04em;padding:9px 14px;cursor:pointer;transition:all .2s}
+  .carrier:hover{border-color:var(--border2);color:var(--white)}
   .carrier.on{border-color:var(--gold);color:var(--gold);background:rgba(240,165,0,.08)}
 
-  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 14px}
-  .tab{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:11px 8px;cursor:pointer;text-align:center}
-  .tab.on{border-color:var(--red);color:var(--text);background:rgba(200,37,30,.12)}
-  .pane{display:none;background:#121212;border:1px solid var(--line);border-radius:12px;padding:18px;font-size:14px;line-height:1.65}
+  .tabs{display:flex;gap:9px;flex-wrap:wrap;margin:24px 0 16px}
+  .tab{flex:1;min-width:120px;background:var(--bg2);border:1px solid var(--border);border-radius:11px;color:var(--mid);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:12px 9px;cursor:pointer;text-align:center;transition:all .2s}
+  .tab:hover{border-color:var(--border2);color:var(--white)}
+  .tab.on{border-color:var(--red);color:var(--white);background:rgba(200,37,30,.12)}
+  .pane{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;font-size:14px;line-height:1.65;color:var(--mid)}
   .pane.on{display:block}
-  .pane code{display:inline-block;font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--gold);background:#0a0a0a;border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:6px 0}
+  .pane b{color:var(--white);font-weight:500}
+  .pane code{display:inline-block;font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--gold);background:#0a0a0a;border:1px solid var(--border2);border-radius:9px;padding:9px 13px;margin:7px 0}
+  .dialbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin:16px 0 10px;background:var(--gold);color:#070707;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;letter-spacing:.02em;padding:18px 20px;border-radius:12px;text-decoration:none;transition:transform .2s,box-shadow .2s}
+  .dialbtn:hover{transform:translateY(-1px);box-shadow:0 12px 30px rgba(240,165,0,.32)}
+  .dialbtn .di{font-size:19px;line-height:1}
+  .codeRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .codeRow .codeLbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gray)}
+  .codeRow code{margin:0}
+  .copybtn{background:var(--bg2);border:1px solid var(--border2);color:var(--mid);font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.04em;padding:8px 12px;border-radius:8px;cursor:pointer;transition:border-color .2s,color .2s}
+  .copybtn:hover{border-color:var(--gold);color:var(--gold)}
+  .deskNote{color:var(--gray)!important;font-style:italic}
   .pane ol{padding-left:20px}
-  .pane li{margin-bottom:6px}
+  .pane li{margin-bottom:7px}
 
-  .testbox{background:linear-gradient(135deg,rgba(47,191,113,.1),rgba(47,191,113,.03));border:1px solid rgba(47,191,113,.4);border-radius:12px;padding:18px;margin-top:22px;font-size:14px;line-height:1.6}
-  .testbox b{font-family:'Fraunces',serif;font-weight:900;color:var(--green);display:block;margin-bottom:6px;font-size:16px}
+  .testbox{background:linear-gradient(135deg,rgba(47,191,113,.1),rgba(47,191,113,.02));border:1px solid rgba(47,191,113,.4);border-radius:14px;padding:20px;margin-top:24px;font-size:14px;line-height:1.6;color:var(--mid)}
+  .testbox b{font-family:'Fraunces',serif;font-weight:900;color:var(--green);display:block;margin-bottom:7px;font-size:16px}
 
-  .verify{margin-top:22px;border-radius:14px;padding:22px;text-align:center;border:1px solid rgba(240,165,0,.4);background:rgba(240,165,0,.06)}
-  .verify .vtitle{font-family:'Fraunces',serif;font-weight:900;font-size:18px;color:var(--gold);margin-bottom:8px}
-  .verify .vsub{font-size:13.5px;line-height:1.6;color:var(--muted)}
-  .verify .pulse{display:inline-flex;align-items:center;gap:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;color:var(--gold);margin-bottom:8px}
+  .verify{margin-top:24px;border-radius:16px;padding:26px;text-align:center;border:1px solid rgba(240,165,0,.4);background:rgba(240,165,0,.06)}
+  .verify .vtitle{font-family:'Fraunces',serif;font-weight:900;font-size:19px;color:var(--gold);margin-bottom:8px}
+  .verify .vsub{font-size:13.5px;line-height:1.6;color:var(--mid)}
+  .verify .pulse{display:inline-flex;align-items:center;gap:10px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.08em;color:var(--gold);margin-bottom:10px;text-transform:uppercase}
   .verify .pdot{width:11px;height:11px;border-radius:50%;background:var(--gold);animation:pulse 1.3s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1.25)}}
   .verify.done{border-color:rgba(47,191,113,.55);background:linear-gradient(135deg,rgba(47,191,113,.16),rgba(240,165,0,.06));position:relative;overflow:hidden}
-  .verify.done .vtitle{color:var(--green);font-size:22px}
-  .verify .check{font-size:42px;margin-bottom:6px;display:inline-block;animation:popc .5s cubic-bezier(.18,.89,.32,1.6)}
+  .verify.done .vtitle{color:var(--green);font-size:23px}
+  .verify .check{font-size:44px;margin-bottom:6px;display:inline-block;animation:popc .5s cubic-bezier(.18,.89,.32,1.6)}
   @keyframes popc{0%{transform:scale(0) rotate(-25deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
   .conf{position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;opacity:0;animation:fall 2.4s ease-in forwards}
   @keyframes fall{0%{opacity:1;transform:translateY(-10px) rotate(0)}100%{opacity:0;transform:translateY(220px) rotate(540deg)}}
 
-  .confetti{text-align:center;font-size:44px;margin-bottom:10px}
-  .gold-note{background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.4);border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.6;margin-top:20px}
+  .confetti{text-align:center;font-size:48px;margin-bottom:12px}
+  .gold-note{background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.4);border-radius:14px;padding:18px 20px;font-size:14px;line-height:1.6;margin-top:20px;color:var(--mid)}
+  .gold-note b{color:var(--white);font-weight:500}
   #step2,#step3{display:none}
-  footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;font-size:13px;color:var(--muted);position:relative;z-index:1}
-  footer a{color:var(--muted)}
-  @media(prefers-reduced-motion:reduce){#grain{animation:none}}
+  footer{border-top:1px solid var(--border);padding:26px 24px;text-align:center;font-size:13px;color:var(--gray);position:relative;z-index:1}
+  footer a{color:var(--mid)}
+  @media(max-width:600px){.hero{padding:108px 20px 36px}.roi,.demo,.card{padding:24px 22px}}
+  @media(prefers-reduced-motion:reduce){#grain{animation:none}html.loaded h1 .hl>span{animation:none;transform:none}.js [data-reveal]{opacity:1;transform:none}}
 </style>
 </head>
-<body>
+<body class="js">
+<div id="loader"><div class="mark">VYRRAH<span>.</span></div><div class="bar"><i></i></div></div>
 <div id="grain"></div>
-<div class="wrap">
-  <div class="wordmark">VYRRAH RECALLER<span class="dot">.</span></div>
-  <h1>Start your free week. No card.</h1>
-  <p class="sub">See your missed calls turn into booked patients — risk-free for 7 days.</p>
-  <div class="center"><span class="nocard">No credit card · Cancel anytime</span></div>
 
-  <div class="howstrip">
-    <div class="howstep"><div class="hn">1</div><div class="ht">We give you a <b>dedicated recovery number</b>.</div></div>
-    <div class="howstep"><div class="hn">2</div><div class="ht">You <b>forward missed calls</b> to it — a 2-minute setting.</div></div>
-    <div class="howstep"><div class="hn">3</div><div class="ht">Watch us <b>recover them</b> — free for 7 days.</div></div>
+<nav id="nav">
+  <a class="nlt" href="https://vyrrahlabs.com">VYRRAH LABS<span>.</span></a>
+  <a class="nback" href="https://vyrrahlabs.com">← <span>Back to site</span></a>
+</nav>
+
+<header class="hero">
+  <div class="glow a"></div><div class="glow b"></div>
+  <div class="hero-ghost">FREE</div>
+  <div class="hwrap">
+    <div class="ey" data-reveal>Vyrrah Recaller · Free 1-week trial</div>
+    <h1>
+      <span class="hl"><span>Start your free week.</span></span>
+      <span class="hl"><span><em>No card.</em></span></span>
+    </h1>
+    <p class="hsub" data-reveal data-d="1">See your <strong>missed calls turn into booked jobs</strong>, risk-free for 7 days. Set up in under 5 minutes, no engineer required.</p>
+    <div class="hbadges" data-reveal data-d="2">
+      <span class="nocard"><span class="gdot"></span>No credit card · Cancel anytime</span>
+      <span class="nocard"><span class="gdot"></span>Pays for itself or it's free</span>
+      <span class="scrolltip">Try the live demo below ↓</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="howstrip" data-reveal>
+    <div class="howstep"><div class="hn">STEP 1</div><div class="ht">We give you a <b>dedicated recovery number</b>.</div></div>
+    <div class="howstep"><div class="hn">STEP 2</div><div class="ht">You <b>forward missed calls</b> to it, a 2-minute setting.</div></div>
+    <div class="howstep"><div class="hn">STEP 3</div><div class="ht">Watch us <b>recover them</b>, free for 7 days.</div></div>
   </div>
 
   <!-- ROI SLIDER -->
-  <div class="roi">
-    <h2>What's a free week worth to you?</h2>
+  <div class="roi" data-reveal>
+    <div class="glow c"></div>
+    <h2 class="sech">What's a free trial <em>worth</em> to you?</h2>
     <p class="rp">Two sliders. Your numbers. This is roughly what we'd aim to recover.</p>
     <div class="roirow">
       <label>Calls you get a week <b id="roiCallsOut">80</b></label>
@@ -159,22 +288,27 @@
       <input type="range" id="roiVal" min="50" max="2500" step="25" value="500">
     </div>
     <div class="roiout"><span class="rbig" id="roiBig">$0</span><span class="rlbl">a month we'd aim to put back on your books</span></div>
-    <div class="roifine">Estimate using a 38% missed-call rate and conservative recovery. Your free week replaces this with your real numbers.</div>
+    <div class="roifine">Estimate using a 38% missed-call rate and conservative recovery. Your free trial replaces this with your real numbers.</div>
   </div>
 
   <!-- LIVE DEMO -->
-  <div class="demo">
-    <h2>See it work in 10 seconds</h2>
-    <p>Enter your number and we'll text you the exact message your missed callers would get — within 60 seconds, from your number.</p>
+  <div class="demo" data-reveal>
+    <div class="glow c"></div>
+    <h2 class="sech">See it work in <em>10 seconds</em></h2>
+    <p>Enter your number and we'll text you the exact message your missed callers would get, within 60 seconds, from your number.</p>
     <div class="demorow">
       <input id="demoPhone" type="tel" placeholder="+1 555 010 0123" autocomplete="tel">
-      <button class="btn" id="demoBtn" type="button">Text me the demo</button>
+      <button class="btn" id="demoBtn" type="button"><span>Text me the demo</span></button>
     </div>
     <div class="demomsg" id="demoMsg"></div>
   </div>
 
+  <div class="formlead" data-reveal>
+    <div class="ey">Set up your line</div>
+  </div>
+
   <div class="rail">
-    <div class="rstep on" id="r1"><div class="dot2">1</div><span class="rlbl">Practice details</span></div>
+    <div class="rstep on" id="r1"><div class="dot2">1</div><span class="rlbl">Business details</span></div>
     <div class="rline"></div>
     <div class="rstep" id="r2"><div class="dot2">2</div><span class="rlbl">Forwarding</span></div>
     <div class="rline"></div>
@@ -185,20 +319,21 @@
   <div class="card" id="step1">
     <div class="website-band">
       <label for="website">Paste your website (optional, we'll autofill)</label>
-      <input id="website" type="url" placeholder="https://smiledental.com" autocomplete="url">
+      <input id="website" type="url" placeholder="https://yourbusiness.com" autocomplete="url">
       <div class="autofill" id="autofillNote">✓ Filled in what we could from your site.</div>
     </div>
+    <p class="hint" style="margin:0 0 4px;font-size:13px"><b style="color:var(--gold)">60 seconds.</b> Only <b style="color:var(--white)">business name</b> and <b style="color:var(--white)">main line</b> are required — skip the rest and you're live.</p>
     <form id="form">
-      <label for="practice_name">Practice name *</label>
-      <input id="practice_name" required placeholder="Smile Dental Studio">
+      <label for="practice_name">Business name *</label>
+      <input id="practice_name" required placeholder="Your business name">
       <div class="row">
         <div>
           <label for="owner_name">Owner name</label>
-          <input id="owner_name" placeholder="Dr. Jane Smith">
+          <input id="owner_name" placeholder="Jordan Smith">
         </div>
         <div>
           <label for="owner_email">Owner email</label>
-          <input id="owner_email" type="email" placeholder="jane@smiledental.com">
+          <input id="owner_email" type="email" placeholder="you@yourbusiness.com">
         </div>
       </div>
       <div class="row">
@@ -207,9 +342,9 @@
           <input id="owner_phone" type="tel" placeholder="+1 555 010 0123">
         </div>
         <div>
-          <label for="real_line">Practice main line *</label>
+          <label for="real_line">Main business line *</label>
           <input id="real_line" type="tel" required placeholder="+1 555 010 0456">
-          <div class="hint">The number patients call today.</div>
+          <div class="hint">The number customers call today.</div>
         </div>
       </div>
       <div class="row">
@@ -223,10 +358,13 @@
         </div>
       </div>
       <label for="services">Services (one line)</label>
-      <input id="services" placeholder="General dentistry, cleanings, whitening, implants">
+      <input id="services" placeholder="The main services you offer">
       <label for="booking_link">Booking link (optional)</label>
       <input id="booking_link" type="url" placeholder="https://yourbookingpage.com">
-      <button class="btn" id="submitBtn" type="submit">Start Free Week →</button>
+      <label for="set_password">Create a password (optional, to log back into your dashboard)</label>
+      <input id="set_password" type="password" placeholder="Choose a password" autocomplete="new-password">
+      <div class="hint">Skip it and you can always get a one-click login link by email later.</div>
+      <button class="btn" id="submitBtn" type="submit"><span>Start Free Trial →</span></button>
       <div class="err" id="formErr"></div>
     </form>
   </div>
@@ -234,16 +372,16 @@
   <!-- STEP 2 -->
   <div class="card" id="step2">
     <div id="numberBlock">
-      <p class="sub" style="margin-bottom:14px">Your new recovery number</p>
+      <p class="sub center" style="margin-bottom:14px">Your new recovery number</p>
       <div class="bignum" id="twilioNumber"></div>
-      <p class="hint center">Patients never see this — your main line stays exactly the same.</p>
+      <p class="hint center">Your callers never see this, your main line stays exactly the same.</p>
     </div>
     <div id="pendingBlock" style="display:none">
-      <div class="pending">Number pending — we'll text you setup steps shortly.<small>Your account is created and safe. Godwin will finish the number setup and send your forwarding code within the hour.</small></div>
+      <div class="pending">Number pending. We'll text you setup steps shortly.<small>Your account is created and safe. Godwin will finish the number setup and send your forwarding code within the hour.</small></div>
     </div>
 
     <div id="forwarding">
-      <h2 style="font-family:'Fraunces',serif;font-weight:900;font-size:20px;margin:24px 0 4px">Turn on missed-call forwarding</h2>
+      <h2 class="sech" style="margin:28px 0 4px">Turn on <em>missed-call</em> forwarding</h2>
       <p class="hint">This only kicks in when nobody answers or the line is busy. Normal calls ring exactly like before.</p>
       <div class="tabs">
         <div class="tab on" data-pane="gsm">Dial a code (fastest)</div>
@@ -251,27 +389,33 @@
         <div class="tab" data-pane="voip">VoIP / desk system</div>
       </div>
       <div class="pane on" id="pane-gsm">
-        On the phone that owns your main line, open the dialer and call the code for your carrier:
+        Pick your carrier, then tap the button <b>on the phone that owns your main line</b>:
         <div class="carriers">
           <span class="carrier on" data-carrier="default">T-Mobile / AT&amp;T / most GSM</span>
           <span class="carrier" data-carrier="verizon">Verizon</span>
           <span class="carrier" data-carrier="noanswer">No-answer only</span>
         </div>
-        <code id="gsmCode">*004*+1XXXXXXXXXX#</code>
-        <div class="hint" id="carrierHint">Press call. You'll see a confirmation. This forwards <b>unanswered and busy</b> calls to your recovery number. Answered calls are untouched.</div>
+        <a class="dialbtn" id="gsmDial" href="tel:"><span class="di">&#9742;</span> Tap to turn on forwarding</a>
+        <div class="codeRow">
+          <span class="codeLbl">or dial manually</span>
+          <code id="gsmCode">*004*+1XXXXXXXXXX#</code>
+          <button type="button" class="copybtn" id="copyCode">Copy</button>
+        </div>
+        <div class="hint" id="carrierHint">Tapping opens your dialer with the code ready. Press call, you'll see a confirmation. This forwards <b>unanswered and busy</b> calls to your recovery number. Answered calls are untouched.</div>
+        <div class="hint deskNote">On a computer right now? Open this page on the phone that rings, and the button dials it for you.</div>
       </div>
       <div class="pane" id="pane-phone">
         <ol>
           <li>Open <b>Settings → Phone → Call Forwarding</b> (Android: Phone app → Settings → Calls → Call Forwarding).</li>
           <li>Choose <b>conditional</b> forwarding: "When unanswered" and "When busy".</li>
           <li>Enter your recovery number: <code class="fwdNum">…</code></li>
-          <li>Leave "Always forward" OFF — you still answer calls normally.</li>
+          <li>Leave "Always forward" OFF, you still answer calls normally.</li>
         </ol>
       </div>
       <div class="pane" id="pane-voip">
         Using RingCentral, Weave, or an office PBX? In your phone-system admin, set <b>No-Answer forwarding</b> (sometimes "call handling → when unanswered") to:
         <br><code class="fwdNum">…</code><br>
-        Not sure where that lives? Forward this page to your IT person — it's a two-minute change.
+        Not sure where that lives? Forward this page to your IT person, it's a two-minute change.
       </div>
 
       <div class="testbox">
@@ -280,32 +424,51 @@
       </div>
 
       <div class="verify" id="verifyBox">
-        <div class="pulse"><span class="pdot"></span>WAITING FOR YOUR TEST CALL…</div>
+        <div class="pulse"><span class="pdot"></span>Waiting for your test call…</div>
         <div class="vtitle">Let's confirm forwarding is on</div>
         <div class="vsub">Call your main line from your mobile, let it ring out, then hang up. This page updates the moment the call reaches your recovery number.</div>
       </div>
     </div>
 
-    <button class="btn" id="toStep3">All set — continue →</button>
+    <button class="btn" id="toStep3"><span>All set, continue →</span></button>
   </div>
 
   <!-- STEP 3 -->
   <div class="card center" id="step3">
     <div class="confetti">🥂</div>
-    <h2 style="font-family:'Fraunces',serif;font-weight:900;font-size:24px;margin-bottom:10px">You're live.</h2>
-    <p style="color:var(--muted);font-size:15px;line-height:1.6">Every missed call now gets caught, texted back, and tracked. Watch it happen on your dashboard:</p>
+    <h2 class="sech" style="margin-bottom:10px">You're <em>live</em>.</h2>
+    <p style="color:var(--mid);font-size:15px;line-height:1.6">Every missed call now gets caught, texted back, and tracked. Watch it happen on your dashboard:</p>
     <div id="payBlock" style="display:none">
-      <div class="gold-note" style="margin-top:0;margin-bottom:18px">$500/month, cancel anytime. Start your subscription to keep your recovery line live.</div>
-      <a class="btn" id="payLink" href="#" target="_blank" rel="noopener" style="margin-top:0">Start your subscription →</a>
+      <div class="gold-note" style="margin-top:24px;margin-bottom:18px">$500/month, cancel anytime. Start your subscription to keep your recovery line live.</div>
+      <a class="btn" id="payLink" href="#" target="_blank" rel="noopener" style="margin-top:0"><span>Start your subscription →</span></a>
     </div>
     <div id="trialBlock" style="display:none">
-      <div class="gold-note" style="margin-top:0">Your free week starts now. <b>Godwin will call you in 7 days with your numbers.</b> No card needed until you've seen the results.</div>
+      <div class="gold-note" style="margin-top:24px">Your free trial starts now. <b>You'll get your numbers at the end of the week.</b> No card needed until you've seen the results.</div>
     </div>
-    <a class="btn" id="dashLink" href="#" style="background:var(--gold);color:#070707">Open my dashboard →</a>
+    <a class="btn gold" id="dashLink" href="#"><span>Open my dashboard →</span></a>
   </div>
 </div>
 
 <footer>Vyrrah Recaller · a Vyrrah Labs product · <a href="mailto:godwin@vyrrahlabs.com">godwin@vyrrahlabs.com</a></footer>
+
+<script>
+/* ── UI polish: preloader, reveals, nav (presentation only) ── */
+(function(){
+  var html=document.documentElement;
+  function go(){
+    var l=document.getElementById('loader');
+    if(l){ setTimeout(function(){ l.classList.add('gone'); }, 520); }
+    html.classList.add('loaded');
+  }
+  if(document.readyState==='complete') go(); else window.addEventListener('load', go);
+  var nav=document.getElementById('nav');
+  window.addEventListener('scroll', function(){ if(nav) nav.classList.toggle('scrolled', window.scrollY>20); }, {passive:true});
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, {threshold:.12, rootMargin:'0px 0px -8% 0px'});
+    document.querySelectorAll('[data-reveal]').forEach(function(el){ io.observe(el); });
+  } else { document.querySelectorAll('[data-reveal]').forEach(function(el){ el.classList.add('in'); }); }
+})();
+</script>
 
 <script>
 (function(){
@@ -316,15 +479,32 @@
   function showStep(n){ [1,2,3].forEach(function(i){ document.getElementById('step'+i).style.display=i===n?'block':'none'; }); setRail(n); window.scrollTo({top:0,behavior:'smooth'}); }
   function v(id){ return document.getElementById(id).value.trim(); }
 
+  /* ── niche tailoring via ?niche= : right-scale numbers + message-match ── */
+  var NICHE = {
+    restoration:{ calls:25, value:9000, max:40000, share:0.05, sub:'See your missed <strong>water &amp; fire damage calls turn into booked jobs</strong>, risk-free for 7 days. The 2am flood call gets answered even when you can\'t.' },
+    roofing:{ calls:30, value:12000, max:40000, share:0.05, sub:'See your missed <strong>storm &amp; roof calls turn into booked jobs</strong>, risk-free for 7 days. Whoever answers first wins the job — now that\'s you, 24/7.' },
+    plumbing:{ calls:45, value:1500, max:8000, share:0.10, sub:'See your missed <strong>emergency plumbing calls turn into booked jobs</strong>, risk-free for 7 days.' },
+    hvac:{ calls:45, value:2500, max:12000, share:0.10, sub:'See your missed <strong>HVAC calls turn into booked jobs</strong>, risk-free for 7 days.' },
+    legal:{ calls:30, value:6000, max:100000, share:0.05, sub:'See your missed <strong>intake calls turn into signed cases</strong>, risk-free for 7 days. The first firm to answer the accident call wins it — now that\'s you, 24/7.' },
+    realestate:{ calls:40, value:6000, max:25000, share:0.05, sub:'See your missed <strong>leads turn into booked showings</strong>, risk-free for 7 days. The first agent to call wins the client — now that\'s you.' }
+  };
+  var niche = NICHE[(new URLSearchParams(location.search).get('niche')||'').toLowerCase()] || null;
+  var RECOVER_SHARE = niche ? niche.share : 0.16;
+
   /* ── ROI slider (client-side only) ── */
   var rc=document.getElementById('roiCalls'), rv=document.getElementById('roiVal');
+  if(niche){
+    rv.max = niche.max; rv.step = 100; rv.value = niche.value; rc.value = niche.calls;
+    var av=document.getElementById('avg_customer_value'); if(av) av.value = niche.value;
+    var hs=document.querySelector('.hsub'); if(hs) hs.innerHTML = niche.sub + ' Set up in under 5 minutes, no engineer required.';
+  }
   function fill(inp){ inp.style.setProperty('--f', ((inp.value-inp.min)/(inp.max-inp.min)*100)+'%'); }
   function roi(){
     fill(rc); fill(rv);
     var calls=+rc.value, val=+rv.value;
     document.getElementById('roiCallsOut').textContent = calls;
     document.getElementById('roiValOut').textContent = '$' + val.toLocaleString();
-    var monthly = Math.round((calls*4.3*0.38) * 0.16 * val); // missed/mo × conservative recovered-and-booked share
+    var monthly = Math.round((calls*4.3*0.38) * RECOVER_SHARE * val); // missed/mo × recovered-and-booked share (niche-scaled)
     document.getElementById('roiBig').textContent = '$' + monthly.toLocaleString();
   }
   rc.addEventListener('input', roi); rv.addEventListener('input', roi); roi();
@@ -356,14 +536,27 @@
     });
   });
 
+  /* ── click-to-dial forwarding: set both the visible code and the tel: link ── */
+  function telHref(code){ return 'tel:' + String(code).replace(/#/g, '%23'); }
+  function setGsm(code){
+    var c = document.getElementById('gsmCode'); if(c) c.textContent = code;
+    var d = document.getElementById('gsmDial'); if(d) d.setAttribute('href', telHref(code));
+  }
+  var copyBtn = document.getElementById('copyCode');
+  if(copyBtn){ copyBtn.addEventListener('click', function(){
+    var t = document.getElementById('gsmCode').textContent, b = this;
+    try{ navigator.clipboard.writeText(t); }catch(e){}
+    b.textContent = 'Copied ✓'; setTimeout(function(){ b.textContent = 'Copy'; }, 1500);
+  }); }
+
   /* ── carrier-specific forwarding codes ── */
   function setCarrier(kind){
     var n = fwdNum || '+1XXXXXXXXXX';
     var code = '*004*' + n + '#';
-    var hint = 'Press call. You\'ll see a confirmation. This forwards <b>unanswered and busy</b> calls to your recovery number. Answered calls are untouched.';
-    if(kind === 'verizon'){ code = '*71' + n; hint = 'On Verizon, dial <b>*71</b> then your recovery number (no #), and press call. That sets no-answer / busy transfer. Answered calls ring normally.'; }
+    var hint = 'Tapping opens your dialer with the code ready. Press call, you\'ll see a confirmation. This forwards <b>unanswered and busy</b> calls to your recovery number. Answered calls are untouched.';
+    if(kind === 'verizon'){ code = '*71' + n; hint = 'On Verizon, tap to dial <b>*71</b> then your recovery number (no #). That sets no-answer / busy transfer. Answered calls ring normally.'; }
     else if(kind === 'noanswer'){ code = '*61*' + n + '#'; hint = 'This forwards <b>only unanswered</b> calls (not busy). Use it if the all-conditions code above is rejected by your carrier.'; }
-    document.getElementById('gsmCode').textContent = code;
+    setGsm(code);
     document.getElementById('carrierHint').innerHTML = hint + ' If your carrier rejects a code, use the iPhone / Android setting tab instead.';
   }
   document.querySelectorAll('.carrier').forEach(function(b){
@@ -428,6 +621,7 @@
       avg_customer_value: Number(v('avg_customer_value')) || 500,
       services: v('services') || null,
       booking_link: v('booking_link') || null,
+      password: v('set_password') || null,
       area_code: v('area_code') || null
     };
     fetch('/api/tool/clients', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
@@ -443,17 +637,18 @@
       } else {
         fwdNum = num;
         document.getElementById('twilioNumber').textContent = num;
-        document.getElementById('gsmCode').textContent = '*004*' + num + '#';
+        setGsm('*004*' + num + '#');
         document.querySelectorAll('.fwdNum').forEach(function(el){ el.textContent = num; });
         startVerifyPolling(state.client && state.client.magic_token);
       }
       showStep(2);
     })
-    .catch(function(e2){ err.textContent = e2.message + ' — try again, or email godwin@vyrrahlabs.com'; err.style.display='block'; })
-    .finally(function(){ btn.disabled=false; btn.textContent='Start Free Week →'; });
+    .catch(function(e2){ err.textContent = e2.message + '. Try again, or email godwin@vyrrahlabs.com'; err.style.display='block'; })
+    .finally(function(){ btn.disabled=false; btn.textContent='Start Free Trial →'; });
   });
 
   document.getElementById('toStep3').addEventListener('click', function(){
+    if(window.fbq) fbq('track','Lead');
     var token = state.client && state.client.magic_token;
     document.getElementById('dashLink').href = token ? ('/recover?token=' + encodeURIComponent(token)) : '#';
     showStep(3); loadCheckout();

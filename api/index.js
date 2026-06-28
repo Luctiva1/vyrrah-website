@@ -767,13 +767,11 @@ const EMAIL_SEQUENCE_TEMPLATES = [
     subject: "{{firstname}}",
     body: `{{firstname}},
 
-I build landing pages for practice owners in your space. Charging 20 bucks — enough to know you're serious, not enough to make it a decision.
+When a call comes into {{company}} after hours or while your crew's on a job, what happens to it? Most owners I talk to are quietly losing five-figure jobs to voicemail.
 
-If you like what I put together, I do a full audit of {{company}} for 500. I look at everything — your online presence, what's losing you patients, what's costing you and what's easy to fix.
+I put a recovery line on your existing number that texts every missed caller back in under 60 seconds and books them — 24/7. I'll run it on your line free for a week and show you the exact dollar value of the calls you've been missing.
 
-If the audit makes sense, we talk about what working together looks like long term.
-
-20 dollars. Nothing beyond that unless you want it.
+No card, you keep your number. Worth a look?
 
 cal.com/godwin-rayen/30min
 
@@ -784,13 +782,11 @@ Vyrrah Labs`
     subject: "Re: {{firstname}}",
     body: `{{firstname}},
 
-Tried calling this morning.
+Tried calling earlier.
 
-Most practices I look at have the same 3 problems. Usually one of them is costing 10-15k a year in patients who never came back or never booked.
+62% of calls to companies like {{company}} go unanswered. Every one is a job walking to whoever picks up first. The fix takes an afternoon and costs you nothing for a week.
 
-The audit finds them. The page starts fixing them.
-
-20 to get started. 500 for the full picture.
+At the end I show you your real numbers — most owners are surprised what they're leaking.
 
 cal.com/godwin-rayen/30min
 
@@ -802,9 +798,9 @@ Godwin`
 
 Last one from me.
 
-20 for the page. 500 for the audit. 5k a month if you want me running growth long term.
+It sits behind your current number — normal calls ring like always. Only when one's missed does it text back, sound human, and book the job. Free for a week, no card, 3x the fee or it cancels.
 
-Most people I work with start with the page and never look back.
+If you ever want me running your whole growth, that's the retainer — but start with the free week and decide on the numbers.
 
 cal.com/godwin-rayen/30min
 
@@ -814,11 +810,11 @@ Godwin`
 
 const SEQUENCE_DEFAULT_TEMPLATES = [
   // SMS 1 — Day 1 afternoon
-  "Hey {first_name}, Godwin here. I build landing pages for practices like {company} — 20 bucks to show you what I can do. If you like it, I do a full audit for 500. That's it. Worth a look? cal.com/godwin-rayen/30min",
+  "Hey {first_name}, Godwin here — I put a line on {company}'s number that texts missed callers back in 60s and books the job. Free for a week, no card. Want yours set up? cal.com/godwin-rayen/30min (txt STOP to opt out)",
   // SMS 2 — Day 2 afternoon (after call attempt)
-  "Hey {first_name}, tried calling earlier. Built a page for a practice like {company} this week. 20 to start, 500 for the audit, 5K/month if you want me running growth. No lock in. cal.com/godwin-rayen/30min — Godwin",
+  "Hey {first_name}, tried calling. 62% of calls to shops like {company} go unanswered — that's jobs walking. A free week on your line shows you exactly what you're missing. cal.com/godwin-rayen/30min — Godwin",
   // SMS 3 — Day 3 close
-  "{first_name}, last one. 20 for the page. 500 for the audit. 5K/month if it makes sense. cal.com/godwin-rayen/30min — Godwin"
+  "{first_name}, last one. Free week of the missed-call tool, no card, 3x or it cancels — then I show you your numbers. cal.com/godwin-rayen/30min — Godwin"
 ];
 
 async function handleSequencesTrigger(req, res) {

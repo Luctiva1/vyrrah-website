@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Revenue Leak Calculator — Vyrrah Labs</title>
+<meta name="description" content="A conservative estimate of how much revenue you lose to missed and late-answered calls each month — and how to recover it." />
+
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<!-- Meta Pixel Code -->
+<script>
+  window.VYRRAH_PIXEL_ID = '2498792363942577';
+  window.PIXEL_READY = (window.VYRRAH_PIXEL_ID && window.VYRRAH_PIXEL_ID !== 'PIXEL_ID_HERE');
+  // Endpoint that receives captured leads (Zapier/CRM/webhook). Set before deploy to capture emails.
+  window.VYRRAH_LEAD_ENDPOINT = 'LEAD_ENDPOINT_HERE';
+  if (window.PIXEL_READY) {
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', window.VYRRAH_PIXEL_ID);
+    fbq('track', 'PageView');
+  }
+  window.track = function(event, params){
+    if (window.PIXEL_READY && typeof window.fbq === 'function') {
+      window.fbq('track', event, params || {});
+    }
+  };
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=2498792363942577&ev=PageView&noscript=1" /></noscript>
+<!-- End Meta Pixel Code -->
+
+<style>
+  :root{
+    --black:#070707;
+    --panel:#0f0f0f;
+    --gold:#f0a500;
+    --red:#c8251e;
+    --cream:#f2ede4;
+    --muted:rgba(242,237,228,.62);
+    --line:rgba(242,237,228,.12);
+    --field:#161616;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:var(--black);
+    color:var(--cream);
+    font-family:'DM Sans',system-ui,sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(1200px 600px at 50% -10%, rgba(240,165,0,.10), transparent 60%),
+      radial-gradient(800px 500px at 100% 120%, rgba(200,37,30,.08), transparent 60%);
+    background-attachment:fixed;
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:28px 20px 56px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:'Syne',sans-serif;font-weight:800;letter-spacing:.04em;font-size:15px}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 14px var(--gold)}
+  .brand span{color:var(--gold)}
+  .eyebrow{margin-top:34px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(30px,8vw,44px);line-height:1.05;margin-top:12px;letter-spacing:-.01em}
+  h1 .em{color:var(--gold);font-style:italic}
+  .sub{margin-top:16px;color:var(--muted);font-size:16px;max-width:46ch}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:24px 20px;margin-top:28px;box-shadow:0 30px 60px -30px rgba(0,0,0,.8)}
+
+  .field{margin-bottom:22px}
+  .field:last-child{margin-bottom:0}
+  label{display:flex;justify-content:space-between;align-items:baseline;font-weight:600;font-size:14px;margin-bottom:10px}
+  label .val{font-family:'Syne',sans-serif;font-weight:700;color:var(--gold);font-size:16px}
+  .inputline{display:flex;align-items:center;background:var(--field);border:1px solid var(--line);border-radius:12px;padding:0 14px;transition:border-color .2s,box-shadow .2s}
+  .inputline:focus-within{border-color:var(--gold);box-shadow:0 0 0 3px rgba(240,165,0,.15)}
+  .inputline .pre{color:var(--muted);font-weight:600;font-size:18px}
+  input[type=number]{background:transparent;border:0;color:var(--cream);font-family:'Syne',sans-serif;font-weight:700;font-size:20px;padding:14px 8px;width:100%;outline:none;-moz-appearance:textfield}
+  input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:6px;background:linear-gradient(90deg,var(--gold) var(--pct,30%),rgba(242,237,228,.14) var(--pct,30%));outline:none;margin-top:6px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;border-radius:50%;background:var(--gold);cursor:pointer;border:3px solid var(--black);box-shadow:0 2px 10px rgba(240,165,0,.5)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--gold);cursor:pointer;border:3px solid var(--black)}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:8px}
+
+  .btn{display:block;width:100%;text-align:center;border:0;cursor:pointer;font-family:'Syne',sans-serif;font-weight:800;letter-spacing:.02em;font-size:17px;padding:18px 20px;border-radius:14px;background:var(--gold);color:#1a1300;text-decoration:none;transition:transform .12s ease,filter .2s}
+  .btn:hover{filter:brightness(1.06)}
+  .btn:active{transform:translateY(1px)}
+  .btn.calc{margin-top:6px}
+
+  /* Result */
+  .result{margin-top:28px;display:none}
+  .result.show{display:block;animation:rise .5s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .lossbox{background:linear-gradient(180deg,rgba(200,37,30,.14),rgba(15,15,15,.4));border:1px solid rgba(200,37,30,.4);border-radius:20px;padding:26px 20px;text-align:center}
+  .lossbox .tag{font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:11.5px;color:var(--red)}
+  .bignum{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(34px,11vw,58px);line-height:1.02;margin-top:8px;color:var(--cream);letter-spacing:-.02em;word-break:break-word}
+  .bignum .cur{color:var(--red)}
+  .bignum .rangedash{color:var(--muted);margin:0 .12em}
+  .per{color:var(--muted);font-size:14px;margin-top:6px}
+  .caveat{margin-top:10px;font-size:12.5px;color:var(--muted);font-style:italic}
+  .yearrow{margin-top:18px;padding-top:18px;border-top:1px dashed var(--line);display:flex;justify-content:space-between;align-items:center}
+  .yearrow .lbl{font-size:13px;color:var(--muted)}
+  .yearrow .amt{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--gold)}
+
+  .math{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px}
+  .math h3{font-family:'Syne',sans-serif;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);margin-bottom:12px}
+  .math ul{list-style:none}
+  .math li{display:flex;justify-content:space-between;font-size:14px;padding:7px 0;border-bottom:1px solid var(--line);color:var(--muted)}
+  .math li:last-child{border-bottom:0}
+  .math li b{color:var(--cream);font-family:'Syne',sans-serif;font-weight:700}
+
+  .narr{margin-top:18px;font-size:15px;color:var(--cream);background:rgba(240,165,0,.06);border-left:3px solid var(--gold);border-radius:0 12px 12px 0;padding:16px 16px 16px 18px}
+  .narr b{color:var(--gold)}
+  .teardown .tdh{font-family:'Syne',sans-serif;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--gold);margin-bottom:10px}
+  .teardown ol{margin:0;padding-left:18px}
+  .teardown li{margin-bottom:10px;color:var(--cream)}
+  .teardown li:last-child{margin-bottom:0}
+  .teardown li b{color:var(--gold)}
+
+  .ctablock{margin-top:22px;text-align:center}
+  .ctablock .micro{font-size:13px;color:var(--muted);margin-top:12px}
+  .recalc{display:block;width:100%;margin-top:18px;background:none;border:0;color:var(--muted);font-size:13px;text-decoration:underline;cursor:pointer}
+  .recalc:hover{color:var(--cream)}
+
+  /* Email capture */
+  .capture{margin-top:20px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;display:none}
+  .capture.show{display:block;animation:rise .4s ease both}
+  .capture h3{font-family:'Fraunces',serif;font-weight:600;font-size:22px;margin-bottom:6px}
+  .capture p{color:var(--muted);font-size:14px;margin-bottom:16px}
+  .capture .inputline{margin-bottom:12px}
+  .capture input[type=email]{background:transparent;border:0;color:var(--cream);font-size:16px;padding:15px 4px;width:100%;outline:none;font-family:'DM Sans',sans-serif;font-weight:500}
+  .err{color:var(--red);font-size:13px;margin-top:-6px;margin-bottom:10px;display:none}
+  .skip{display:block;text-align:center;margin-top:14px;color:var(--muted);font-size:12.5px;text-decoration:underline;cursor:pointer;background:none;border:0;width:100%}
+
+  .blur{filter:blur(9px);user-select:none;pointer-events:none}
+  input[aria-invalid="true"]{color:var(--red)}
+  .inputline.invalid{border-color:var(--red);box-shadow:0 0 0 3px rgba(200,37,30,.15)}
+
+  footer{margin-top:40px;text-align:center;color:var(--muted);font-size:12px;line-height:1.7}
+  footer a{color:var(--gold);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand"><span class="dot"></span><span>VYRRAH</span> LABS</div>
+
+  <div class="eyebrow" id="eyebrow">Revenue Leak Calculator</div>
+  <h1 id="h1">Some missed calls are a <span class="em">booked job</span> dialing your competitor.</h1>
+  <p class="sub" id="subline">When you're on a job, calls go to voicemail — and most callers don't leave one. A good share just dial the next company. Here's a conservative estimate of what that costs you.</p>
+
+  <!-- INPUTS -->
+  <div class="card" id="inputs">
+    <div class="field">
+      <label for="calls"><span id="callsLabelTxt">Calls your business gets per week</span> <span class="val" id="callsVal">40</span></label>
+      <div class="inputline">
+        <input type="number" id="calls" value="40" min="1" max="500" inputmode="numeric" />
+        <span class="pre" id="callsUnit">calls/wk</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="miss"><span id="missLabelTxt">% of calls missed (voicemail / no answer)</span> <span class="val" id="missVal">25%</span></label>
+      <input type="range" id="miss" min="5" max="60" value="25" step="1" style="--pct:36%" />
+      <div class="hint" id="missHint">A chunk of calls go unanswered — after hours, on the other line, during a surge. Set yours honestly.</div>
+    </div>
+
+    <div class="field">
+      <label for="job"><span id="jobLabelTxt">Average value of one job</span> <span class="val" id="jobVal">$5,000</span></label>
+      <div class="inputline">
+        <span class="pre">$</span>
+        <input type="number" id="job" value="5000" min="1" max="50000" inputmode="numeric" />
+      </div>
+      <div class="hint" id="jobHint">Use what an average job is actually worth to you — one recovered call can pay for the tool.</div>
+    </div>
+
+    <div class="field">
+      <label for="conv"><span id="convLabelTxt">Of missed calls, share that were a real, bookable job</span> <span class="val" id="convVal">8%</span></label>
+      <input type="range" id="conv" min="3" max="25" value="8" step="1" style="--pct:23%" />
+      <div class="hint" id="convHint">Most missed calls aren't jobs — wrong numbers, vendors, price-shoppers, repeat dials. This is the slice that was a genuine, closeable job at your average value.</div>
+    </div>
+
+    <button class="btn calc" id="calcBtn">Calculate what I'm losing &rarr;</button>
+  </div>
+
+  <!-- EMAIL CAPTURE (overlay-style: result renders blurred behind this) -->
+  <div class="capture" id="capture">
+    <h3>Your number is ready.</h3>
+    <p>It's blurred just below. Drop your email and we'll unlock the full breakdown — plus a short, prescriptive teardown of how to plug the leak.</p>
+    <div class="inputline">
+      <input type="email" id="email" placeholder="you@yourcompany.com" autocomplete="email" aria-label="Your work email" aria-describedby="emailErr" />
+    </div>
+    <div class="err" id="emailErr" role="alert" aria-live="polite">Please enter a valid email.</div>
+    <button class="btn" id="unlockBtn">Unlock my full result &rarr;</button>
+    <button class="skip" id="skipBtn">Just show me the headline number</button>
+  </div>
+
+  <!-- RESULT -->
+  <div class="result" id="result">
+    <div class="lossbox">
+      <div class="tag">Ballpark, from your inputs — you're likely losing</div>
+      <div class="bignum"><span class="cur">$</span><span id="permonthLow">0</span><span class="rangedash">–</span><span id="permonthHigh">0</span></div>
+      <div class="per" id="perLabel">per month in missed-call revenue</div>
+      <div class="caveat" id="caveat">A range, not a promise — built straight from the numbers you entered above.</div>
+      <div class="yearrow">
+        <span class="lbl">Roughly, per year</span>
+        <span class="amt">$<span id="peryearLow">0</span>–<span id="peryearHigh">0</span></span>
+      </div>
+    </div>
+
+    <div class="math">
+      <h3>How we got there (no stacked best-cases)</h3>
+      <ul>
+        <li><span id="mMissedLbl">Calls missed / month</span><b id="mMissed">0</b></li>
+        <li><span id="mConvLbl">&times; share that were a real, bookable job</span><b id="mConv">0%</b></li>
+        <li><span id="mJobsLbl">= bookable jobs slipping / month</span><b id="mJobs">0</b></li>
+        <li><span id="mJobValLbl">&times; your average job value</span><b id="mJobVal">$0</b></li>
+        <li><span>Recovery isn't 100% — realistic range</span><b id="mRange">$0</b></li>
+      </ul>
+    </div>
+
+    <div class="narr" id="narr">
+      Here's the part owners miss: a caller with an emergency <b>will not wait</b>. If you don't pick up, they dial the next name on Google within a minute. An auto text-back that fires in under 60 seconds keeps a chunk of those jobs <b>yours</b>.
+    </div>
+
+    <div class="narr teardown" id="teardown">
+      <h3 class="tdh">Your 2-minute teardown — how to plug the leak</h3>
+      <ol>
+        <li><b>Catch the miss instantly.</b> The moment a call goes unanswered, fire an automated text back to that number — not a voicemail, a text. Most people read a text in minutes; almost nobody calls back a voicemail.</li>
+        <li><b>Answer in under 60 seconds.</b> Speed-to-lead is the whole game. The first to respond usually wins — so the text has to be automatic, not "when I get a free minute."</li>
+        <li><b>Make the first text book, not greet.</b> A booking ask beats "we'll call you back" — offer a time and a next step in the very first message.</li>
+        <li><b>Measure recovered vs. cost.</b> Track contacts recovered, appointments booked, and dollars in. If one recovered <span id="tdjob">job</span> covers months of tooling, the math is no longer a guess.</li>
+      </ol>
+    </div>
+
+    <div class="ctablock">
+      <a class="btn" id="ctaBtn" href="https://vyrrahlabs.com/start?niche=restoration&utm_source=calculator&utm_medium=leadmagnet">Plug the leak — start a free week &rarr;</a>
+      <div class="micro" id="ctaMicro">Miss a call &rarr; auto-text back in &lt;60s &rarr; book the job. Free 1-week trial, no card.</div>
+    </div>
+
+    <button class="recalc" id="recalcBtn" type="button">&larr; Change my inputs and recalculate</button>
+  </div>
+
+  <footer>
+    <span id="footerTxt">Vyrrah Labs builds missed-call recovery for service businesses.</span><br/>
+    <a id="footerLink" href="https://vyrrahlabs.com/start?niche=restoration&utm_source=calculator&utm_medium=leadmagnet">vyrrahlabs.com</a> · Estimates are illustrative and based only on the inputs you provide — not a guarantee of results.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  var callsEl=document.getElementById('calls'),
+      missEl=document.getElementById('miss'),
+      jobEl=document.getElementById('job'),
+      convEl=document.getElementById('conv'),
+      callsVal=document.getElementById('callsVal'),
+      missVal=document.getElementById('missVal'),
+      jobVal=document.getElementById('jobVal'),
+      convVal=document.getElementById('convVal'),
+      calcBtn=document.getElementById('calcBtn'),
+      inputsCard=document.getElementById('inputs'),
+      capture=document.getElementById('capture'),
+      result=document.getElementById('result'),
+      emailEl=document.getElementById('email'),
+      emailErr=document.getElementById('emailErr'),
+      unlockBtn=document.getElementById('unlockBtn'),
+      skipBtn=document.getElementById('skipBtn'),
+      recalcBtn=document.getElementById('recalcBtn'),
+      ctaBtn=document.getElementById('ctaBtn'),
+      footerLink=document.getElementById('footerLink');
+
+  // Honest recovery band: even with instant text-back you don't win every slipping lead.
+  // We show a defensible RANGE, never a single hero number.
+  var RECOVERY_LOW=0.30, RECOVERY_HIGH=0.55;
+  var leadFired=false, unlocked=false;
+
+  // ---- Niche personalization -----------------------------------------------
+  var NICHES={
+    restoration:{label:'restoration',
+      eyebrow:'Missed-Call Revenue Calculator',
+      h1:'Some missed calls are a <span class="em">booked job</span> dialing your competitor.',
+      sub:"When you're on a job, calls go to voicemail — and most callers don't leave one. A good share just dial the next company. Here's a conservative estimate of what that costs you.",
+      callsLabel:'Calls your business gets per week', callsUnit:'calls/wk', callsDefault:40,
+      jobLabel:'Average value of one job', jobUnitWord:'job', jobDefault:5000, jobMax:50000,
+      jobHint:'Use what an average job is actually worth to you — one recovered call can pay for the tool.',
+      convLabel:'Of missed calls, share that were a real, bookable job', convDefault:8,
+      convHint:'Most missed calls aren’t jobs — wrong numbers, vendors, price-shoppers. This is the slice that was a genuine, closeable job.',
+      perLabel:'per month in missed-call revenue',
+      emergency:'a burst pipe, fire, or storm damage', jobword:'restoration job',
+      ctaMicro:'Miss a call → auto-text back in &lt;60s → book the job. Free 1-week trial, no card.',
+      footer:'Vyrrah Labs builds missed-call recovery for restoration &amp; home-service owners.'},
+    roofing:{label:'roofing',
+      eyebrow:'Missed-Call Revenue Calculator',
+      h1:'Some missed calls are a <span class="em">booked roof</span> dialing your competitor.',
+      sub:"When crews are on a roof, calls go to voicemail. A good share just dial the next company. Here's a conservative estimate of what that costs you.",
+      callsLabel:'Calls your business gets per week', callsUnit:'calls/wk', callsDefault:30,
+      jobLabel:'Average value of one job', jobUnitWord:'job', jobDefault:12000, jobMax:50000,
+      jobHint:'Use what an average roofing job is worth — one recovered storm call can pay for the tool many times over.',
+      convLabel:'Of missed calls, share that were a real, bookable job', convDefault:8,
+      convHint:'Most missed calls aren’t jobs. This is the slice that was a genuine, closeable job at your average value.',
+      perLabel:'per month in missed-call revenue',
+      emergency:'storm damage or an active leak', jobword:'roofing job',
+      ctaMicro:'Miss a call → auto-text back in &lt;60s → book the job. Free 1-week trial, no card.',
+      footer:'Vyrrah Labs builds missed-call recovery for roofing &amp; home-service owners.'},
+    plumbing:{label:'plumbing',
+      eyebrow:'Missed-Call Revenue Calculator',
+      h1:'Some missed calls are a <span class="em">booked job</span> dialing your competitor.',
+      sub:"When you're under a sink, calls go to voicemail — and emergencies don't wait. Here's a conservative estimate of what that costs you.",
+      callsLabel:'Calls your business gets per week', callsUnit:'calls/wk', callsDefault:45,
+      jobLabel:'Average value of one job', jobUnitWord:'job', jobDefault:1500, jobMax:20000,
+      jobHint:'Use what an average plumbing job is worth — one recovered emergency call can pay for the tool.',
+      convLabel:'Of missed calls, share that were a real, bookable job', convDefault:10,
+      convHint:'Most missed calls aren’t jobs. This is the genuine, closeable slice at your average value.',
+      perLabel:'per month in missed-call revenue',
+      emergency:'a burst pipe or no hot water', jobword:'plumbing job',
+      ctaMicro:'Miss a call → auto-text back in &lt;60s → book the job. Free 1-week trial, no card.',
+      footer:'Vyrrah Labs builds missed-call recovery for plumbing &amp; home-service owners.'},
+    hvac:{label:'HVAC',
+      eyebrow:'Missed-Call Revenue Calculator',
+      h1:'Some missed calls are a <span class="em">booked job</span> dialing your competitor.',
+      sub:"When you're on a service call, the phone goes to voicemail — and a no-heat call won't wait. Here's a conservative estimate of what that costs you.",
+      callsLabel:'Calls your business gets per week', callsUnit:'calls/wk', callsDefault:45,
+      jobLabel:'Average value of one job', jobUnitWord:'job', jobDefault:2500, jobMax:25000,
+      jobHint:'Use what an average HVAC job is worth — one recovered emergency call can pay for the tool.',
+      convLabel:'Of missed calls, share that were a real, bookable job', convDefault:10,
+      convHint:'Most missed calls aren’t jobs. This is the genuine, closeable slice at your average value.',
+      perLabel:'per month in missed-call revenue',
+      emergency:'no heat or no AC in a heatwave', jobword:'HVAC job',
+      ctaMicro:'Miss a call → auto-text back in &lt;60s → book the job. Free 1-week trial, no card.',
+      footer:'Vyrrah Labs builds missed-call recovery for HVAC &amp; home-service owners.'},
+    legal:{label:'personal-injury law',
+      eyebrow:'Missed-Intake Revenue Calculator',
+      h1:'A missed intake call is a <span class="em">signed retainer</span> walking to the firm down the street.',
+      sub:"Accident victims call at night and on weekends — and they don't leave voicemails. They dial the next firm on Google. Here's a conservative estimate of what those missed intakes cost you.",
+      callsLabel:'Intake calls your firm gets per week', callsUnit:'calls/wk', callsDefault:30,
+      jobLabel:'Average fee value of one signed case', jobUnitWord:'case', jobDefault:6000, jobMax:100000,
+      jobHint:'Fee to the firm, not gross settlement. Soft-tissue auto often runs $1,500–$15,000; serious-injury far more. Use a conservative average.',
+      convLabel:'Of missed calls, the share you’d actually sign as a case', convDefault:5,
+      convHint:'Most missed calls aren’t signable cases — solicitors, existing clients, wrong numbers. This is the slice that was a real injury inquiry you’d sign.',
+      perLabel:'per month in missed-intake fee value',
+      emergency:'an injury that just happened, an 11pm car accident', jobword:'signed case',
+      ctaMicro:'Miss an intake → auto-text back in &lt;60s → book the consult. Free 1-week trial, no card. Inbound-only, opt-out on every text.',
+      footer:'Vyrrah Labs builds speed-to-lead intake recovery for personal-injury firms. Inbound-only, opt-out on every text — you approve every template; we are not your compliance counsel.'},
+    realestate:{label:'real estate',
+      eyebrow:'Lost-Lead Commission Calculator',
+      h1:'A missed lead is a <span class="em">commission</span> already touring a house with another agent.',
+      sub:"Buyers and sellers don't wait by the phone — they click the next agent in 10 minutes. Zillow's own data says respond in 5 minutes. Here's a conservative estimate of what slow response costs your team.",
+      callsLabel:'Leads your team gets per week', callsUnit:'leads/wk', callsDefault:30,
+      jobLabel:'Average commission per closing (your side)', jobUnitWord:'closing', jobDefault:6000, jobMax:25000,
+      jobHint:'Your side, before brokerage caps/desk fees. A ~$450k median home ≈ $5,500–$8,000. Use a conservative average.',
+      convLabel:'Of missed leads, share that were a real, convertible lead', convDefault:6,
+      convHint:'Most missed leads won’t convert — tire-kickers, duplicates, wrong stage. This is the slice that was a genuine, closeable buyer or seller.',
+      perLabel:'per month in lost commission',
+      emergency:'a 9pm Zillow lead, three leads at once during an open house', jobword:'closing',
+      ctaMicro:'Miss a lead → auto-text back in &lt;60s → book the showing. Free 1-week trial, no card. Fair-housing-safe templates.',
+      footer:'Vyrrah Labs builds speed-to-lead recovery for real-estate teams. Inbound-only, opt-out on every text, fair-housing-neutral templates — you approve every template.'}
+  };
+  function getNiche(){
+    var n=(new URLSearchParams(window.location.search).get('niche')||'').toLowerCase();
+    return NICHES[n]?n:'restoration';
+  }
+  var NICHE=getNiche(), N=NICHES[NICHE];
+
+  function setText(id,txt){var e=document.getElementById(id); if(e) e.textContent=txt;}
+  function setHTML(id,html){var e=document.getElementById(id); if(e) e.innerHTML=html;}
+
+  function applyNiche(){
+    var qs='niche='+encodeURIComponent(NICHE)+'&utm_source=calculator&utm_medium=leadmagnet';
+    document.title=N.eyebrow+' — Vyrrah Labs';
+    setText('eyebrow',N.eyebrow);
+    setHTML('h1',N.h1);
+    setText('subline',N.sub);
+    setText('callsLabelTxt',N.callsLabel);
+    setText('callsUnit',N.callsUnit);
+    setText('jobLabelTxt',N.jobLabel);
+    setText('jobHint',N.jobHint);
+    setText('convLabelTxt',N.convLabel);
+    setText('convHint',N.convHint);
+    setText('perLabel',N.perLabel);
+    setText('mJobsLbl','= '+N.jobword+'s slipping / month');
+    setText('mJobValLbl','× your average '+N.jobword+' value');
+    setHTML('narr','Here’s the part most miss: someone with '+N.emergency+' <b>will not wait</b>. If you don’t pick up, they reach out to the next name within a minute. An auto text-back that fires in under 60 seconds keeps a chunk of those <b>yours</b>.');
+    setText('tdjob',N.jobword);
+    setHTML('ctaMicro',N.ctaMicro);
+    setHTML('footerTxt',N.footer);
+    // input defaults + bounds
+    callsEl.value=N.callsDefault;
+    jobEl.value=N.jobDefault; jobEl.max=N.jobMax;
+    convEl.value=N.convDefault;
+    if(ctaBtn) ctaBtn.href='https://vyrrahlabs.com/start?'+qs;
+    if(footerLink) footerLink.href='https://vyrrahlabs.com/?'+qs;
+  }
+  applyNiche();
+
+  // ---- Helpers --------------------------------------------------------------
+  function fmt(n){return Math.round(n).toLocaleString('en-US');}
+  function fmtMoney(n){
+    n=Math.round(n);
+    if(n>=1000000) return (n/1000000).toFixed(n>=10000000?0:1).replace(/\.0$/,'')+'M';
+    if(n>=100000) return (n/1000).toFixed(0)+'K';
+    return n.toLocaleString('en-US');
+  }
+  function fmtYear(n){
+    n=Math.round(n);
+    if(n>=1000000) return (n/1000000).toFixed(n>=10000000?0:1).replace(/\.0$/,'')+'M';
+    if(n>=1000) return (n/1000).toFixed(0)+'K';
+    return n.toLocaleString('en-US');
+  }
+  function clampNum(el,min,max,fallback){
+    var v=parseFloat(el.value);
+    if(isNaN(v)) v=fallback;
+    return Math.max(min,Math.min(max,v));
+  }
+
+  function syncLabels(){
+    callsVal.textContent=fmt(clampNum(callsEl,1,500,N.callsDefault));
+    var m=parseInt(missEl.value,10);
+    missVal.textContent=m+'%';
+    missEl.style.setProperty('--pct',((m-5)/(60-5)*100)+'%');
+    var j=clampNum(jobEl,1,N.jobMax,N.jobDefault);
+    jobVal.textContent='$'+fmt(j);
+    var c=parseInt(convEl.value,10);
+    convVal.textContent=c+'%';
+    convEl.style.setProperty('--pct',((c-3)/(25-3)*100)+'%');
+    if(unlocked) renderNumbers();
+  }
+
+  function compute(){
+    var calls=clampNum(callsEl,1,500,N.callsDefault);
+    var missPct=parseInt(missEl.value,10)/100;
+    var job=clampNum(jobEl,1,N.jobMax,N.jobDefault);
+    var convPct=parseInt(convEl.value,10)/100;
+    var missedMonth=calls*missPct*52/12;
+    var jobs=missedMonth*convPct;
+    var fullMonth=jobs*job;
+    var perMonthLow=fullMonth*RECOVERY_LOW;
+    var perMonthHigh=fullMonth*RECOVERY_HIGH;
+    return {
+      calls:calls, missPct:missPct, job:job, convPct:convPct,
+      missedMonth:missedMonth, jobs:jobs, fullMonth:fullMonth,
+      perMonthLow:perMonthLow, perMonthHigh:perMonthHigh,
+      perYearLow:perMonthLow*12, perYearHigh:perMonthHigh*12
+    };
+  }
+
+  function animateNum(el,target,dur,money){
+    var t0=null;
+    function step(ts){
+      if(!t0)t0=ts;
+      var p=Math.min((ts-t0)/dur,1);
+      var eased=1-Math.pow(1-p,3);
+      var v=target*eased;
+      el.textContent=money?fmtMoney(v):fmt(v);
+      if(p<1)requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function renderNumbers(animate){
+    var d=compute();
+    document.getElementById('mMissed').textContent=fmt(d.missedMonth);
+    document.getElementById('mConv').textContent=Math.round(d.convPct*100)+'%';
+    document.getElementById('mJobs').textContent=(Math.round(d.jobs*10)/10).toLocaleString('en-US');
+    document.getElementById('mJobVal').textContent='$'+fmt(d.job);
+    document.getElementById('mRange').textContent='$'+fmtMoney(d.perMonthLow)+'–$'+fmtMoney(d.perMonthHigh)+'/mo';
+    document.getElementById('peryearLow').textContent=fmtYear(d.perYearLow);
+    document.getElementById('peryearHigh').textContent=fmtYear(d.perYearHigh);
+    var lowEl=document.getElementById('permonthLow'), highEl=document.getElementById('permonthHigh');
+    if(animate){
+      animateNum(lowEl,d.perMonthLow,900,true);
+      animateNum(highEl,d.perMonthHigh,1100,true);
+    }else{
+      lowEl.textContent=fmtMoney(d.perMonthLow);
+      highEl.textContent=fmtMoney(d.perMonthHigh);
+    }
+  }
+
+  function leadValue(d){ return Math.round(d.perMonthHigh); }
+
+  function postLead(email,d){
+    var ep=window.VYRRAH_LEAD_ENDPOINT;
+    if(!ep || ep==='LEAD_ENDPOINT_HERE') return;
+    var payload={
+      email:email||null, niche:NICHE,
+      callsPerWeek:d.calls, missPct:Math.round(d.missPct*100),
+      avgValue:d.job, bookableSharePct:Math.round(d.convPct*100),
+      estMonthlyLow:Math.round(d.perMonthLow), estMonthlyHigh:Math.round(d.perMonthHigh),
+      source:'leak-calculator', ts:new Date().toISOString()
+    };
+    try{
+      fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload),keepalive:true}).catch(function(){});
+    }catch(e){}
+  }
+
+  function fireLead(email,captured){
+    var d=compute();
+    window.track('Lead',{value:leadValue(d),currency:'USD',
+      content_name:N.eyebrow,niche:NICHE,lead_email_captured:!!captured});
+    leadFired=true;
+  }
+
+  function unlock(email,captured){
+    unlocked=true;
+    var d=compute();
+    if(!leadFired) fireLead(email,captured);
+    postLead(captured?email:null,d);
+    capture.classList.remove('show');
+    capture.style.display='none';
+    result.classList.remove('blur');
+    window.track('ViewResult',{niche:NICHE});
+    renderNumbers(true);
+    result.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  // ---- Wiring ---------------------------------------------------------------
+  [callsEl,jobEl].forEach(function(el){el.addEventListener('input',syncLabels);});
+  [missEl,convEl].forEach(function(el){el.addEventListener('input',syncLabels);});
+  syncLabels();
+
+  calcBtn.addEventListener('click',function(){
+    syncLabels();
+    window.track('Calculate',{niche:NICHE});
+    renderNumbers(false);
+    result.classList.add('show');
+    result.classList.add('blur');
+    capture.classList.add('show');
+    capture.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+
+  function clearEmailErr(){
+    emailErr.style.display='none';
+    emailEl.setAttribute('aria-invalid','false');
+    emailEl.parentNode.classList.remove('invalid');
+  }
+  emailEl.addEventListener('input',clearEmailErr);
+
+  unlockBtn.addEventListener('click',function(){
+    var v=(emailEl.value||'').trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){
+      emailErr.style.display='block';
+      emailEl.setAttribute('aria-invalid','true');
+      emailEl.parentNode.classList.add('invalid');
+      emailEl.focus();
+      return;
+    }
+    clearEmailErr();
+    unlock(v,true);
+  });
+
+  skipBtn.addEventListener('click',function(){ unlock(null,false); });
+
+  recalcBtn.addEventListener('click',function(){
+    inputsCard.scrollIntoView({behavior:'smooth',block:'center'});
+    callsEl.focus();
+  });
+
+  ctaBtn.addEventListener('click',function(){
+    window.track('StartTrialClick',{niche:NICHE});
+  });
+})();
+</script>
+</body>
+</html>
