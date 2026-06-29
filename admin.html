@@ -150,6 +150,8 @@
     .btn-ghost { background: transparent; color: var(--text-light); border-color: transparent; }
     .btn-ghost:hover { color: var(--text); background: var(--border); }
     .btn:disabled { opacity: .5; cursor: default; }
+    /* Toggle/segmented outline buttons (eod-outcome, seq-filter) */
+    .btn-outline.active { background: var(--red); color: white; border-color: var(--red); }
 
     /* ── TABLE ── */
     .table-wrap { overflow-x: auto; }
@@ -366,7 +368,7 @@
 <body>
 
 <!-- LOGIN -->
-<div id="login-screen">
+<div id="login-screen" style="display:none;">
   <div class="login-card">
     <div class="login-logo">
       <div class="logo-mark">V</div>
@@ -734,19 +736,23 @@
 
 <!-- MODAL: End of Day Debrief -->
 <div class="modal-overlay" id="modal-eod">
-  <div class="modal-box" style="max-width:520px;">
-    <h3>🌙 End of Day Debrief</h3>
-    <button class="modal-close" data-close="modal-eod">&times;</button>
-    <p style="font-size:13px;color:var(--text-light);margin:12px 0;">Paste the phone numbers of everyone you called today — one per line. Their sequences will be stopped and status updated.</p>
-    <textarea id="eod-phones" placeholder="+15105551001&#10;+15105551002&#10;+15105551003" style="width:100%;height:120px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:10px;font-size:13px;font-family:monospace;resize:vertical;border-radius:4px;"></textarea>
-    <p style="font-size:12px;color:var(--text-light);margin:10px 0 4px;">Mark these leads as:</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-      <button class="btn btn-sm btn-outline eod-outcome active" data-outcome="contacted">Tried, no answer</button>
-      <button class="btn btn-sm btn-outline eod-outcome" data-outcome="replied">Spoke to them</button>
-      <button class="btn btn-sm btn-outline eod-outcome" data-outcome="not_interested">Not interested</button>
-      <button class="btn btn-sm btn-outline eod-outcome" data-outcome="booked">Booked a call</button>
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <h3>🌙 End of Day Debrief</h3>
+      <button class="modal-close" data-close="modal-eod">&times;</button>
     </div>
-    <div style="display:flex;gap:8px;">
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">Paste the phone numbers of everyone you called today — one per line. Their sequences will be stopped and status updated.</p>
+      <textarea id="eod-phones" placeholder="+15105551001&#10;+15105551002&#10;+15105551003" style="width:100%;height:120px;background:var(--bg);border:1.5px solid var(--border);color:var(--text);padding:10px;font-size:13px;font-family:monospace;resize:vertical;border-radius:7px;outline:none;"></textarea>
+      <p style="font-size:12px;color:var(--text-light);margin:12px 0 6px;">Mark these leads as:</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-outline eod-outcome active" data-outcome="contacted">Tried, no answer</button>
+        <button class="btn btn-sm btn-outline eod-outcome" data-outcome="replied">Spoke to them</button>
+        <button class="btn btn-sm btn-outline eod-outcome" data-outcome="not_interested">Not interested</button>
+        <button class="btn btn-sm btn-outline eod-outcome" data-outcome="booked">Booked a call</button>
+      </div>
+    </div>
+    <div class="modal-footer">
       <button class="btn btn-outline" data-close="modal-eod">Cancel</button>
       <button class="btn btn-danger" id="eod-confirm-btn">Stop Sequences</button>
     </div>
@@ -762,9 +768,18 @@
     </div>
     <div class="modal-body">
       <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">
-        Upload a CSV file. Expected columns: <code>first_name, last_name, company, phone, email, country, niche, campaign</code>
+        Drop a CSV here or pick a file. Columns are auto-detected — your export's
+        <code>First Name</code>, <code>Last Name</code>, <code>Company</code>,
+        <code>Mobile Number</code>, <code>Email</code>, <code>Industry</code>,
+        <code>City</code>, <code>State</code> all map automatically. Rows without a
+        name or phone are skipped.
       </p>
-      <input type="file" id="csv-file-input" accept=".csv" style="font-size:13px;">
+      <div id="csv-dropzone" style="border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg);">
+        <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="opacity:.4;margin-bottom:8px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <div style="font-size:13px;color:var(--text-light);"><strong style="color:var(--text);">Click to choose</strong> or drag a .csv file here</div>
+        <div id="csv-filename" style="font-size:12px;color:var(--green);margin-top:6px;"></div>
+      </div>
+      <input type="file" id="csv-file-input" accept=".csv" style="display:none;">
       <div id="import-preview" style="margin-top:14px;font-size:13px;"></div>
     </div>
     <div class="modal-footer">
@@ -806,7 +821,8 @@
           <option value="booking">Booking ask</option>
         </select>
       </div>
-      <div class="field"><label>Message</label><textarea id="sms-body" rows="4" placeholder="Type your message..."></textarea></div>
+      <div class="field"><label>Message</label><textarea id="sms-body" rows="4" placeholder="Type your message... use {first_name} {company}"></textarea></div>
+      <div id="sms-preview" style="display:none;font-size:12px;color:var(--text-light);background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 10px;margin-top:-4px;"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" data-close="modal-send-sms">Cancel</button>
@@ -885,6 +901,23 @@ function statusBadge(status) {
 function initials(first, last) {
   return ((first || '')[0] || '') + ((last || '')[0] || '');
 }
+
+// Replace {first_name}/{last_name}/{company} placeholders before sending.
+// Mirrors the backend sequence engine's interpolate() so manual sends aren't
+// fired with literal "{first_name}" text.
+function interpolate(text, lead) {
+  if (!text) return text;
+  lead = lead || {};
+  return text
+    .replace(/\{first_name\}/g, lead.first_name || 'there')
+    .replace(/\{last_name\}/g, lead.last_name || '')
+    .replace(/\{company\}/g, lead.company || 'your business')
+    .replace(/\{first name\}/g, lead.first_name || 'there')
+    .replace(/\{name\}/g, [lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'there');
+}
+
+// Lead context for the Send-SMS modal so {placeholders} resolve correctly.
+let smsModalLead = null;
 
 // ── AUTH ──
 document.getElementById('login-form').addEventListener('submit', async e => {
@@ -1119,11 +1152,18 @@ document.getElementById('save-contact-btn').addEventListener('click', async () =
 });
 
 // Import CSV
-document.getElementById('import-csv-btn').addEventListener('click', () => openModal('modal-import'));
+document.getElementById('import-csv-btn').addEventListener('click', () => {
+  importData = [];
+  document.getElementById('csv-file-input').value = '';
+  document.getElementById('csv-filename').textContent = '';
+  document.getElementById('import-preview').innerHTML = '';
+  document.getElementById('import-confirm-btn').disabled = true;
+  openModal('modal-import');
+});
 let importData = [];
-document.getElementById('csv-file-input').addEventListener('change', e => {
-  const file = e.target.files[0];
+function handleCsvFile(file) {
   if (!file) return;
+  document.getElementById('csv-filename').textContent = '📄 ' + file.name;
   const reader = new FileReader();
   reader.onload = ev => {
     const text = ev.target.result;
@@ -1199,7 +1239,34 @@ document.getElementById('csv-file-input').addEventListener('change', e => {
     document.getElementById('import-confirm-btn').disabled = importData.length === 0;
   };
   reader.readAsText(file);
+}
+
+// File picker
+document.getElementById('csv-file-input').addEventListener('change', e => {
+  handleCsvFile(e.target.files[0]);
 });
+
+// Drag & drop + click-to-pick on the dropzone
+(() => {
+  const dz = document.getElementById('csv-dropzone');
+  if (!dz) return;
+  dz.addEventListener('click', () => document.getElementById('csv-file-input').click());
+  ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation();
+    dz.style.borderColor = 'var(--red)';
+    dz.style.background = '#fff5f5';
+  }));
+  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation();
+    dz.style.borderColor = 'var(--border)';
+    dz.style.background = 'var(--bg)';
+  }));
+  dz.addEventListener('drop', e => {
+    const file = e.dataTransfer.files[0];
+    if (file && /\.csv$/i.test(file.name)) handleCsvFile(file);
+    else if (file) toast('Please drop a .csv file', 'error');
+  });
+})();
 
 document.getElementById('import-confirm-btn').addEventListener('click', async () => {
   const btn = document.getElementById('import-confirm-btn');
@@ -1300,6 +1367,7 @@ async function openLeadProfile(id) {
       closeModal('modal-lead-profile');
     });
     document.getElementById('profile-sms-btn').addEventListener('click', () => {
+      smsModalLead = lead;
       document.getElementById('sms-to').value = lead.phone;
       openModal('modal-send-sms');
     });
@@ -1497,6 +1565,7 @@ document.getElementById('skip-lead-btn').addEventListener('click', () => {
 
 document.getElementById('send-sms-from-dialer').addEventListener('click', () => {
   const lead = dialerQueue[dialerIndex];
+  smsModalLead = lead || null;
   if (lead) document.getElementById('sms-to').value = lead.phone;
   openModal('modal-send-sms');
 });
@@ -1510,7 +1579,7 @@ async function loadCallHistory() {
       ? stats.recent_calls.map(c => `
         <div class="call-history-item">
           <div class="ch-name">${c.phone}</div>
-          <div class="ch-meta">${c.direction} · ${c.outcome || 'pending'} · ${fmtDate(c.created_at)}</div>
+          <div class="ch-meta">${c.direction} · ${c.outcome || 'pending'}${c.duration_seconds ? ' · ' + fmtDuration(c.duration_seconds) : ''} · ${fmtDate(c.created_at)}</div>
         </div>`).join('')
       : '<div style="padding:16px;font-size:13px;color:var(--text-light);">No calls yet</div>';
   } catch {}
@@ -1597,8 +1666,9 @@ async function loadConversationThread(phone) {
     if (msgs) msgs.scrollTop = msgs.scrollHeight;
 
     document.getElementById('conv-send-btn').addEventListener('click', async () => {
-      const body = document.getElementById('conv-reply-input').value.trim();
-      if (!body) return;
+      const rawBody = document.getElementById('conv-reply-input').value.trim();
+      if (!rawBody) return;
+      const body = interpolate(rawBody, lead);
       const sendBtn = document.getElementById('conv-send-btn');
       sendBtn.disabled = true;
       try {
@@ -1622,7 +1692,13 @@ async function loadConversationThread(phone) {
   }
 }
 
-document.getElementById('new-sms-btn').addEventListener('click', () => openModal('modal-send-sms'));
+document.getElementById('new-sms-btn').addEventListener('click', () => {
+  smsModalLead = null;
+  document.getElementById('sms-to').value = '';
+  document.getElementById('sms-body').value = '';
+  document.getElementById('sms-template-select').value = '';
+  openModal('modal-send-sms');
+});
 
 // SMS Templates
 const SMS_TEMPLATES = {
@@ -1632,20 +1708,33 @@ const SMS_TEMPLATES = {
   booking: "Hi {first_name}, would you be free for a quick 15-min call this week? I can do Mon-Fri anytime between 10am-4pm AEST. — Godwin"
 };
 
+function updateSmsPreview() {
+  const raw = document.getElementById('sms-body').value;
+  const prev = document.getElementById('sms-preview');
+  if (raw && /\{[a-z_ ]+\}/i.test(raw)) {
+    prev.textContent = 'Will send: ' + interpolate(raw, smsModalLead);
+    prev.style.display = 'block';
+  } else {
+    prev.style.display = 'none';
+  }
+}
 document.getElementById('sms-template-select').addEventListener('change', e => {
   if (e.target.value) {
     document.getElementById('sms-body').value = SMS_TEMPLATES[e.target.value] || '';
+    updateSmsPreview();
   }
 });
+document.getElementById('sms-body').addEventListener('input', updateSmsPreview);
 
 document.getElementById('send-sms-btn').addEventListener('click', async () => {
   const btn = document.getElementById('send-sms-btn');
   btn.disabled = true; btn.textContent = 'Sending...';
   try {
     const to = document.getElementById('sms-to').value.trim();
-    const body = document.getElementById('sms-body').value.trim();
-    if (!to || !body) throw new Error('Phone and message are required');
-    await API('/api/sms/send', { method: 'POST', body: JSON.stringify({ to, body }) });
+    const rawBody = document.getElementById('sms-body').value.trim();
+    if (!to || !rawBody) throw new Error('Phone and message are required');
+    const body = interpolate(rawBody, smsModalLead);
+    await API('/api/sms/send', { method: 'POST', body: JSON.stringify({ to, body, lead_id: smsModalLead?.id }) });
     closeModal('modal-send-sms');
     toast('SMS sent', 'success');
     document.getElementById('sms-body').value = '';
@@ -1838,7 +1927,7 @@ document.getElementById('enroll-sequence-btn').addEventListener('click', async (
 // ── SETTINGS ──
 async function loadSettings() {
   const host = window.location.origin;
-  document.getElementById('settings-twilio-number').textContent = '+13292161295';
+  document.getElementById('settings-twilio-number').textContent = '+15106310835';
   document.getElementById('settings-sms-webhook').textContent = `${host}/api/webhooks/sms`;
   document.getElementById('settings-voice-webhook').textContent = `${host}/api/webhooks/voice`;
 }
@@ -1851,9 +1940,35 @@ document.getElementById('load-optouts').addEventListener('click', async () => {
   } catch {}
 });
 
-// ── INIT — auth disabled for testing ──
+// ── INIT — auth-gated ──
+// Flow:
+//  1. If a stored token verifies → straight into the app.
+//  2. Else probe an authed endpoint with no token. If the backend has no
+//     ADMIN_KEY/JWT enforcement it returns 200 → the panel is open, show the app.
+//  3. Else the backend is secured → show the login screen.
+// This keeps a private/unsecured deployment frictionless while making the
+// login form functional the moment auth is turned on server-side.
+async function apiIsOpen() {
+  try {
+    const r = await fetch('/api/contacts?limit=1');
+    return r.status !== 401;
+  } catch {
+    return false; // network/other error — fall back to login screen
+  }
+}
+
 (async () => {
-  showApp();
+  const loginScreen = document.getElementById('login-screen');
+  const app = document.getElementById('app');
+
+  if (await checkAuth()) { showApp(); return; }
+
+  // No valid token — is the backend enforcing auth?
+  if (await apiIsOpen()) { showApp(); return; }
+
+  // Secured backend, no token → require sign-in.
+  loginScreen.style.display = 'flex';
+  app.style.display = 'none';
 })();
 
 // ── DESKTOP NOTIFICATIONS ──

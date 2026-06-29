@@ -54,8 +54,10 @@ async function handleAuthLogin(req, res) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // `kind:'admin'` is the claim requireAuth() checks (api/_lib/auth.js).
+    // `role` kept for backwards-compat with any other consumer.
     const token = jwt.sign(
-      { username, role: 'admin' },
+      { kind: 'admin', role: 'admin', username },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -227,34 +229,96 @@ async function handleContactsImport(req, res) {
       return '+' + digits;
     }
 
+    // Accept both UI-normalized objects ({first_name, phone, ...}) and the raw
+    // restoration CSV columns ("First Name", "Mobile Number", "Industry", ...)
+    // so curl/Zapier/non-UI imports work too.
+    const pick = (c, ...keys) => {
+      for (const k of keys) {
+        if (c[k] !== undefined && c[k] !== null && String(c[k]).trim() !== '') {
+          return String(c[k]).trim();
+        }
+      }
+      return null;
+    };
+
+    const seen = new Set();
+    let skippedDupes = 0;
+
     const rows = contacts.map(c => {
-      const phone = normalizePhone(c.phone || c.Phone || c.mobile || '');
+      const phone = normalizePhone(
+        pick(c, 'phone', 'Phone', 'mobile', 'Mobile', 'Mobile Number', 'mobile_number', 'Phone Number') || ''
+      );
+      const niche = pick(c, 'niche', 'Niche', 'industry', 'Industry');
+      const cityState = [pick(c, 'city', 'City'), pick(c, 'state', 'State')].filter(Boolean).join(', ');
+      const title = pick(c, 'title', 'Title');
+      const notes = pick(c, 'notes', 'Notes')
+        || [title, cityState].filter(Boolean).join(' — ')
+        || null;
       return {
-        first_name: (c.first_name || c.firstName || c['First Name'] || '').trim(),
-        last_name: (c.last_name || c.lastName || c['Last Name'] || null),
-        company: c.company || c.Company || null,
+        first_name: pick(c, 'first_name', 'firstName', 'First Name') || '',
+        last_name: pick(c, 'last_name', 'lastName', 'Last Name'),
+        company: pick(c, 'company', 'Company'),
         phone,
-        email: c.email || c.Email || null,
-        country: c.country || c.Country || 'United States',
-        niche: c.niche || c.Niche || null,
+        email: pick(c, 'email', 'Email'),
+        country: pick(c, 'country', 'Country') || 'United States',
+        niche,
         status: 'new',
-        campaign: c.campaign || c.Campaign || 'USA Outreach',
-        notes: c.notes || c.Notes || null
+        campaign: pick(c, 'campaign', 'Campaign') || 'USA Outreach',
+        notes
       };
-    }).filter(c => c.first_name && c.phone);
+    }).filter(c => {
+      if (!c.first_name || !c.phone) return false;
+      // In-batch dedup: re-importing the same list twice in one payload
+      if (seen.has(c.phone)) { skippedDupes++; return false; }
+      seen.add(c.phone);
+      return true;
+    });
+
+    if (rows.length === 0) {
+      return res.status(200).json({ imported: 0, skipped: contacts.length, leads: [] });
+    }
 
     const supabase = getSupabase();
-    const { data, error } = await supabase
-      .from('leads')
-      .insert(rows)
-      .select();
 
-    if (error) throw error;
+    // Upsert on phone so re-importing a list updates instead of duplicating.
+    // Requires the uniq_leads_phone index (migrations/2026-06-dialer-channel-dedup.sql).
+    // Insert in chunks; if a chunk fails (e.g. one bad row), fall back to
+    // per-row so a single bad record can't sink the whole import.
+    const imported = [];
+    const failed = [];
+
+    const upsertRows = async (batch) => {
+      const { data, error } = await supabase
+        .from('leads')
+        .upsert(batch, { onConflict: 'phone', ignoreDuplicates: false })
+        .select();
+      if (error) throw error;
+      return data || [];
+    };
+
+    for (let i = 0; i < rows.length; i += 200) {
+      const batch = rows.slice(i, i + 200);
+      try {
+        imported.push(...await upsertRows(batch));
+      } catch (batchErr) {
+        // Isolate the bad row(s): retry one at a time.
+        for (const row of batch) {
+          try {
+            imported.push(...await upsertRows([row]));
+          } catch (rowErr) {
+            failed.push({ phone: row.phone, error: rowErr.message });
+          }
+        }
+      }
+    }
 
     return res.status(200).json({
-      imported: data.length,
+      imported: imported.length,
+      // rows dropped before insert: missing name/phone + in-batch duplicate phones
       skipped: contacts.length - rows.length,
-      leads: data
+      duplicates_in_payload: skippedDupes,
+      failed,
+      leads: imported
     });
   } catch (err) {
     console.error('Import error:', err);
