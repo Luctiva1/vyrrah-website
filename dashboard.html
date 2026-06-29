@@ -149,6 +149,8 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
 .loginbox input{background:var(--panel2);border:1px solid var(--line2);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:13px 14px;outline:none}
 .loginbox input:focus{border-color:var(--gold)}
 .loginbox .btn{margin-top:4px}
+.loginbox .btn.ghost{margin-top:2px}
+.loginerr{display:none;font-size:12.5px;line-height:1.5;color:var(--red2);margin-top:2px}
 .loginhint{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:4px}
 
 .skel{background:linear-gradient(90deg,rgba(242,237,228,.04),rgba(242,237,228,.09),rgba(242,237,228,.04));background-size:200% 100%;animation:sk 1.3s linear infinite;border-radius:6px;color:transparent!important}
@@ -162,9 +164,12 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
   <div class="loginbox">
     <div class="loginmark">V-RANK<span style="color:var(--red)">.</span> · COMMAND</div>
     <div class="loginh">Open your dashboard</div>
-    <input id="clientIdInput" placeholder="Client ID" autocomplete="off">
-    <button class="btn gold" id="loginBtn" type="button">View dashboard</button>
-    <div class="loginhint">Enter the <b>Client ID</b> Vyrrah gave you, or open the dashboard link from your welcome email (it has <b>?client_id=…</b> built in).</div>
+    <input id="liEmail" type="email" placeholder="Email" autocomplete="email">
+    <input id="liPass" type="password" placeholder="Password" autocomplete="current-password">
+    <button class="btn gold" id="liBtn" type="button">Sign in</button>
+    <button class="btn ghost" id="liMagic" type="button">Email me a login link instead</button>
+    <div class="loginerr" id="liErr"></div>
+    <div class="loginhint">Use the email &amp; password from your V-Rank signup. New here? <a href="/scorecard" style="color:var(--gold)">Run your free scorecard</a> to create an account.</div>
   </div>
 </div>
 
@@ -173,7 +178,7 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     <div class="wordmark">V-RANK<span class="dot">.</span> · COMMAND</div>
     <div class="toolbar">
       <span class="refresh" id="refresh">—</span>
-      <button class="btn ghost" id="switchBtn">Switch client</button>
+      <button class="btn ghost" id="switchBtn">Sign out</button>
       <button class="btn gold" id="refreshBtn">Refresh</button>
     </div>
   </div>
@@ -247,12 +252,34 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
 
 <script>
 (function(){
-  var ID_KEY = 'vyrrah_geo_client_id';
-  function getId(){
-    var q = new URLSearchParams(location.search).get('client_id');
-    if(q){ localStorage.setItem(ID_KEY, q); return q; }
-    return localStorage.getItem(ID_KEY) || '';
+  // ── Session ──────────────────────────────────────────────────────────────
+  // A V-Rank customer is just a Recaller-style account. We reuse the same login
+  // (POST /api/tool/auth/login) which returns { token: <JWT>, magic_token }.
+  // We persist BOTH under the shared Recaller key so the customer stays signed
+  // in across Vyrrah products, and call the geo dashboard with Authorization:
+  // Bearer <JWT> (self-mode). A ?token=… magic-link in the URL also signs in.
+  // Legacy / admin: ?client_id=… still works via the admin-gated geo mode.
+  var TOK_KEY = 'vy_client_token';   // magic_token (shared with recover.html)
+  var JWT_KEY = 'vy_geo_jwt';        // geo client JWT from signup/login
+
+  var params = new URLSearchParams(location.search);
+  var adminClientId = params.get('client_id') || ''; // admin viewing a specific client
+
+  // Magic-link token in the URL → persist + strip from the address bar.
+  var urlTok = params.get('token');
+  if(urlTok){
+    try{ localStorage.setItem(TOK_KEY, urlTok); }catch(e){}
+    try{ history.replaceState(null,'', location.pathname); }catch(e){}
   }
+
+  function getMagic(){ try{ return localStorage.getItem(TOK_KEY) || ''; }catch(e){ return ''; } }
+  function getJwt(){ try{ return localStorage.getItem(JWT_KEY) || ''; }catch(e){ return ''; } }
+  function clearSession(){
+    try{ localStorage.removeItem(TOK_KEY); }catch(e){}
+    try{ localStorage.removeItem(JWT_KEY); }catch(e){}
+  }
+  // Authenticated when we hold a customer session OR an admin opened a specific client.
+  function hasSession(){ return !!(adminClientId || getMagic() || getJwt()); }
   function clr(n){ return Math.max(0, Math.min(100, Math.round(Number(n)||0))); }
   function num(n){ return Math.round(Number(n)||0); }
   function fmt(n){ return num(n).toLocaleString(); }
@@ -450,35 +477,94 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     animateScore(score);
   }
 
+  // Build the geo dashboard request for the current session.
+  // Self-mode: Bearer JWT (preferred) or ?token=magic_token. Admin: ?client_id=.
+  function dashRequest(){
+    var headers = {};
+    var url = '/api/geo?path=dashboard';
+    var jwt = getJwt(), magic = getMagic();
+    if(adminClientId){
+      url += '&client_id=' + encodeURIComponent(adminClientId);
+    } else if(jwt){
+      headers['Authorization'] = 'Bearer ' + jwt;
+    } else if(magic){
+      url += '&token=' + encodeURIComponent(magic);
+    }
+    return { url: url, headers: headers };
+  }
+
   function load(){
-    var id = getId();
-    if(!id){ showGate(); return; }
+    if(!hasSession()){ showGate(); return; }
     hideGate();
-    fetch('/api/geo?path=dashboard&client_id=' + encodeURIComponent(id))
-      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+    var req = dashRequest();
+    fetch(req.url, { headers: req.headers })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, status:r.status, d:d }; }); })
       .then(function(res){
+        if(res.status === 401 || res.status === 403){
+          // Stale / invalid session → drop it and show the login.
+          if(!adminClientId) clearSession();
+          showGate();
+          var le = document.getElementById('liErr');
+          if(le){ le.textContent = 'Your session expired — please sign in again.'; le.style.display='block'; }
+          return;
+        }
         if(!res.ok || (res.d && res.d.error)) throw new Error((res.d && res.d.error) || 'Could not load dashboard');
-        render(res.d, id);
+        render(res.d, adminClientId || (res.d && (res.d.client_id || res.d.name)) || 'your account');
       })
       .catch(function(e){
         var el = document.getElementById('err');
-        el.textContent = 'Failed to load: ' + e.message + '. Check your Client ID and try again.';
+        el.textContent = 'Failed to load: ' + e.message + '. Try refreshing in a moment.';
         el.style.display = 'block';
       });
   }
 
-  document.getElementById('loginBtn').addEventListener('click', function(){
-    var v = document.getElementById('clientIdInput').value.trim();
-    if(!v) return;
-    localStorage.setItem(ID_KEY, v);
-    history.replaceState(null,'', location.pathname + '?client_id=' + encodeURIComponent(v));
-    load();
-  });
-  document.getElementById('clientIdInput').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('loginBtn').click(); });
+  // ── Login (email+password) + passwordless email-link backup ──
+  function liError(m, ok){
+    var e = document.getElementById('liErr');
+    e.style.color = ok ? 'var(--green)' : 'var(--red2)';
+    e.textContent = m; e.style.display = 'block';
+  }
+  function doLogin(){
+    var email = document.getElementById('liEmail').value.trim();
+    var pass = document.getElementById('liPass').value;
+    if(!email || !pass){ liError('Enter your email and password.'); return; }
+    var b = document.getElementById('liBtn'); b.disabled = true; b.textContent = 'Signing in…';
+    fetch('/api/tool/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: email, password: pass }) })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){
+        if(!res.ok || !res.d || (!res.d.magic_token && !res.d.token)) throw new Error((res.d && res.d.error) || 'Login failed');
+        try{
+          if(res.d.magic_token) localStorage.setItem(TOK_KEY, res.d.magic_token);
+          if(res.d.token) localStorage.setItem(JWT_KEY, res.d.token);
+        }catch(e){}
+        document.getElementById('liErr').style.display = 'none';
+        load();
+      })
+      .catch(function(e){ liError(e.message || 'Login failed'); })
+      .finally(function(){ b.disabled = false; b.textContent = 'Sign in'; });
+  }
+  function doMagic(){
+    var email = document.getElementById('liEmail').value.trim();
+    if(!email){ liError("Enter your email and we'll send a login link."); return; }
+    var b = document.getElementById('liMagic'); b.disabled = true; b.textContent = 'Sending…';
+    fetch('/api/tool/auth/magic', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: email }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ liError(d.message || 'Check your email for a login link.', true); })
+      .catch(function(){ liError('Could not send right now. Try again.'); })
+      .finally(function(){ b.disabled = false; b.textContent = 'Email me a login link instead'; });
+  }
+
+  document.getElementById('liBtn').addEventListener('click', doLogin);
+  document.getElementById('liPass').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+  document.getElementById('liEmail').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+  document.getElementById('liMagic').addEventListener('click', doMagic);
+
   document.getElementById('switchBtn').addEventListener('click', function(){
-    localStorage.removeItem(ID_KEY);
+    clearSession();
+    adminClientId = '';
     history.replaceState(null,'', location.pathname);
-    document.getElementById('clientIdInput').value = '';
+    document.getElementById('liEmail').value = '';
+    document.getElementById('liPass').value = '';
     showGate();
   });
   document.getElementById('refreshBtn').addEventListener('click', load);
@@ -487,8 +573,8 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     setTimeout(function(){ b.disabled = false; b.textContent = 'Email me this report'; }, 2200);
   });
 
-  if(getId()) load(); else showGate();
-  setInterval(function(){ if(getId() && document.getElementById('app').style.display !== 'none') load(); }, 60000);
+  if(hasSession()) load(); else showGate();
+  setInterval(function(){ if(hasSession() && document.getElementById('app').style.display !== 'none') load(); }, 60000);
 })();
 </script>
 </body>

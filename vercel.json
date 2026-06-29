@@ -46,6 +46,10 @@
       "dest": "/vrank.html"
     },
     {
+      "src": "/vrank-signup",
+      "dest": "/vrank-signup.html"
+    },
+    {
       "src": "/beacon",
       "dest": "/vrank.html"
     },

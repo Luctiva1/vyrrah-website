@@ -181,6 +181,20 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 .rescan{display:block;text-align:center;margin-top:26px;font-size:13px;color:var(--gray);text-decoration:underline;text-underline-offset:3px;background:none;border:none;width:100%}
 .rescan:hover{color:var(--gold)}
 
+/* SIGNUP FORM (in result CTA) */
+.signup-form{max-width:480px;margin:0 auto 14px;text-align:left}
+.su-row{display:flex;gap:12px;margin-bottom:12px}
+.su-ig{flex:1}
+.su-ig input{flex:1;background:transparent;border:none;color:var(--white);font-family:'DM Sans',sans-serif;font-size:15px;padding:15px 18px;outline:none;min-width:0;width:100%}
+.su-ig input::placeholder{color:var(--gray)}
+.su-btn{width:100%;justify-content:center}
+.su-fine{font-size:12px;color:var(--gray);margin-top:14px;line-height:1.55;text-align:center}
+.cta-alt{margin-top:8px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:center}
+.cta-alt-link{font-size:13px;color:var(--mid);text-decoration:underline;text-underline-offset:3px;transition:color .2s}
+.cta-alt-link:hover{color:var(--gold)}
+.cta-alt-sep{color:var(--gray);font-size:13px}
+@media(max-width:560px){.su-row{flex-direction:column;gap:12px}}
+
 /* TRUST STRIP */
 .trust{margin-top:30px;display:flex;gap:28px;justify-content:center;flex-wrap:wrap}
 .trust span{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--gray);display:flex;align-items:center;gap:8px}
@@ -295,9 +309,26 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     <div class="result-cta">
       <h3>Want this <em>fixed</em> automatically?</h3>
       <p>The V-Rank engine generates the content, writes the schema and tracks your citations until you're the one AI recommends. <b>From $500/mo. 3X reach in 90 days or money back.</b></p>
-      <div class="cta-btns">
-        <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener"><span>Start the engine</span><span>→</span></a>
-        <a class="btng" href="/vrank">See how it works</a>
+
+      <!-- SIGNUP: turn the scored prospect into a V-Rank account -->
+      <form class="signup-form" id="signupForm" autocomplete="off">
+        <div class="su-row">
+          <div class="ig su-ig">
+            <input id="suEmail" type="email" placeholder="Work email" aria-label="Your work email" required>
+          </div>
+          <div class="ig su-ig">
+            <input id="suPass" type="password" placeholder="Choose a password" aria-label="Choose a password" minlength="8" required>
+          </div>
+        </div>
+        <button class="btnr su-btn" type="submit" id="suBtn"><span id="suBtnTxt">Create my V-Rank account</span><span>→</span></button>
+        <p class="su-fine">Free to start — no card now. Your scorecard carries straight into your dashboard. Billing ($500–750/mo) only when you're ready to switch the engine on.</p>
+        <div class="err" id="suErr"></div>
+      </form>
+
+      <div class="cta-alt">
+        <a class="cta-alt-link" href="/dashboard">Already a customer? Sign in →</a>
+        <span class="cta-alt-sep">·</span>
+        <a class="cta-alt-link" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Prefer to talk first? Book a call →</a>
       </div>
     </div>
     <button class="rescan" id="rescan" type="button">← Scan a different site</button>
@@ -314,6 +345,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
   var formErr = document.getElementById('formErr');
   var lead = document.getElementById('lead');
   var result = document.getElementById('result');
+  var lastScan = null; // { url, score } from the most recent successful scan, for signup
 
   function clr(n){ return Math.max(0, Math.min(100, Math.round(Number(n)||0))); }
   function tier(s){ return s >= 70 ? 'good' : s >= 45 ? 'mid' : 'bad'; }
@@ -465,6 +497,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 
   function showResult(data){
     var score = clr(data.score);
+    lastScan = { url: data.url || lastScan && lastScan.url || '', score: score };
     setVerdict(score, data.summary);
     renderValueAnchor(data);
     renderEngines(data.aiVisibility);
@@ -518,6 +551,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       resetSteps(); resetBtn();
       // Ensure the entered ad spend is available to the value anchor even if the API does not echo it back.
       if(adSpend != null && (d.adSpend == null)) d.adSpend = adSpend;
+      if(!d.url) d.url = url; // carry the scanned site into signup
       showResult(d);
     }
     function finishErr(err){
@@ -526,6 +560,54 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       formErr.style.display = 'block';
     }
     function resetBtn(){ scanBtn.disabled = false; scanBtn.querySelector('span').textContent = 'Scan my site'; }
+  });
+
+  // ── SIGNUP → V-Rank account (POST /api/geo?path=signup) ──
+  var signupForm = document.getElementById('signupForm');
+  var suBtn = document.getElementById('suBtn');
+  var suBtnTxt = document.getElementById('suBtnTxt');
+  var suErr = document.getElementById('suErr');
+  signupForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    suErr.style.display = 'none';
+    var email = (document.getElementById('suEmail').value || '').trim();
+    var pass = document.getElementById('suPass').value || '';
+    if(!email || email.indexOf('@') < 1){ suErr.textContent = 'Enter a valid work email.'; suErr.style.display='block'; return; }
+    if(pass.length < 8){ suErr.textContent = 'Use a password of at least 8 characters.'; suErr.style.display='block'; return; }
+    suBtn.disabled = true; suBtnTxt.textContent = 'Creating your account…';
+    var body = {
+      email: email,
+      password: pass,
+      website: (lastScan && lastScan.url) || '',
+      score: (lastScan && lastScan.score) != null ? lastScan.score : undefined
+    };
+    fetch('/api/geo?path=signup', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){
+        if(!res.ok || !res.d || res.d.error || (!res.d.token && !res.d.magic_token)){
+          throw new Error((res.d && res.d.error) || 'Could not create your account.');
+        }
+        // Store the session the dashboard reads. Mirror the Recaller key (magic_token) + the geo JWT.
+        try{
+          if(res.d.magic_token) localStorage.setItem('vy_client_token', res.d.magic_token);
+          if(res.d.token) localStorage.setItem('vy_geo_jwt', res.d.token);
+        }catch(_){}
+        suBtnTxt.textContent = 'Account created ✓';
+        window.location.href = '/dashboard';
+      })
+      .catch(function(err){
+        suBtn.disabled = false; suBtnTxt.textContent = 'Create my V-Rank account';
+        var msg = (err && err.message) || '';
+        // Friendlier copy when the account already exists.
+        if(/exist|registered|taken|already/i.test(msg)){
+          suErr.innerHTML = 'That email already has an account. <a href="/dashboard" style="color:var(--gold);text-decoration:underline">Sign in instead →</a>';
+        } else {
+          suErr.textContent = msg || 'Could not create your account — try again in a moment.';
+        }
+        suErr.style.display = 'block';
+      });
   });
 
   document.getElementById('rescan').addEventListener('click', function(){

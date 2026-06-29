@@ -112,6 +112,14 @@
   .loginbox .btn{margin-top:4px}
   .loginerr{color:var(--red2);font-size:13px}
   .loginhint{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:4px}
+  .tabs{display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--line);padding-bottom:0}
+  .tab{position:relative;background:none;border:none;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:10px 16px;cursor:pointer;transition:color .2s}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--gold)}
+  .tab.active::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--gold)}
+  .view{display:none} .view.on{display:block}
+  .pill.vrank{color:var(--gold);border-color:rgba(240,165,0,.5)}
+  .badge.low{color:var(--red2);background:rgba(200,37,30,.12);border:1px solid rgba(200,37,30,.4)}
 </style>
 </head>
 <body>
@@ -140,7 +148,14 @@
   <h1>Command Center</h1>
   <p class="sub">Every client, every signal. At-risk and unverified float to the top.</p>
 
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-view="recaller" type="button">Recaller</button>
+    <button class="tab" data-view="vrank" type="button">V-Rank</button>
+  </div>
+
   <div class="err" id="err"></div>
+
+  <div class="view on" id="view-recaller">
   <div class="healthbar ok" id="healthbar"></div>
   <div class="metrics" id="metrics"></div>
 <!-- ── Funnel Scoreboard ── -->
@@ -276,6 +291,12 @@
 </script>
 <!-- ── /Funnel Scoreboard ── -->
   <div class="clients" id="clients"><div class="empty">Loading…</div></div>
+  </div><!-- /view-recaller -->
+
+  <div class="view" id="view-vrank">
+    <div class="metrics" id="vrMetrics"></div>
+    <div class="clients" id="vrClients"><div class="empty">Loading…</div></div>
+  </div><!-- /view-vrank -->
 </div>
 
 <div class="modal" id="detailModal">
@@ -466,6 +487,119 @@
       });
   }
 
+  /* ══════════ V-RANK VIEW ══════════ */
+  /* Reuses adminFetch (Bearer JWT) + /api/tool/admin-action for pause/resume/churn.
+     Reads V-Rank accounts from GET /api/geo?path=admin-clients (built by backend agent). */
+  var vrLoaded = false;
+
+  function vrMetricCard(v, l, cls){ return '<div class="metric"><div class="mv '+(cls||'')+'">'+v+'</div><div class="ml">'+l+'</div></div>'; }
+
+  function vrCard(c){
+    var status = c.status || 'trial';
+    var attn = (status === 'paused' || status === 'churned') ? ' attn' : '';
+    var pill = '<span class="pill '+esc(status)+'">'+esc(status)+'</span>';
+    var score = (c.score != null && c.score !== '') ? Number(c.score) : null;
+    var cites = Number(c.citations || 0);
+    var badges = '<span class="badge unv">V-Rank</span>';
+    if(score != null && score < 40) badges += '<span class="badge low">Low visibility</span>';
+
+    var site = c.website ? esc(c.website) : '';
+    var siteLink = site
+      ? '<div class="num"><a href="'+(/^https?:\/\//.test(site)?site:'https://'+site)+'" target="_blank" rel="noopener">'+site+'</a></div>'
+      : '<div class="num none">no website set</div>';
+
+    var links = '';
+    if(c.id != null) links += '<a href="/dashboard?client_id='+encodeURIComponent(c.id)+'" target="_blank">Dashboard ↗</a>';
+    if(c.owner_email) links += '<a href="mailto:'+encodeURIComponent(c.owner_email)+'">Email ↗</a>';
+
+    var acts = '';
+    if(status === 'active' || status === 'trial') acts += '<span class="act" data-act="pause" data-id="'+esc(c.id)+'" data-view="vrank">Pause</span>';
+    if(status === 'paused') acts += '<span class="act" data-act="resume" data-id="'+esc(c.id)+'" data-view="vrank">Resume</span>';
+    if(status === 'churned') acts += '<span class="act" data-act="reactivate_trial" data-id="'+esc(c.id)+'" data-view="vrank">Reactivate trial</span>';
+    if(status !== 'churned') acts += '<span class="act danger" data-act="churn" data-id="'+esc(c.id)+'" data-view="vrank">Cancel / kick</span>';
+
+    return '<div class="c'+attn+'">'+
+      '<div class="chead"><span class="hdot '+(score!=null&&score<40?'at_risk':'healthy')+'"></span>'+
+        '<span class="cname">'+esc(c.practice_name || c.owner_email || 'V-Rank customer')+'</span>'+pill+'</div>'+
+      '<div class="badges">'+badges+'</div>'+
+      siteLink + '<div class="seen">'+esc(c.owner_email||'')+' · joined '+esc(since(c.created_at))+'</div>'+
+      '<div class="cstats">'+
+        '<div class="cstat"><div class="sv gold">'+(score!=null?score:'—')+'</div><div class="sl">AI score</div></div>'+
+        '<div class="cstat"><div class="sv green">'+cites+'</div><div class="sl">Citations</div></div>'+
+        '<div class="cstat"><div class="sv">'+esc(c.plan||'vrank')+'</div><div class="sl">Plan</div></div>'+
+      '</div>'+
+      '<div class="clinks">'+links+'</div>'+
+      '<div class="actions">'+acts+'</div>'+
+    '</div>';
+  }
+
+  function vrRender(d){
+    var cl = (d && d.clients) || [];
+    var active = cl.filter(function(c){ return c.status === 'active'; }).length;
+    var trial = cl.filter(function(c){ return c.status === 'trial'; }).length;
+    var low = cl.filter(function(c){ return c.score != null && Number(c.score) < 40 && c.status !== 'churned'; }).length;
+    var avg = (function(){ var s=cl.filter(function(c){return c.score!=null;}); return s.length ? Math.round(s.reduce(function(a,c){return a+Number(c.score);},0)/s.length) : 0; })();
+
+    document.getElementById('vrMetrics').innerHTML =
+      vrMetricCard(cl.length, 'V-Rank customers') +
+      vrMetricCard(active + ' / ' + trial, 'Active / Trial') +
+      vrMetricCard(avg || '—', 'Avg AI score', 'gold') +
+      vrMetricCard(low, 'Low visibility', low ? 'gold' : '');
+
+    var box = document.getElementById('vrClients');
+    box.innerHTML = cl.length ? cl.map(vrCard).join('') : '<div class="empty">No V-Rank customers yet.</div>';
+    box.querySelectorAll('.act').forEach(function(el){
+      el.addEventListener('click', function(){ doAction(el.dataset.id, el.dataset.act, el); });
+    });
+  }
+
+  function loadVrank(){
+    adminFetch('/api/geo?path=admin-clients')
+      .then(function(d){
+        if(d && d.error) throw new Error(d.error);
+        document.getElementById('err').style.display = 'none';
+        vrLoaded = true;
+        vrRender(d);
+      })
+      .catch(function(e){
+        document.getElementById('vrClients').innerHTML = '<div class="empty">Could not load V-Rank customers: '+esc(e.message)+'</div>';
+      });
+  }
+
+  // doAction already calls load() on success. For the V-Rank tab we also refresh that list.
+  var _origDoAction = doAction;
+  doAction = function(id, action, el){
+    var isVrank = el && el.dataset && el.dataset.view === 'vrank';
+    var confirmed = true;
+    if(action === 'churn' && isVrank){
+      confirmed = confirm('Cancel / kick this V-Rank customer? This stops their subscription.');
+      if(!confirmed) return;
+    }
+    if(action === 'set_value'){ /* not used in vrank */ }
+    if(!isVrank){ return _origDoAction(id, action, el); }
+    var body = { client_id: id, action: action };
+    var orig = el.textContent; el.textContent = '…';
+    adminFetch('/api/tool/admin-action', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+      .then(function(d){ if(d && d.error) throw new Error(d.error); loadVrank(); })
+      .catch(function(e){
+        el.textContent = orig;
+        var er = document.getElementById('err'); er.textContent = 'Action failed: ' + e.message; er.style.display = 'block';
+      });
+  };
+
+  // Tab switching
+  var currentView = 'recaller';
+  document.getElementById('tabs').addEventListener('click', function(e){
+    var t = e.target.closest('.tab'); if(!t) return;
+    var view = t.dataset.view; if(view === currentView) return;
+    currentView = view;
+    this.querySelectorAll('.tab').forEach(function(x){ x.classList.toggle('active', x.dataset.view === view); });
+    document.getElementById('view-recaller').classList.toggle('on', view === 'recaller');
+    document.getElementById('view-vrank').classList.toggle('on', view === 'vrank');
+    if(view === 'vrank') loadVrank();
+    else load();
+  });
+
   document.getElementById('refillBtn').addEventListener('click', function(){
     var btn = this;
     btn.disabled = true; btn.textContent = 'Buying…';
@@ -487,7 +621,7 @@
   });
 
   if(getJwt()){ hideGate(); load(); } else { showGate(); }
-  setInterval(function(){ if(getJwt()) load(); }, 30000);
+  setInterval(function(){ if(!getJwt()) return; if(currentView === 'vrank') loadVrank(); else load(); }, 30000);
 })();
 </script>
 </body>

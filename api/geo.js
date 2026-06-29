@@ -17,8 +17,74 @@
 //   { "src": "/api/geo", "dest": "/api/geo" }
 // so the ?path= query survives instead of being rewritten to /api/index.
 
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { cors, requireAuth } = require('./_lib/auth');
 const { getSupabase } = require('./_lib/supabase');
+
+// ─── V-Rank account constants ────────────────────────────────────────────────
+// A V-Rank customer is just a row in the SHARED `tool_clients` table (the same
+// table the Recaller product uses) with plan='vrank'. We reuse Recaller's auth
+// (JWT shape, magic_token, bcrypt password hashes) and billing (Dodo) verbatim,
+// so /api/tool/auth/login, /api/tool/admin-action and the Dodo webhook all keep
+// working for V-Rank accounts with zero changes to tool.js.
+const VRANK_PLAN = 'vrank';
+const PUBLIC_BASE = process.env.PUBLIC_BASE || 'https://vyrrahlabs.com';
+
+// Mirror of tool.js issueClientToken() — DO NOT import from tool.js (keep files
+// independent). Same JWT shape so the existing applyBearerSession()/auth accepts it.
+function issueClientToken(client) {
+  return jwt.sign(
+    { kind: 'client', cid: client.id, mt: client.magic_token },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' }
+  );
+}
+
+// Resolve the calling CUSTOMER from either a client-session Bearer JWT (cid/mt)
+// or a ?token= magic_token. Returns the tool_clients row, or null if neither
+// identifies a real account. Used by the self-service dashboard.
+async function resolveCustomer(req) {
+  const supabase = getSupabase();
+  // 1) Bearer client JWT → look up by cid (verify mt matches to prevent stale tokens).
+  const hdr = req.headers['authorization'] || '';
+  if (hdr.startsWith('Bearer ') && process.env.JWT_SECRET) {
+    try {
+      const d = jwt.verify(hdr.slice(7), process.env.JWT_SECRET);
+      if (d && d.kind === 'client' && d.cid) {
+        const { data } = await supabase.from('tool_clients').select('*').eq('id', d.cid).limit(1);
+        const c = data && data[0];
+        if (c && (!d.mt || c.magic_token === d.mt)) return c;
+      }
+    } catch (e) { /* not a valid client JWT — try token */ }
+  }
+  // 2) ?token= magic_token (the credential the dashboard stores in localStorage).
+  const token = req.query && req.query.token;
+  if (token) {
+    const { data } = await supabase.from('tool_clients').select('*').eq('magic_token', token).limit(1);
+    const c = data && data[0];
+    if (c) return c;
+  }
+  return null;
+}
+
+// Map a tool_clients row to the safe public shape the dashboard/admin UI consumes.
+function publicClient(c) {
+  if (!c) return null;
+  return {
+    id: c.id,
+    practice_name: c.practice_name || null,
+    owner_name: c.owner_name || null,
+    owner_email: c.owner_email || null,
+    website: c.website || null,
+    plan: c.plan || 'recaller',
+    status: c.status || null,
+    avg_customer_value: c.avg_customer_value || null,
+    trial_started_at: c.trial_started_at || null,
+    created_at: c.created_at || null
+  };
+}
 
 // ─── Tunables ────────────────────────────────────────────────────────────────
 const MAX_HTML_CHARS = 9000;
@@ -692,41 +758,403 @@ function representativeDashboard(clientId) {
   };
 }
 
-async function handleDashboard(req, res) {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-  // Admin-gated when ADMIN_KEY/JWT is configured; open otherwise (same posture as tool.js admin reads).
-  if (!requireAuth(req, res)) return; // sends 401 itself when locked down
-  const clientId = req.query.client_id || 'demo';
-
-  // Best-effort: pull the latest stored metrics row if a geo_metrics table exists.
-  let stored = null;
+// Fetch the latest stored geo_metrics row for a client (best-effort).
+async function latestMetrics(clientId) {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('geo_metrics')
       .select('*')
-      .eq('client_id', clientId)
+      .eq('client_id', String(clientId))
       .order('created_at', { ascending: false })
       .limit(1);
-    if (!error && data && data[0]) stored = data[0];
-  } catch (e) { /* table may not exist — fall back to representative data */ }
+    if (!error && data && data[0]) return data[0];
+  } catch (e) { /* table may not exist */ }
+  return null;
+}
 
+// Build the dashboard contract payload for a client, merging stored metrics over
+// deterministic representative data so the dashboard always renders.
+function buildDashboard(clientId, stored) {
   const base = representativeDashboard(clientId);
-  if (stored) {
-    // Map known columns over the representative base; keep arrays from JSON columns if present.
-    const merged = {
-      score: Number.isFinite(stored.score) ? clamp(stored.score, 0, 100) : base.score,
-      traffic: Number.isFinite(stored.traffic) ? stored.traffic : base.traffic,
-      aiReferrals: Number.isFinite(stored.ai_referrals) ? stored.ai_referrals : base.aiReferrals,
-      indexedPages: Number.isFinite(stored.indexed_pages) ? stored.indexed_pages : base.indexedPages,
-      rankings: Array.isArray(stored.rankings) ? stored.rankings : base.rankings,
-      citations: Array.isArray(stored.citations) ? stored.citations : base.citations,
-      generatedThisMonth: Number.isFinite(stored.generated_this_month) ? stored.generated_this_month : base.generatedThisMonth
-    };
-    return res.status(200).json({ ...merged, meta: { client_id: clientId, source: 'supabase' } });
+  if (!stored) return { ...base, source: 'representative', mock: true };
+  return {
+    score: Number.isFinite(stored.score) ? clamp(stored.score, 0, 100) : base.score,
+    traffic: Number.isFinite(stored.traffic) ? stored.traffic : base.traffic,
+    aiReferrals: Number.isFinite(stored.ai_referrals) ? stored.ai_referrals : base.aiReferrals,
+    indexedPages: Number.isFinite(stored.indexed_pages) ? stored.indexed_pages : base.indexedPages,
+    rankings: Array.isArray(stored.rankings) ? stored.rankings : base.rankings,
+    citations: Array.isArray(stored.citations) ? stored.citations : base.citations,
+    generatedThisMonth: Number.isFinite(stored.generated_this_month) ? stored.generated_this_month : base.generatedThisMonth,
+    source: 'supabase'
+  };
+}
+
+// GET /api/geo?path=dashboard
+//   MODE A (self):  Authorization: Bearer <client JWT>  OR  ?token=<magic_token>
+//                   → returns ONLY the calling customer's own metrics.
+//   MODE B (admin): ?client_id=X  +  admin auth (requireAuth)
+//                   → returns any client's metrics (used by command.html links).
+async function handleDashboard(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+  // ── MODE A: self-service customer (per-account, ownership-bound) ──
+  const hasBearer = String(req.headers['authorization'] || '').startsWith('Bearer ');
+  const hasToken = !!(req.query && req.query.token);
+  if ((hasBearer || hasToken) && !req.query.client_id) {
+    const customer = await resolveCustomer(req);
+    if (!customer) return res.status(401).json({ error: 'Sign in to view your dashboard.' });
+    const stored = await latestMetrics(customer.id);
+    const { source, ...data } = buildDashboard(customer.id, stored);
+    return res.status(200).json({
+      ...data,
+      meta: {
+        client_id: customer.id, mode: 'self', source: source || 'representative',
+        mock: !stored, website: customer.website || null, plan: customer.plan || 'recaller',
+        practice_name: customer.practice_name || null, status: customer.status || null
+      }
+    });
   }
 
-  return res.status(200).json({ ...base, meta: { client_id: clientId, source: 'representative', mock: true } });
+  // ── MODE B: admin / command.html lookup by client_id ──
+  // Admin-gated when ADMIN_KEY/JWT is configured; open otherwise (same posture as tool.js admin reads).
+  if (!requireAuth(req, res)) return; // sends 401 itself when locked down
+  const clientId = req.query.client_id || 'demo';
+  const stored = await latestMetrics(clientId);
+  const { source, ...data } = buildDashboard(clientId, stored);
+  return res.status(200).json({
+    ...data,
+    meta: { client_id: clientId, mode: 'admin', source: source || 'representative', mock: !stored }
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 4) SIGNUP  —  POST /api/geo?path=signup  {email, password, website, name?, score?}
+//    Creates a V-Rank account = a tool_clients row with plan='vrank'. Reuses the
+//    Recaller account shape + magic_token + bcrypt so /api/tool/auth/login,
+//    Dodo checkout and the admin panel all work against it unchanged.
+// ════════════════════════════════════════════════════════════════════════════
+async function handleSignup(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (rateLimited(req)) return res.status(429).json({ error: 'Too many requests, slow down.' });
+
+  const body = readBody(req);
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (!email || !email.includes('@') || email.length > 200) {
+    return res.status(400).json({ error: 'A valid email is required.' });
+  }
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  }
+
+  // Website is the V-Rank target site. Accept a bare host or full URL; normalize.
+  let website = typeof body.website === 'string' ? body.website.trim() : '';
+  if (website) {
+    const withScheme = /^https?:\/\//i.test(website) ? website : `https://${website}`;
+    const u = safeUrl(withScheme);
+    website = u ? u.href : website.slice(0, 300);
+  }
+  const name = typeof body.name === 'string' ? body.name.trim().slice(0, 120) : '';
+  // Use the host as a friendly practice_name fallback so the admin list reads well.
+  let practiceName = name;
+  if (!practiceName && website) {
+    try { practiceName = new URL(website).hostname.replace(/^www\./, ''); } catch (e) { /* keep */ }
+  }
+  if (!practiceName) practiceName = email.split('@')[0];
+
+  const supabase = getSupabase();
+
+  // Reject duplicate signups (an existing account should log in, not re-create).
+  try {
+    const { data: existing } = await supabase
+      .from('tool_clients').select('id').ilike('owner_email', email).limit(1);
+    if (existing && existing[0]) {
+      return res.status(409).json({ error: 'An account with this email already exists. Please sign in.' });
+    }
+  } catch (e) { /* if lookup fails, fall through and let insert surface conflicts */ }
+
+  const magicToken = crypto.randomBytes(24).toString('hex');
+  let passwordHash;
+  try { passwordHash = await bcrypt.hash(password, 10); }
+  catch (e) { return res.status(500).json({ error: 'Could not secure password.' }); }
+
+  // V-Rank does not use a phone line, but real_line is NOT NULL on the shared
+  // table (Recaller requires it). geo.js owns its own validation here, so we set a
+  // placeholder rather than touching Recaller's handleClients. plan/website are the
+  // additive columns from the migration; insert degrades gracefully if absent.
+  const row = {
+    plan: VRANK_PLAN,
+    practice_name: practiceName.slice(0, 120),
+    owner_name: name || null,
+    owner_email: email,
+    website: website || null,
+    real_line: 'n/a',
+    avg_customer_value: 500,
+    status: 'trial',
+    trial_started_at: new Date().toISOString(),
+    magic_token: magicToken,
+    password_hash: passwordHash
+  };
+
+  let client = null;
+  try {
+    const { data, error } = await supabase.from('tool_clients').insert(row).select().single();
+    if (error) throw error;
+    client = data;
+  } catch (e) {
+    // If the additive columns (plan/website) are not migrated yet, retry without them
+    // so signup still works pre-migration (the account is plan-less = recaller default).
+    const msg = String(e.message || e);
+    if (/column .*(plan|website)/i.test(msg) || /plan|website/i.test(msg)) {
+      try {
+        const { plan, website: _w, ...fallback } = row;
+        const { data, error } = await supabase.from('tool_clients').insert(fallback).select().single();
+        if (error) throw error;
+        client = data;
+      } catch (e2) {
+        console.error('signup insert (fallback) failed:', e2.message);
+        return res.status(500).json({ error: 'Could not create account.' });
+      }
+    } else {
+      console.error('signup insert failed:', msg);
+      return res.status(500).json({ error: 'Could not create account.' });
+    }
+  }
+
+  // Optionally seed the dashboard with the scorecard result so it shows real data
+  // immediately. Best-effort — never fail signup if geo_metrics is absent.
+  const score = Number(body.score);
+  if (Number.isFinite(score)) {
+    try {
+      await supabase.from('geo_metrics').insert({
+        client_id: String(client.id),
+        score: clamp(score, 0, 100),
+        created_at: new Date().toISOString()
+      });
+    } catch (e) { /* geo_metrics may not exist — ignore */ }
+  }
+
+  return res.status(200).json({
+    ok: true,
+    token: issueClientToken(client),
+    magic_token: client.magic_token,
+    client_id: client.id,
+    client: publicClient(client)
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 5) CHECKOUT  —  GET /api/geo?path=checkout&token=<magic_token>
+//    V-Rank Dodo subscription. Mirrors tool.js handleCheckout but uses the V-Rank
+//    product (DODO_VRANK_PRODUCT_ID, falling back to DODO_PRODUCT_ID) and returns
+//    the customer to /dashboard instead of /recaller. Degrades to trial mode when
+//    Dodo is not configured. Does NOT touch tool.js's checkout.
+// ════════════════════════════════════════════════════════════════════════════
+async function handleCheckout(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (!process.env.DODO_API_KEY) {
+    return res.status(200).json({ mode: 'trial', message: 'Free trial active' });
+  }
+  const token = req.query && req.query.token;
+  const clientId = req.query && req.query.client_id;
+  if (!token && !clientId) return res.status(400).json({ error: 'token or client_id required' });
+
+  const supabase = getSupabase();
+  let client = null;
+  try {
+    const { data } = await supabase
+      .from('tool_clients')
+      .select('*')
+      .eq(token ? 'magic_token' : 'id', token || clientId)
+      .limit(1);
+    client = data && data[0];
+  } catch (e) { /* fall through to 404 */ }
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+
+  try {
+    const successUrl = `${PUBLIC_BASE}/dashboard?token=${encodeURIComponent(client.magic_token || '')}&paid=1`;
+    const productId = process.env.DODO_VRANK_PRODUCT_ID || process.env.DODO_PRODUCT_ID;
+    const r = await fetch('https://live.dodopayments.com/subscriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.DODO_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        product_id: productId,
+        quantity: 1,
+        payment_link: true,
+        return_url: successUrl,
+        customer: { email: client.owner_email, name: client.owner_name || client.practice_name },
+        billing: { country: 'US', state: '', city: '', street: '', zipcode: '' },
+        metadata: { client_id: String(client.id), plan: VRANK_PLAN }
+      })
+    });
+    const out = await r.json().catch(() => ({}));
+    if (!r.ok) return res.status(200).json({ mode: 'trial', error: `Dodo API ${r.status}` });
+    const checkout_url = out.payment_link || out.link || out.url || null;
+    if (!checkout_url) return res.status(200).json({ mode: 'trial', error: 'No checkout URL returned' });
+    return res.status(200).json({ mode: 'paid', checkout_url });
+  } catch (apiErr) {
+    console.error('geo/checkout Dodo API error:', apiErr);
+    return res.status(200).json({ mode: 'trial', error: apiErr.message });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 6) ADMIN — V-Rank-aware reads + lifecycle for command.html (super-admin).
+//    All admin-gated via requireAuth (admin JWT / ADMIN_KEY; open when neither set).
+//      GET  ?path=admin-clients          → list all V-Rank accounts + latest metrics
+//      GET  ?path=admin-client&client_id → one account + full dashboard metrics
+//      POST ?path=admin-action {client_id, action, value?}
+//             action ∈ pause|resume|churn|cancel|kick|set_status|set_value
+//    NOTE: command.html may instead route pause/churn through the existing
+//    /api/tool/admin-action (which already manages V-Rank rows). This handler is
+//    provided so the admin can operate entirely against /api/geo if preferred.
+// ════════════════════════════════════════════════════════════════════════════
+async function handleAdminClients(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (!requireAuth(req, res)) return;
+  const supabase = getSupabase();
+
+  let clients = [];
+  try {
+    // Prefer filtering to V-Rank accounts. If the plan column is not migrated yet,
+    // the .eq filter errors → retry unfiltered so command.html still gets a list.
+    let resp = await supabase.from('tool_clients').select('*').eq('plan', VRANK_PLAN).order('created_at', { ascending: false });
+    if (resp.error) {
+      resp = await supabase.from('tool_clients').select('*').order('created_at', { ascending: false });
+    }
+    clients = resp.data || [];
+  } catch (e) {
+    console.error('admin-clients query failed:', e.message);
+    return res.status(500).json({ error: 'Could not load clients.' });
+  }
+
+  // Attach latest metrics (score + citation count + generated count) per client.
+  const out = [];
+  for (const c of clients) {
+    const m = await latestMetrics(c.id);
+    out.push({
+      ...publicClient(c),
+      score: m && Number.isFinite(m.score) ? clamp(m.score, 0, 100) : null,
+      citations: m && Array.isArray(m.citations) ? m.citations.length : null,
+      generatedThisMonth: m && Number.isFinite(m.generated_this_month) ? m.generated_this_month : null
+    });
+  }
+  return res.status(200).json({ clients: out });
+}
+
+async function handleAdminClient(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (!requireAuth(req, res)) return;
+  const clientId = req.query && req.query.client_id;
+  if (!clientId) return res.status(400).json({ error: 'client_id required' });
+
+  const supabase = getSupabase();
+  let client = null;
+  try {
+    const { data } = await supabase.from('tool_clients').select('*').eq('id', clientId).limit(1);
+    client = data && data[0];
+  } catch (e) { /* fall through */ }
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+
+  const stored = await latestMetrics(client.id);
+  const { source, ...metrics } = buildDashboard(client.id, stored);
+  return res.status(200).json({
+    client: publicClient(client),
+    metrics,
+    meta: { source: source || 'representative', mock: !stored }
+  });
+}
+
+// Admin lifecycle: cancel / kick / pause / resume a V-Rank customer + set status.
+// Mirrors tool.js handleAdminAction's status patches so behaviour is identical.
+async function handleAdminActionGeo(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!requireAuth(req, res)) return;
+
+  const body = readBody(req);
+  const clientId = body.client_id;
+  const action = String(body.action || '').trim();
+  if (!clientId) return res.status(400).json({ error: 'client_id required' });
+  if (!action) return res.status(400).json({ error: 'action required' });
+
+  const supabase = getSupabase();
+  let client = null;
+  try {
+    const { data } = await supabase.from('tool_clients').select('*').eq('id', clientId).limit(1);
+    client = data && data[0];
+  } catch (e) { /* fall through */ }
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+
+  let patch = {};
+  switch (action) {
+    case 'pause': patch = { status: 'paused' }; break;
+    case 'resume': patch = { status: 'active' }; break;
+    case 'churn':                       // alias
+    case 'cancel':                      // alias
+    case 'kick': patch = { status: 'churned' }; break;
+    case 'set_value': patch = { avg_customer_value: Number(body.value) }; break;
+    case 'set_status': {
+      const allowed = ['trial', 'active', 'paused', 'churned', 'past_due'];
+      const s = String(body.value || '').trim();
+      if (!allowed.includes(s)) return res.status(400).json({ error: 'Invalid status value' });
+      patch = { status: s };
+      break;
+    }
+    default: return res.status(400).json({ error: 'Unknown action' });
+  }
+
+  try {
+    const { data: updated, error } = await supabase
+      .from('tool_clients').update(patch).eq('id', client.id).select().single();
+    if (error) throw error;
+    return res.status(200).json({ ok: true, client: publicClient(updated) });
+  } catch (e) {
+    console.error('geo/admin-action update failed:', e.message);
+    return res.status(500).json({ error: 'Could not update client.' });
+  }
+}
+
+// POST /api/geo?path=save-metrics — persist a scorecard/generate result into
+// geo_metrics for the authenticated customer (self) or, with admin auth, for any
+// client_id. Best-effort: if geo_metrics is absent it reports notStored.
+async function handleSaveMetrics(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const body = readBody(req);
+
+  // Identify target client: customer self (Bearer/token), else admin + client_id.
+  let clientId = null;
+  const customer = await resolveCustomer(req);
+  if (customer) clientId = customer.id;
+  else {
+    if (!requireAuth(req, res)) return;
+    clientId = body.client_id;
+  }
+  if (!clientId) return res.status(400).json({ error: 'Could not identify client.' });
+
+  const metrics = {
+    client_id: String(clientId),
+    created_at: new Date().toISOString()
+  };
+  if (Number.isFinite(Number(body.score))) metrics.score = clamp(Number(body.score), 0, 100);
+  if (Number.isFinite(Number(body.traffic))) metrics.traffic = Math.round(Number(body.traffic));
+  if (Number.isFinite(Number(body.ai_referrals))) metrics.ai_referrals = Math.round(Number(body.ai_referrals));
+  if (Number.isFinite(Number(body.indexed_pages))) metrics.indexed_pages = Math.round(Number(body.indexed_pages));
+  if (Number.isFinite(Number(body.generated_this_month))) metrics.generated_this_month = Math.round(Number(body.generated_this_month));
+  if (Array.isArray(body.rankings)) metrics.rankings = body.rankings;
+  if (Array.isArray(body.citations)) metrics.citations = body.citations;
+
+  try {
+    const supabase = getSupabase();
+    const { error } = await supabase.from('geo_metrics').insert(metrics);
+    if (error) throw error;
+    return res.status(200).json({ ok: true, client_id: clientId });
+  } catch (e) {
+    return res.status(200).json({ ok: true, stored: false, note: 'geo_metrics unavailable', client_id: clientId });
+  }
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -741,7 +1169,14 @@ module.exports = async (req, res) => {
     if (path === 'scorecard') return await handleScorecard(req, res);
     if (path === 'generate') return await handleGenerate(req, res);
     if (path === 'dashboard') return await handleDashboard(req, res);
-    return res.status(404).json({ error: 'Route not found. Use ?path=scorecard|generate|dashboard' });
+    // ── V-Rank account / billing / admin (reuse Recaller account system) ──
+    if (path === 'signup') return await handleSignup(req, res);
+    if (path === 'checkout') return await handleCheckout(req, res);
+    if (path === 'save-metrics') return await handleSaveMetrics(req, res);
+    if (path === 'admin-clients') return await handleAdminClients(req, res);
+    if (path === 'admin-client') return await handleAdminClient(req, res);
+    if (path === 'admin-action') return await handleAdminActionGeo(req, res);
+    return res.status(404).json({ error: 'Route not found. Use ?path=scorecard|generate|dashboard|signup|checkout|save-metrics|admin-clients|admin-client|admin-action' });
   } catch (err) {
     console.error('geo router error:', err);
     if (!res.headersSent) return res.status(500).json({ error: 'Internal server error' });

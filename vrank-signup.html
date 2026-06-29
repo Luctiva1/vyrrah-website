@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Start V-Rank — Create your account | Vyrrah Labs</title>
+<meta name="description" content="Create your V-Rank account and switch on the AI-search growth engine — content, schema and citation tracking from $500/mo. Free to start, no card now.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#070707">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,900&family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070707;--bg2:#0f0f0f;--bg3:#161616;--white:#f2ede4;--red:#c8251e;--red2:#e03030;
+  --gold:#f0a500;--gold2:#f5c030;--green:#2fbf71;--border:rgba(242,237,228,.07);--border2:rgba(242,237,228,.13);
+  --gray:#828282;--mid:#a6a6a6;--ease:cubic-bezier(.22,1,.36,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--white);font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased;min-height:100vh}
+::selection{background:var(--gold);color:var(--bg)}
+a{color:inherit}
+button{font-family:inherit;cursor:pointer}
+#grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:0;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E")}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(680px circle at 90% -8%,rgba(200,37,30,.10),transparent 60%),radial-gradient(560px circle at -6% 12%,rgba(240,165,0,.05),transparent 55%)}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:16px 52px;background:rgba(7,7,7,.7);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
+.nlt{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--white);letter-spacing:-.5px;text-decoration:none}
+.nlt span{color:var(--gold)}
+.nback{font-size:13px;color:var(--mid);text-decoration:none;transition:color .2s}
+.nback:hover{color:var(--gold)}
+@media(max-width:720px){nav{padding:14px 20px}}
+
+.wrap{max-width:980px;margin:0 auto;padding:130px 24px 90px;position:relative;z-index:1}
+.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:46px;align-items:start}
+@media(max-width:840px){.grid{grid-template-columns:1fr;gap:36px}}
+
+.ey{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);margin-bottom:18px;display:flex;align-items:center;gap:12px;font-weight:500}
+.ey::before{content:'';width:28px;height:1px;background:currentColor}
+.lead h1{font-family:'Fraunces',serif;font-size:clamp(32px,4.5vw,50px);font-weight:900;line-height:1.05;letter-spacing:-1.3px;margin-bottom:18px}
+.lead h1 em{font-style:italic;color:var(--gold)}
+.lead p.sub{font-size:16px;color:var(--mid);max-width:460px;line-height:1.7;margin-bottom:30px}
+.lead p.sub b{color:var(--white);font-weight:500}
+.bullets{list-style:none;display:flex;flex-direction:column;gap:14px;margin-top:8px}
+.bullets li{display:flex;gap:13px;align-items:flex-start;font-size:14.5px;color:var(--mid);line-height:1.55}
+.bullets li b{color:var(--white);font-weight:500}
+.bullets li::before{content:'';width:15px;height:15px;flex-shrink:0;margin-top:3px;background:var(--gold);clip-path:polygon(14% 47%,0 61%,40% 100%,100% 18%,85% 5%,38% 71%)}
+.guarantee{margin-top:30px;font-size:12.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gray);display:flex;align-items:center;gap:10px}
+.guarantee::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--gold)}
+
+.card{background:var(--bg2);border:1px solid var(--border2);padding:34px 32px}
+.card .ch{font-family:'Fraunces',serif;font-size:24px;font-weight:900;margin-bottom:6px}
+.card .csub{font-size:13.5px;color:var(--mid);margin-bottom:24px;line-height:1.55}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gray);margin-bottom:8px}
+.field .ig{display:flex;align-items:center;background:var(--bg);border:1px solid var(--border2);transition:border-color .2s}
+.field .ig:focus-within{border-color:var(--gold)}
+.field .ig .pre{padding:0 0 0 16px;color:var(--gray);font-size:14px;white-space:nowrap}
+.field input{flex:1;background:transparent;border:none;color:var(--white);font-family:'DM Sans',sans-serif;font-size:15px;padding:15px 16px;outline:none;min-width:0;width:100%}
+.field input::placeholder{color:var(--gray)}
+.btnr{width:100%;background:var(--red);color:#fff;font-size:15px;font-weight:600;padding:16px 30px;border:none;display:inline-flex;align-items:center;justify-content:center;gap:10px;position:relative;overflow:hidden;transition:transform .25s var(--ease),box-shadow .25s;margin-top:6px}
+.btnr>*{position:relative;z-index:2}
+.btnr::before{content:'';position:absolute;inset:0;background:var(--red2);transform:translateX(-101%);transition:transform .35s var(--ease);z-index:1}
+.btnr:hover::before{transform:translateX(0)}
+.btnr:hover{box-shadow:0 14px 40px rgba(200,37,30,.35)}
+.btnr[disabled]{opacity:.6;cursor:wait}.btnr[disabled]::before{display:none}
+.fine{font-size:12px;color:var(--gray);margin-top:14px;line-height:1.55;text-align:center}
+.err{display:none;font-size:13px;line-height:1.5;color:var(--red2);margin-top:12px}
+.swap{margin-top:22px;padding-top:18px;border-top:1px solid var(--border);text-align:center;font-size:13.5px;color:var(--mid)}
+.swap a,.swap button{color:var(--gold);text-decoration:underline;text-underline-offset:3px;background:none;border:none;font-size:13.5px;cursor:pointer;padding:0}
+.swap a:hover,.swap button:hover{color:var(--gold2)}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<nav>
+  <a class="nlt" href="/">Vyrrah<span>.</span>Labs</a>
+  <a class="nback" href="/vrank">← V-Rank</a>
+</nav>
+
+<div class="wrap">
+  <div class="grid">
+    <!-- LEFT: value -->
+    <div class="lead">
+      <div class="ey">Step 2 · Switch the engine on</div>
+      <h1>Start <em>V-Rank</em> and become the answer AI gives.</h1>
+      <p class="sub">Create your account in 30 seconds. The engine starts generating content, writing schema and tracking your citations across <b>ChatGPT, Perplexity, Claude and Google AI</b> — all from one dashboard.</p>
+      <ul class="bullets">
+        <li><b>$500–750/mo</b> — half the price of the others, fully accountable.</li>
+        <li>Net-new content + schema generated for you every month.</li>
+        <li>Live citation tracking &amp; your AI-Visibility Score, always on.</li>
+        <li>Command dashboard with weekly reports you can act on.</li>
+      </ul>
+      <div class="guarantee">3X reach in 90 days or money back · cancel anytime</div>
+    </div>
+
+    <!-- RIGHT: signup / login card -->
+    <div class="card">
+      <!-- SIGNUP -->
+      <div id="signupView">
+        <div class="ch">Create your account</div>
+        <div class="csub">Free to start — no card now. Billing only when you switch the engine on.</div>
+        <form id="signupForm" autocomplete="off">
+          <div class="field">
+            <label for="suName">Name</label>
+            <div class="ig"><input id="suName" type="text" placeholder="Your name" autocomplete="name"></div>
+          </div>
+          <div class="field">
+            <label for="suWebsite">Website</label>
+            <div class="ig"><span class="pre">https://</span><input id="suWebsite" type="text" placeholder="yourbusiness.com" autocomplete="url"></div>
+          </div>
+          <div class="field">
+            <label for="suEmail">Work email</label>
+            <div class="ig"><input id="suEmail" type="email" placeholder="you@company.com" autocomplete="email" required></div>
+          </div>
+          <div class="field">
+            <label for="suPass">Password</label>
+            <div class="ig"><input id="suPass" type="password" placeholder="At least 8 characters" autocomplete="new-password" minlength="8" required></div>
+          </div>
+          <button class="btnr" type="submit" id="suBtn"><span id="suBtnTxt">Create my V-Rank account</span><span>→</span></button>
+          <p class="fine">By creating an account you agree to our <a href="/terms" style="color:var(--mid);text-decoration:underline">Terms</a> &amp; <a href="/privacy" style="color:var(--mid);text-decoration:underline">Privacy</a>.</p>
+          <div class="err" id="suErr"></div>
+        </form>
+        <div class="swap">Already a customer? <button type="button" id="toLogin">Sign in →</button></div>
+      </div>
+
+      <!-- LOGIN -->
+      <div id="loginView" class="hidden">
+        <div class="ch">Welcome back</div>
+        <div class="csub">Sign in to your V-Rank command dashboard.</div>
+        <form id="loginForm" autocomplete="off">
+          <div class="field">
+            <label for="liEmail">Email</label>
+            <div class="ig"><input id="liEmail" type="email" placeholder="you@company.com" autocomplete="email" required></div>
+          </div>
+          <div class="field">
+            <label for="liPass">Password</label>
+            <div class="ig"><input id="liPass" type="password" placeholder="Your password" autocomplete="current-password" required></div>
+          </div>
+          <button class="btnr" type="submit" id="liBtn"><span id="liBtnTxt">Sign in</span><span>→</span></button>
+          <p class="fine"><button type="button" id="liMagic" style="background:none;border:none;color:var(--mid);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:12px">Email me a login link instead</button></p>
+          <div class="err" id="liErr"></div>
+        </form>
+        <div class="swap">New here? <button type="button" id="toSignup">Create an account →</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var TOK_KEY = 'vy_client_token', JWT_KEY = 'vy_geo_jwt';
+  function store(d){
+    try{
+      if(d.magic_token) localStorage.setItem(TOK_KEY, d.magic_token);
+      if(d.token) localStorage.setItem(JWT_KEY, d.token);
+    }catch(e){}
+  }
+  function normUrl(v){
+    v = (v||'').trim().replace(/^https?:\/\//i,'').replace(/\/+$/,'');
+    return v ? 'https://' + v : '';
+  }
+
+  // ── view toggle ──
+  var signupView = document.getElementById('signupView'), loginView = document.getElementById('loginView');
+  document.getElementById('toLogin').addEventListener('click', function(){ signupView.classList.add('hidden'); loginView.classList.remove('hidden'); });
+  document.getElementById('toSignup').addEventListener('click', function(){ loginView.classList.add('hidden'); signupView.classList.remove('hidden'); });
+  // Allow ?mode=login deep link (e.g. from "Sign in" elsewhere)
+  if(new URLSearchParams(location.search).get('mode') === 'login'){ document.getElementById('toLogin').click(); }
+
+  // ── SIGNUP (POST /api/geo?path=signup) ──
+  var suErr = document.getElementById('suErr'), suBtn = document.getElementById('suBtn'), suBtnTxt = document.getElementById('suBtnTxt');
+  document.getElementById('signupForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    suErr.style.display = 'none';
+    var email = document.getElementById('suEmail').value.trim();
+    var pass = document.getElementById('suPass').value;
+    if(!email || email.indexOf('@') < 1){ suErr.textContent='Enter a valid work email.'; suErr.style.display='block'; return; }
+    if(pass.length < 8){ suErr.textContent='Use a password of at least 8 characters.'; suErr.style.display='block'; return; }
+    suBtn.disabled = true; suBtnTxt.textContent = 'Creating your account…';
+    fetch('/api/geo?path=signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      email: email, password: pass,
+      name: document.getElementById('suName').value.trim() || undefined,
+      website: normUrl(document.getElementById('suWebsite').value) || undefined
+    }) })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){
+        if(!res.ok || !res.d || res.d.error || (!res.d.token && !res.d.magic_token)) throw new Error((res.d && res.d.error) || 'Could not create your account.');
+        store(res.d);
+        suBtnTxt.textContent = 'Account created ✓';
+        window.location.href = '/dashboard';
+      })
+      .catch(function(err){
+        suBtn.disabled = false; suBtnTxt.textContent = 'Create my V-Rank account';
+        var msg = (err && err.message) || '';
+        if(/exist|registered|taken|already/i.test(msg)){
+          suErr.innerHTML = 'That email already has an account. <button type="button" id="suToLogin" style="background:none;border:none;color:var(--gold);text-decoration:underline;cursor:pointer">Sign in instead →</button>';
+          suErr.style.display = 'block';
+          var b = document.getElementById('suToLogin');
+          if(b) b.addEventListener('click', function(){ document.getElementById('toLogin').click(); document.getElementById('liEmail').value = email; });
+        } else {
+          suErr.textContent = msg || 'Could not create your account — try again in a moment.';
+          suErr.style.display = 'block';
+        }
+      });
+  });
+
+  // ── LOGIN (POST /api/tool/auth/login) ──
+  var liErr = document.getElementById('liErr'), liBtn = document.getElementById('liBtn'), liBtnTxt = document.getElementById('liBtnTxt');
+  function liError(m, ok){ liErr.style.color = ok ? 'var(--green)' : 'var(--red2)'; liErr.textContent = m; liErr.style.display = 'block'; }
+  document.getElementById('loginForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    liErr.style.display = 'none';
+    var email = document.getElementById('liEmail').value.trim(), pass = document.getElementById('liPass').value;
+    if(!email || !pass){ liError('Enter your email and password.'); return; }
+    liBtn.disabled = true; liBtnTxt.textContent = 'Signing in…';
+    fetch('/api/tool/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: email, password: pass }) })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){
+        if(!res.ok || !res.d || (!res.d.magic_token && !res.d.token)) throw new Error((res.d && res.d.error) || 'Login failed');
+        store(res.d);
+        liBtnTxt.textContent = 'Signed in ✓';
+        window.location.href = '/dashboard';
+      })
+      .catch(function(err){ liBtn.disabled = false; liBtnTxt.textContent = 'Sign in'; liError((err && err.message) || 'Login failed'); });
+  });
+  document.getElementById('liMagic').addEventListener('click', function(){
+    var email = document.getElementById('liEmail').value.trim();
+    if(!email){ liError("Enter your email and we'll send a login link."); return; }
+    var b = this; b.disabled = true; b.textContent = 'Sending…';
+    fetch('/api/tool/auth/magic', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: email }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ liError(d.message || 'Check your email for a login link.', true); })
+      .catch(function(){ liError('Could not send right now. Try again.'); })
+      .finally(function(){ b.disabled = false; b.textContent = 'Email me a login link instead'; });
+  });
+})();
+</script>
+</body>
+</html>
