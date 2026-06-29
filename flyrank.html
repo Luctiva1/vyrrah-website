@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vyrrah GEO — Get found in AI search. 3X your organic reach in 90 days.</title>
+<meta name="description" content="An agentic AI SEO + GEO engine that creates content, fixes your schema, and tracks where you show up in ChatGPT, Perplexity, Claude & Google AI. $500–750/mo. 3X organic reach in 90 days or your money back.">
+<meta property="og:title" content="Vyrrah GEO — Get found in AI search.">
+<meta property="og:description" content="AI content engine + AI-search visibility + citation tracking + a single command dashboard. 3X organic reach in 90 days or money back.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://vyrrahlabs.com/flyrank">
+<meta property="og:image" content="https://vyrrahlabs.com/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,300;1,9..144,700;1,9..144,900&family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script>document.documentElement.classList.add('js');</script>
+<style>
+@property --ang{syntax:'<angle>';initial-value:0deg;inherits:false}
+:root{
+  --bg:#070707;--bg2:#0f0f0f;--bg3:#161616;--white:#f2ede4;--red:#c8251e;--red2:#e03030;
+  --gold:#f0a500;--gold2:#f5c030;--green:#2fbf71;--border:rgba(242,237,228,.07);--border2:rgba(242,237,228,.13);
+  --gray:#828282;--mid:#a6a6a6;--ease:cubic-bezier(.22,1,.36,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--white);font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+::selection{background:var(--gold);color:var(--bg)}
+img{max-width:100%;display:block}
+a{color:inherit}
+button{font-family:inherit;cursor:pointer}
+.wrap{max-width:1240px;margin:0 auto}
+#grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:97;opacity:.05;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");animation:grain 7s steps(8) infinite}
+@keyframes grain{0%,100%{transform:translate(0,0)}25%{transform:translate(-3%,2%)}50%{transform:translate(2%,-3%)}75%{transform:translate(-2%,-2%)}}
+.glow{position:absolute;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:18px 52px;transition:background .35s,border-color .35s,padding .35s;border-bottom:1px solid transparent}
+nav.scrolled{background:rgba(7,7,7,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom-color:var(--border);padding:13px 52px}
+.nlt{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--white);letter-spacing:-.5px;text-decoration:none}
+.nlt span{color:var(--gold)}
+.nlinks{display:flex;gap:30px;align-items:center}
+.nlinks a{font-size:13px;color:var(--mid);text-decoration:none;transition:color .2s;position:relative}
+.nlinks a:not(.ncta)::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:1px;background:var(--gold);transition:width .25s}
+.nlinks a:not(.ncta):hover{color:var(--white)}
+.nlinks a:not(.ncta):hover::after{width:100%}
+.ncta{background:var(--red);color:#fff;font-size:13px;font-weight:600;padding:10px 22px;text-decoration:none;transition:background .2s,transform .2s}
+.ncta:hover{background:var(--red2);transform:translateY(-1px)}
+@media(max-width:920px){.nlinks a:not(.ncta){display:none}}
+@media(max-width:720px){nav,nav.scrolled{padding-left:20px;padding-right:20px}}
+
+/* BUTTONS */
+.btnr{background:var(--red);color:#fff;font-size:15px;font-weight:600;padding:17px 36px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;border:none;position:relative;overflow:hidden;transition:transform .25s var(--ease),box-shadow .25s}
+.btnr>*{position:relative;z-index:2}
+.btnr::before{content:'';position:absolute;inset:0;background:var(--red2);transform:translateX(-101%);transition:transform .35s var(--ease);z-index:1}
+.btnr:hover::before{transform:translateX(0)}
+.btnr:hover{box-shadow:0 14px 40px rgba(200,37,30,.35)}
+.btnr .arr{transition:transform .25s}
+.btnr:hover .arr{transform:translateX(4px)}
+.btng{background:transparent;color:var(--white);font-size:15px;font-weight:500;padding:16px 30px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;border:1px solid var(--border2);transition:border-color .2s,color .2s,transform .25s var(--ease)}
+.btng:hover{border-color:var(--gold);color:var(--gold)}
+.btng.gold{background:var(--gold);color:var(--bg);border-color:var(--gold);font-weight:700}
+.btng.gold:hover{background:var(--gold2);border-color:var(--gold2);color:var(--bg)}
+
+/* REVEALS */
+.js [data-reveal]{opacity:0;transform:translateY(28px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+.js [data-reveal].in{opacity:1;transform:translateY(0)}
+.js [data-reveal][data-d="1"]{transition-delay:.08s}
+.js [data-reveal][data-d="2"]{transition-delay:.16s}
+.js [data-reveal][data-d="3"]{transition-delay:.24s}
+
+/* EYEBROW + HEADINGS */
+.ey{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:20px;display:flex;align-items:center;gap:12px;font-weight:500}
+.ey::before{content:'';width:28px;height:1px;background:currentColor}
+.ey.r{color:var(--red2)}.ey.g{color:var(--gold)}
+.sh{font-family:'Fraunces',serif;font-size:clamp(34px,4.5vw,64px);font-weight:900;line-height:1.04;letter-spacing:-1px;margin-bottom:22px}
+.sh em{font-style:italic;color:var(--gold)}.sh em.r{color:var(--red2)}
+.sb{font-size:17px;color:var(--mid);max-width:640px;line-height:1.75}
+.sb strong{color:var(--white);font-weight:500}
+
+/* HERO */
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;position:relative;padding:150px 52px 60px;overflow:hidden}
+.hero .glow.a{width:560px;height:560px;background:rgba(200,37,30,.14);top:-180px;right:-120px}
+.hero .glow.b{width:480px;height:480px;background:rgba(240,165,0,.08);bottom:-160px;left:-140px}
+.hero-ghost{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(220px,30vw,520px);color:rgba(242,237,228,.018);letter-spacing:-20px;pointer-events:none;user-select:none;line-height:1;z-index:0;white-space:nowrap}
+.hero-grid{position:relative;z-index:2;display:grid;grid-template-columns:1.35fr .9fr;gap:70px;align-items:center;max-width:1240px;margin:0 auto;width:100%}
+.htag{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);margin-bottom:26px;display:flex;align-items:center;gap:12px}
+.htag::before{content:'';width:28px;height:1px;background:var(--gold)}
+.hero h1{font-family:'Fraunces',serif;font-size:clamp(40px,5vw,78px);font-weight:900;line-height:1.02;letter-spacing:-2px;margin-bottom:30px}
+.hero h1 .r{color:var(--red2)}
+.hero h1 .g{font-style:italic;color:var(--gold)}
+.hero h1 .dim{color:var(--mid)}
+.hsub{font-size:17px;color:var(--mid);max-width:560px;line-height:1.75;margin-bottom:34px}
+.hsub strong{color:var(--white);font-weight:500}
+.hbtns{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.hmicro{margin-top:18px;font-size:12.5px;color:var(--gray);letter-spacing:.3px}
+.hmicro b{color:var(--gold);font-weight:500}
+
+/* AI ENGINES PANEL (hero right) */
+.engines{background:rgba(15,15,15,.72);backdrop-filter:blur(8px);border:1px solid var(--border);padding:24px}
+.engines .eh{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);margin-bottom:18px;display:flex;align-items:center;gap:8px}
+.engines .eh .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.engine-row{display:flex;align-items:center;gap:14px;padding:13px 0;border-top:1px solid var(--border)}
+.engine-row:first-of-type{border-top:none}
+.engine-row .en{flex:1}
+.engine-row .en b{display:block;font-size:13.5px;color:var(--white);font-weight:500}
+.engine-row .en span{font-size:11px;color:var(--gray)}
+.engine-row .es{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;font-variant-numeric:tabular-nums}
+.engine-row .es.good{color:var(--green)}.engine-row .es.mid{color:var(--gold)}.engine-row .es.bad{color:var(--red2)}
+.engine-bar{height:4px;background:rgba(242,237,228,.08);margin-top:7px;position:relative;overflow:hidden}
+.engine-bar i{position:absolute;inset:0;transform-origin:left;transform:scaleX(0);animation:grow 1.3s var(--ease) forwards}
+@keyframes grow{to{transform:scaleX(var(--w,.5))}}
+
+@media(max-width:980px){
+  .hero{padding:130px 20px 50px}
+  .hero-grid{grid-template-columns:1fr;gap:48px}
+}
+
+/* MARQUEE */
+.marq{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:18px 0;overflow:hidden;background:var(--bg2);position:relative}
+.marq-track{display:flex;gap:56px;width:max-content;animation:marq 36s linear infinite}
+.marq span{font-size:12px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gray);white-space:nowrap;display:flex;align-items:center;gap:56px}
+.marq span i{font-style:normal;color:var(--gold);font-size:9px}
+@keyframes marq{to{transform:translateX(-50%)}}
+
+/* SECTION SHELL */
+.sec{padding:130px 52px;position:relative;overflow:hidden}
+.sec.alt{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.sec-ghost{position:absolute;top:34px;right:30px;font-family:'Syne',sans-serif;font-size:clamp(120px,16vw,230px);font-weight:800;color:rgba(242,237,228,.022);line-height:1;letter-spacing:-10px;pointer-events:none;user-select:none}
+.sec-head{max-width:760px;position:relative;z-index:2}
+@media(max-width:980px){.sec{padding:90px 20px}}
+
+/* PROBLEM STAT ROW */
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-top:56px;position:relative;z-index:2}
+.statc{background:var(--bg);padding:40px 34px}
+.sec.alt .statc{background:var(--bg2)}
+.statc b{font-family:'Syne',sans-serif;font-size:clamp(40px,5vw,60px);font-weight:800;letter-spacing:-2px;line-height:1;display:block;margin-bottom:12px;color:var(--red2);font-variant-numeric:tabular-nums}
+.statc b.gold{color:var(--gold)}
+.statc p{font-size:14.5px;color:var(--mid);line-height:1.6}
+.statc p b{font-size:inherit;color:var(--white);display:inline;margin:0;letter-spacing:0;font-weight:500}
+@media(max-width:880px){.stat-row{grid-template-columns:1fr}}
+
+/* MODULES */
+.mods{margin-top:56px;display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--border);border:1px solid var(--border);position:relative;z-index:2}
+.mod{background:var(--bg);padding:44px 40px;position:relative;transition:background .3s}
+.sec.alt .mod{background:var(--bg2)}
+.mod:hover{background:var(--bg3)}
+.mod .mn{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--gold);margin-bottom:18px;display:flex;align-items:center;gap:10px}
+.mod .mn .mi{width:34px;height:34px;border:1px solid rgba(240,165,0,.3);display:flex;align-items:center;justify-content:center;color:var(--gold)}
+.mod .mi svg{width:17px;height:17px}
+.mod h3{font-family:'Fraunces',serif;font-size:25px;font-weight:900;margin-bottom:12px;line-height:1.15}
+.mod p{font-size:14.5px;color:var(--mid);line-height:1.7;margin-bottom:16px}
+.mod ul{list-style:none}
+.mod ul li{font-size:13px;color:var(--mid);padding:6px 0 6px 22px;position:relative}
+.mod ul li::before{content:'';position:absolute;left:2px;top:13px;width:9px;height:5px;border-left:2px solid var(--gold);border-bottom:2px solid var(--gold);transform:rotate(-45deg)}
+.mod ul li b{color:var(--white);font-weight:500}
+@media(max-width:880px){.mods{grid-template-columns:1fr}.mod{padding:34px 26px}}
+
+/* COLD START */
+.cold{margin-top:56px;border:1px solid rgba(240,165,0,.3);background:linear-gradient(180deg,rgba(240,165,0,.05),transparent);padding:46px 44px;position:relative;z-index:2;display:grid;grid-template-columns:1fr 1fr;gap:46px;align-items:center}
+.cold h3{font-family:'Fraunces',serif;font-size:clamp(26px,3vw,40px);font-weight:900;line-height:1.12;margin-bottom:16px}
+.cold h3 em{font-style:italic;color:var(--gold)}
+.cold p{font-size:15px;color:var(--mid);line-height:1.75}
+.cold p b{color:var(--white);font-weight:500}
+.cold-steps{display:flex;flex-direction:column;gap:0}
+.cold-step{display:flex;gap:18px;padding:18px 0;border-top:1px solid var(--border)}
+.cold-step:first-child{border-top:none}
+.cold-step .csn{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--gold);flex-shrink:0;letter-spacing:1px}
+.cold-step b{display:block;font-size:14.5px;color:var(--white);font-weight:500;margin-bottom:3px}
+.cold-step span{font-size:13px;color:var(--gray);line-height:1.55}
+@media(max-width:880px){.cold{grid-template-columns:1fr;gap:30px;padding:34px 26px}}
+
+/* GUARANTEE */
+.guar{text-align:center;max-width:840px;margin:0 auto;position:relative;z-index:2}
+.guar .big{font-family:'Fraunces',serif;font-size:clamp(40px,6vw,86px);font-weight:900;line-height:1;letter-spacing:-2px;margin:8px 0 24px}
+.guar .big em{font-style:italic;color:var(--gold)}
+.guar p{font-size:17px;color:var(--mid);line-height:1.75;max-width:600px;margin:0 auto 30px}
+.guar p b{color:var(--white);font-weight:500}
+
+/* LADDER / PRICING */
+.tiers-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-top:46px;position:relative;z-index:2}
+.tc{background:var(--bg);padding:46px 38px;position:relative;display:flex;flex-direction:column;transition:background .3s;min-width:0}
+.sec.alt .tc{background:var(--bg2)}
+.tc:hover{background:var(--bg3)}
+.tc.feat{background:#120d02}
+.tc.feat:hover{background:#161003}
+.tc.feat::after{content:'';position:absolute;inset:-1px;padding:1px;background:conic-gradient(from var(--ang),transparent 0%,var(--gold) 12%,transparent 26%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spin-border 5s linear infinite;pointer-events:none}
+@keyframes spin-border{to{--ang:360deg}}
+.tc .tag{position:absolute;top:0;left:50%;transform:translateX(-50%);background:var(--gold);color:var(--bg);font-size:9px;font-weight:700;letter-spacing:2px;padding:5px 16px;text-transform:uppercase;white-space:nowrap;z-index:2}
+.tc .step-lab{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);margin-bottom:20px}
+.tc h3{font-family:'Fraunces',serif;font-size:26px;font-weight:900;margin-bottom:10px}
+.tprice{font-family:'Syne',sans-serif;font-size:44px;font-weight:800;letter-spacing:-2px;line-height:1;margin:18px 0 6px;color:var(--white)}
+.tprice sub{font-size:14px;font-weight:400;color:var(--gray);letter-spacing:0;vertical-align:baseline;font-family:'DM Sans',sans-serif}
+.tc.feat .tprice{color:var(--gold)}
+.tdesc{font-size:14px;color:var(--mid);line-height:1.7;margin-bottom:26px}
+.tlist{list-style:none;margin-bottom:34px;flex:1}
+.tlist li{font-size:13.5px;color:var(--mid);padding:9px 0 9px 26px;border-bottom:1px solid var(--border);position:relative}
+.tlist li::before{content:'';position:absolute;left:2px;top:16px;width:10px;height:6px;border-left:2px solid var(--gold);border-bottom:2px solid var(--gold);transform:rotate(-45deg)}
+.tlist li b{color:var(--white);font-weight:500}
+.tc .btnr,.tc .btng{justify-content:center;text-align:center;width:100%}
+.risk{margin-top:34px;display:flex;gap:34px;justify-content:center;flex-wrap:wrap;position:relative;z-index:2}
+.risk span{font-size:12.5px;letter-spacing:1px;text-transform:uppercase;color:var(--gray);display:flex;align-items:center;gap:9px}
+.risk span::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--gold)}
+@media(max-width:980px){.tiers-grid{grid-template-columns:1fr}}
+
+/* HOW / FLOW */
+.flow{margin-top:56px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);position:relative;z-index:2}
+.flowc{background:var(--bg);padding:38px 30px}
+.sec.alt .flowc{background:var(--bg2)}
+.flowc .fn{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--gold);letter-spacing:1px;margin-bottom:16px}
+.flowc h4{font-family:'Fraunces',serif;font-size:19px;font-weight:700;margin-bottom:8px}
+.flowc p{font-size:13.5px;color:var(--mid);line-height:1.65}
+@media(max-width:880px){.flow{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.flow{grid-template-columns:1fr}}
+
+/* FINAL CTA */
+.final{background:var(--red);padding:96px 0 0;position:relative;overflow:hidden}
+.final .inner{position:relative;z-index:2;display:grid;grid-template-columns:1.4fr auto;gap:50px;align-items:center;max-width:1240px;margin:0 auto;padding:0 52px 90px}
+.final h2{font-family:'Fraunces',serif;font-size:clamp(34px,4.5vw,62px);font-weight:900;color:#fff;line-height:1.05;letter-spacing:-1px}
+.final h2 em{font-style:italic}
+.final p{color:rgba(255,255,255,.78);font-size:16px;margin-top:18px;max-width:560px}
+.final p b{color:#fff;font-weight:600}
+.btnw{background:#fff;color:var(--red);font-size:15px;font-weight:700;padding:18px 40px;text-decoration:none;white-space:nowrap;transition:transform .25s var(--ease),box-shadow .25s;display:inline-flex;align-items:center;gap:10px}
+.btnw:hover{box-shadow:0 18px 50px rgba(0,0,0,.3)}
+@media(max-width:980px){.final{padding-top:80px}.final .inner{grid-template-columns:1fr;gap:36px;padding:0 20px 70px}}
+
+/* FOOTER */
+footer{padding:54px 52px;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;border-top:1px solid var(--border)}
+footer .fl{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:-.5px}
+footer .fl span{color:var(--gold)}
+footer p{font-size:12.5px;color:var(--gray)}
+footer .flinks{display:flex;gap:24px}
+footer .flinks a{font-size:12.5px;color:var(--gray);text-decoration:none;transition:color .2s}
+footer .flinks a:hover{color:var(--gold)}
+@media(max-width:720px){footer{padding:44px 20px;flex-direction:column;text-align:center}}
+</style>
+</head>
+<body id="top">
+<div id="grain"></div>
+
+<nav id="nav">
+  <a class="nlt" href="/">Vyrrah<span>.</span>Labs</a>
+  <div class="nlinks">
+    <a href="#how">How it works</a>
+    <a href="#modules">The engine</a>
+    <a href="#guarantee">Guarantee</a>
+    <a href="#pricing">Pricing</a>
+    <a href="/scorecard">Free scorecard</a>
+    <a class="ncta" href="/scorecard">Get my AI-Visibility Score</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="glow a"></div>
+  <div class="glow b"></div>
+  <div class="hero-ghost">GEO</div>
+  <div class="hero-grid">
+    <div>
+      <div class="htag">Vyrrah GEO · AI-Search Growth Engine</div>
+      <h1>Your customers ask <span class="g">AI</span> now.<br>Make sure it <span class="r">recommends you.</span></h1>
+      <p class="hsub">Search moved into ChatGPT, Perplexity, Claude and Google AI. An agentic engine that <strong>writes your content, fixes your schema, and tracks every place you get cited</strong> — so you show up when buyers ask the machines. Built for businesses that can't wait years to rank.</p>
+      <div class="hbtns">
+        <a class="btnr" href="/scorecard"><span>Get my free AI-Visibility Score</span><span class="arr">→</span></a>
+        <a class="btng" href="#how">See how it works</a>
+      </div>
+      <p class="hmicro">No card. 60-second scan. <b>3X organic reach in 90 days or your money back.</b></p>
+    </div>
+    <div class="engines" data-reveal>
+      <div class="eh"><span class="dot"></span>Where you show up in AI search</div>
+      <div class="engine-row">
+        <div class="en"><b>ChatGPT</b><span>Cited in answers</span><div class="engine-bar"><i style="--w:.62;background:var(--gold)"></i></div></div>
+        <div class="es mid">62</div>
+      </div>
+      <div class="engine-row">
+        <div class="en"><b>Perplexity</b><span>Source links</span><div class="engine-bar"><i style="--w:.41;background:var(--red2)"></i></div></div>
+        <div class="es bad">41</div>
+      </div>
+      <div class="engine-row">
+        <div class="en"><b>Claude</b><span>Mentioned</span><div class="engine-bar"><i style="--w:.55;background:var(--gold)"></i></div></div>
+        <div class="es mid">55</div>
+      </div>
+      <div class="engine-row">
+        <div class="en"><b>Google AI Overviews</b><span>Featured</span><div class="engine-bar"><i style="--w:.78;background:var(--green)"></i></div></div>
+        <div class="es good">78</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marq">
+  <div class="marq-track">
+    <span>Restoration <i>◆</i> Dental &amp; Med-Spa <i>◆</i> Staffing &amp; Recruitment <i>◆</i> Local &amp; DTC <i>◆</i> AI Content Engine <i>◆</i> Schema / JSON-LD <i>◆</i> Citation Tracking <i>◆</i> Weekly Reports <i>◆</i></span>
+    <span aria-hidden="true">Restoration <i>◆</i> Dental &amp; Med-Spa <i>◆</i> Staffing &amp; Recruitment <i>◆</i> Local &amp; DTC <i>◆</i> AI Content Engine <i>◆</i> Schema / JSON-LD <i>◆</i> Citation Tracking <i>◆</i> Weekly Reports <i>◆</i></span>
+  </div>
+</div>
+
+<!-- PROBLEM -->
+<section class="sec">
+  <div class="sec-ghost">SHIFT</div>
+  <div class="wrap sec-head">
+    <div class="ey r" data-reveal>The search you knew is gone</div>
+    <h2 class="sh" data-reveal>People stopped scrolling ten blue links.<br>They <em class="r">ask, and act on the answer.</em></h2>
+    <p class="sb" data-reveal data-d="1">If the AI doesn't name you, you don't exist in that decision. Most businesses are completely invisible to it — and have no idea.</p>
+  </div>
+  <div class="wrap stat-row">
+    <div class="statc" data-reveal><b class="gold">60%+</b><p>of searches now end <b>without a click</b> — answered directly by AI. The traffic never reaches your site.</p></div>
+    <div class="statc" data-reveal data-d="1"><b>1 answer</b><p>AI returns <b>one recommendation</b>, not a page of options. Second place is invisible.</p></div>
+    <div class="statc" data-reveal data-d="2"><b>0</b><p>businesses in most local niches have <b>structured data</b> the AI can actually read. The gap is wide open — for now.</p></div>
+  </div>
+</section>
+
+<!-- MODULES / THE ENGINE -->
+<section class="sec alt" id="modules">
+  <div class="sec-ghost">ENGINE</div>
+  <div class="wrap sec-head">
+    <div class="ey g" data-reveal>One platform, four engines</div>
+    <h2 class="sh" data-reveal>Everything it takes to <em>get found by AI</em> — automated.</h2>
+    <p class="sb" data-reveal data-d="1">An agentic system that creates, optimizes, tracks and reports. You approve; it runs.</p>
+  </div>
+  <div class="wrap mods">
+    <div class="mod" data-reveal>
+      <div class="mn"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span>Engine 01</div>
+      <h3>AI Content Engine</h3>
+      <p>Multi-modal content generation with editorial review — written to be quoted by AI, not just indexed by Google.</p>
+      <ul>
+        <li><b>Articles &amp; guides</b> built around real buyer questions</li>
+        <li><b>Landing pages</b> for every service + location</li>
+        <li><b>Listicles &amp; comparisons</b> AI loves to cite</li>
+        <li><b>Product descriptions</b> at scale</li>
+      </ul>
+    </div>
+    <div class="mod" data-reveal data-d="1">
+      <div class="mn"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg></span>Engine 02</div>
+      <h3>AI-Search Visibility</h3>
+      <p>AEO / GEO optimization plus a live <b>AI-Visibility Score (0–100)</b> tracking where you're cited across every engine.</p>
+      <ul>
+        <li><b>Schema / JSON-LD</b> the machines can parse</li>
+        <li><b>Real-time citation tracking</b> — ChatGPT, Perplexity, Claude, Google AI</li>
+        <li><b>Competitor visibility</b> side-by-side</li>
+        <li><b>Answer-engine</b> content structuring</li>
+      </ul>
+    </div>
+    <div class="mod" data-reveal>
+      <div class="mn"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>Engine 03</div>
+      <h3>Refresh &amp; Reindex</h3>
+      <p>Your existing site gets audited, rewritten and re-submitted — so stale pages stop dragging your whole domain down.</p>
+      <ul>
+        <li><b>Full site audit</b> of content + structure</li>
+        <li><b>AI rewrites</b> of thin / outdated pages</li>
+        <li><b>Schema updates</b> across the site</li>
+        <li><b>Reindex</b> so changes get picked up fast</li>
+      </ul>
+    </div>
+    <div class="mod" data-reveal data-d="1">
+      <div class="mn"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19V5M4 19h16M9 15l3-4 3 2 4-6"/></svg></span>Engine 04</div>
+      <h3>Command Dashboard</h3>
+      <p>One screen for the whole picture — and a weekly report that lands in your inbox so you never have to log in to know it's working.</p>
+      <ul>
+        <li><b>Organic traffic + AI referrals</b></li>
+        <li><b>Indexed pages &amp; rankings</b></li>
+        <li><b>Live citations</b> across every AI engine</li>
+        <li><b>Weekly progress report</b>, automated</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- COLD START -->
+<section class="sec">
+  <div class="sec-ghost">START</div>
+  <div class="wrap sec-head">
+    <div class="ey g" data-reveal>Brand new? Even better.</div>
+    <h2 class="sh" data-reveal>No reviews, no content, <em>no history?</em> Doesn't matter.</h2>
+    <p class="sb" data-reveal data-d="1">You don't need a back-catalog to win AI search. The engine <strong>creates your foundation from scratch</strong> and starts gathering proof from your very next customer.</p>
+  </div>
+  <div class="wrap cold" data-reveal>
+    <div>
+      <h3>We build the <em>visibility</em> a new business doesn't have yet.</h3>
+      <p>Established competitors had years to publish. The engine compresses that into weeks — net-new pages, schema, and answer-ready content generated for you, then a reputation flywheel that compounds from day one.</p>
+    </div>
+    <div class="cold-steps">
+      <div class="cold-step"><span class="csn">01</span><div><b>Generate the foundation</b><span>Service pages, location pages, FAQs and schema — created from scratch, no existing content required.</span></div></div>
+      <div class="cold-step"><span class="csn">02</span><div><b>Seed your reputation</b><span>Review-gathering kicks in with your next customer (built on our SMS engine), while generated content carries you until it lands.</span></div></div>
+      <div class="cold-step"><span class="csn">03</span><div><b>Get cited, then compound</b><span>As AI starts naming you, the dashboard shows it happening — and the engine doubles down on what's working.</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- GUARANTEE -->
+<section class="sec alt" id="guarantee">
+  <div class="glow" style="width:520px;height:520px;background:rgba(240,165,0,.07);top:-160px;left:50%;transform:translateX(-50%)"></div>
+  <div class="guar">
+    <div class="ey g" style="justify-content:center" data-reveal>The guarantee</div>
+    <div class="big" data-reveal><em>3X</em> your organic reach<br>in 90 days.</div>
+    <p data-reveal data-d="1">Or you don't pay. We're confident because the AI-search gap is wide open right now and the engine works while you sleep. If the numbers in your dashboard don't move, <b>your money comes back.</b></p>
+    <a class="btng gold" href="/scorecard" data-reveal data-d="2">See where you stand — free →</a>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="sec" id="how">
+  <div class="sec-ghost">FLOW</div>
+  <div class="wrap sec-head">
+    <div class="ey g" data-reveal>How it works</div>
+    <h2 class="sh" data-reveal>From invisible to <em>cited</em> — in four moves.</h2>
+  </div>
+  <div class="wrap flow">
+    <div class="flowc" data-reveal><div class="fn">01 / SCAN</div><h4>Free scorecard</h4><p>Drop your URL. In 60 seconds you get your AI-Visibility Score and the exact gaps holding you back.</p></div>
+    <div class="flowc" data-reveal data-d="1"><div class="fn">02 / BUILD</div><h4>Engine spins up</h4><p>The AI content engine generates pages, writes schema, and refreshes your weak spots — with your sign-off.</p></div>
+    <div class="flowc" data-reveal data-d="2"><div class="fn">03 / TRACK</div><h4>Citations come in</h4><p>We monitor ChatGPT, Perplexity, Claude and Google AI and watch your score climb in real time.</p></div>
+    <div class="flowc" data-reveal data-d="3"><div class="fn">04 / REPORT</div><h4>Weekly proof</h4><p>A clear weekly report shows traffic, AI referrals and new citations. You always know it's working.</p></div>
+  </div>
+</section>
+
+<!-- PRICING / LADDER -->
+<section class="sec alt" id="pricing">
+  <div class="sec-ghost">LADDER</div>
+  <div class="wrap sec-head">
+    <div class="ey g" data-reveal>Start free, scale when it works</div>
+    <h2 class="sh" data-reveal>Half the price of the others.<br><em>Twice as accountable.</em></h2>
+    <p class="sb" data-reveal data-d="1">Most AI-SEO platforms start at $1,499+/mo. We don't. Begin with a free scorecard — upgrade only once you've seen the gap.</p>
+  </div>
+  <div class="wrap tiers-grid">
+    <div class="tc" data-reveal>
+      <div class="step-lab">Step 1 · Wedge</div>
+      <h3>AI-Visibility Scorecard</h3>
+      <div class="tprice">Free</div>
+      <p class="tdesc">See exactly how invisible you are to AI search today — and what it's costing you.</p>
+      <ul class="tlist">
+        <li>AI-Visibility Score <b>0–100</b></li>
+        <li>Breakdown: SEO, AEO, schema, content, reviews</li>
+        <li>Ranked list of <b>your biggest gaps</b></li>
+        <li>Citation snapshot across AI engines</li>
+      </ul>
+      <a class="btng" href="/scorecard">Run my free scan →</a>
+    </div>
+    <div class="tc feat" data-reveal data-d="1">
+      <div class="tag">Most popular</div>
+      <div class="step-lab">Step 2 · The Tool</div>
+      <h3>Vyrrah GEO Engine</h3>
+      <div class="tprice">$500–750<sub>/mo</sub></div>
+      <p class="tdesc">The full agentic engine — content, schema, refresh and the command dashboard. Self-serve, you stay in control.</p>
+      <ul class="tlist">
+        <li>All four engines, fully automated</li>
+        <li><b>Net-new content</b> generated monthly</li>
+        <li>Live citation tracking + visibility score</li>
+        <li>Command dashboard + <b>weekly reports</b></li>
+        <li>Works from a cold start — no history needed</li>
+      </ul>
+      <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener"><span>Start the engine</span><span class="arr">→</span></a>
+    </div>
+    <div class="tc" data-reveal data-d="2">
+      <div class="step-lab">Step 3 · Done-for-you</div>
+      <h3>Growth Retainer</h3>
+      <div class="tprice">Custom</div>
+      <p class="tdesc">We run the whole engine for you — strategy, editorial review, and hands-on growth, end to end.</p>
+      <ul class="tlist">
+        <li>Everything in the Engine, fully managed</li>
+        <li>Human editorial + strategy each month</li>
+        <li>Competitor displacement campaigns</li>
+        <li>Priority support &amp; quarterly planning</li>
+      </ul>
+      <a class="btng" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Talk to Godwin →</a>
+    </div>
+  </div>
+  <div class="risk">
+    <span>3X reach in 90 days or money back</span>
+    <span>No long contracts</span>
+    <span>Cancel anytime</span>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final">
+  <div class="inner">
+    <div>
+      <h2>Find out how invisible you are <em>before</em> your competitor does.</h2>
+      <p>The AI-search gap won't stay open. Run the free scorecard, see your score, and decide with real numbers. <b>60 seconds. No card.</b></p>
+    </div>
+    <a class="btnw" href="/scorecard">Get my AI-Visibility Score →</a>
+  </div>
+</section>
+
+<footer>
+  <div class="fl">Vyrrah<span>.</span>Labs</div>
+  <p>© <span id="yr"></span> Vyrrah Labs · Godwin Rayen · AI-search growth, half the price.</p>
+  <div class="flinks">
+    <a href="/scorecard">Free scorecard</a>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+  </div>
+</footer>
+
+<script>
+document.getElementById('yr').textContent = new Date().getFullYear();
+// nav scrolled state
+var nav = document.getElementById('nav');
+addEventListener('scroll', function(){ nav.classList.toggle('scrolled', scrollY > 30); }, {passive:true});
+// reveals
+var io = new IntersectionObserver(function(es){
+  es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+}, {threshold:.12});
+document.querySelectorAll('[data-reveal]').forEach(function(el){ io.observe(el); });
+</script>
+</body>
+</html>

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Free AI-Visibility Scorecard — Are you invisible in AI search? | Vyrrah Labs</title>
+<meta name="description" content="Enter your website. In 60 seconds see your AI-Visibility Score (0–100), where you rank in ChatGPT, Perplexity & Google AI, and the exact gaps making you invisible to AI search.">
+<meta property="og:title" content="Free AI-Visibility Scorecard — Vyrrah Labs">
+<meta property="og:description" content="See how visible you are to ChatGPT, Perplexity, Claude and Google AI — in 60 seconds, free.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://vyrrahlabs.com/scorecard">
+<meta property="og:image" content="https://vyrrahlabs.com/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='80' font-size='80' font-family='Georgia' font-weight='900' fill='%23f0a500'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,900&family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070707;--bg2:#0f0f0f;--bg3:#161616;--white:#f2ede4;--red:#c8251e;--red2:#e03030;
+  --gold:#f0a500;--gold2:#f5c030;--green:#2fbf71;--border:rgba(242,237,228,.07);--border2:rgba(242,237,228,.13);
+  --gray:#828282;--mid:#a6a6a6;--ease:cubic-bezier(.22,1,.36,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--white);font-family:'DM Sans',sans-serif;font-size:16px;line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased;min-height:100vh}
+::selection{background:var(--gold);color:var(--bg)}
+a{color:inherit}
+button{font-family:inherit;cursor:pointer}
+#grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:0;opacity:.045;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E")}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(680px circle at 90% -8%,rgba(200,37,30,.10),transparent 60%),radial-gradient(560px circle at -6% 12%,rgba(240,165,0,.05),transparent 55%)}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:16px 52px;background:rgba(7,7,7,.7);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
+.nlt{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--white);letter-spacing:-.5px;text-decoration:none}
+.nlt span{color:var(--gold)}
+.nback{font-size:13px;color:var(--mid);text-decoration:none;transition:color .2s}
+.nback:hover{color:var(--gold)}
+@media(max-width:720px){nav{padding:14px 20px}}
+
+.wrap{max-width:880px;margin:0 auto;padding:130px 24px 90px;position:relative;z-index:1}
+.ey{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);margin-bottom:18px;display:flex;align-items:center;gap:12px;font-weight:500}
+.ey::before{content:'';width:28px;height:1px;background:currentColor}
+
+/* HEAD */
+.lead h1{font-family:'Fraunces',serif;font-size:clamp(34px,5.5vw,62px);font-weight:900;line-height:1.04;letter-spacing:-1.5px;margin-bottom:20px}
+.lead h1 em{font-style:italic;color:var(--gold)}
+.lead h1 em.r{color:var(--red2)}
+.lead p.sub{font-size:17px;color:var(--mid);max-width:580px;line-height:1.7;margin-bottom:40px}
+.lead p.sub b{color:var(--white);font-weight:500}
+
+/* FORM */
+.card{background:var(--bg2);border:1px solid var(--border2);position:relative}
+.card-pad{padding:40px 38px}
+.scan-form{display:flex;gap:14px}
+.scan-form .ig{flex:1;display:flex;align-items:center;background:var(--bg);border:1px solid var(--border2);transition:border-color .2s;min-width:0}
+.scan-form .ig:focus-within{border-color:var(--gold)}
+.scan-form .ig .pre{padding:0 0 0 18px;color:var(--gray);font-size:15px;white-space:nowrap}
+.scan-form input{flex:1;background:transparent;border:none;color:var(--white);font-family:'DM Sans',sans-serif;font-size:15px;padding:17px 18px 17px 6px;outline:none;min-width:0}
+.scan-form input::placeholder{color:var(--gray)}
+.scan-btn{background:var(--red);color:#fff;font-size:15px;font-weight:600;padding:17px 32px;border:none;display:inline-flex;align-items:center;gap:10px;position:relative;overflow:hidden;transition:transform .25s var(--ease),box-shadow .25s;white-space:nowrap}
+.scan-btn>*{position:relative;z-index:2}
+.scan-btn::before{content:'';position:absolute;inset:0;background:var(--red2);transform:translateX(-101%);transition:transform .35s var(--ease);z-index:1}
+.scan-btn:hover::before{transform:translateX(0)}
+.scan-btn:hover{box-shadow:0 14px 40px rgba(200,37,30,.35)}
+.scan-btn[disabled]{opacity:.6;cursor:wait}
+.scan-btn[disabled]::before{display:none}
+.hint{font-size:12.5px;color:var(--gray);margin-top:16px}
+.hint b{color:var(--gold);font-weight:500}
+.err{display:none;color:var(--red2);font-size:13.5px;margin-top:14px}
+@media(max-width:640px){.card-pad{padding:30px 22px}.scan-form{flex-direction:column}.scan-btn{justify-content:center}}
+
+/* SCANNING */
+.scanning{display:none;flex-direction:column;gap:14px;max-width:520px}
+.scan-step{display:flex;align-items:center;gap:13px;font-size:14.5px;color:var(--gray);opacity:.3;transition:opacity .3s,color .3s}
+.scan-step.on{opacity:1;color:var(--mid)}
+.scan-step.done{opacity:1;color:var(--white)}
+.scan-step .sq{width:15px;height:15px;border:1px solid var(--border2);flex-shrink:0;position:relative}
+.scan-step.on .sq{border-color:var(--gold);animation:pulse-sq 1s infinite}
+.scan-step.done .sq{border-color:var(--gold);background:var(--gold)}
+.scan-step.done .sq::after{content:'';position:absolute;inset:2px;background:var(--bg2)}
+@keyframes pulse-sq{50%{box-shadow:0 0 0 4px rgba(240,165,0,.15)}}
+
+/* RESULT */
+.result{display:none}
+.verdict-tag{display:inline-flex;align-items:center;gap:10px;background:var(--red);color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;padding:8px 16px;margin-bottom:24px;text-transform:uppercase}
+.verdict-tag.warn{background:var(--gold);color:var(--bg)}
+.verdict-tag.good{background:var(--green);color:var(--bg)}
+.verdict-tag .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+.score-block{display:grid;grid-template-columns:auto 1fr;gap:40px;align-items:center;padding-bottom:34px;border-bottom:1px solid var(--border)}
+.ring{width:170px;height:170px;flex-shrink:0;position:relative}
+.ring svg{transform:rotate(-90deg)}
+.ring .track{fill:none;stroke:rgba(242,237,228,.08);stroke-width:9}
+.ring .bar{fill:none;stroke:var(--red2);stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset 1.4s var(--ease),stroke .5s}
+.ring .lab{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .lab b{font-family:'Syne',sans-serif;font-size:52px;font-weight:800;letter-spacing:-2px;line-height:1;font-variant-numeric:tabular-nums}
+.ring .lab span{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);margin-top:4px}
+.score-verdict h2{font-family:'Fraunces',serif;font-size:clamp(24px,3.4vw,38px);font-weight:900;line-height:1.12;margin-bottom:12px}
+.score-verdict h2 em{font-style:italic;color:var(--gold)}
+.score-verdict h2 em.r{color:var(--red2)}
+.score-verdict p{font-size:15px;color:var(--mid);line-height:1.7;max-width:440px}
+.score-verdict p b{color:var(--white);font-weight:500}
+@media(max-width:640px){.score-block{grid-template-columns:1fr;gap:24px;justify-items:center;text-align:center}.score-verdict p{margin:0 auto}}
+
+/* AI ENGINES REVEAL */
+.aivis{padding:30px 0;border-bottom:1px solid var(--border)}
+.sect-lab{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);margin-bottom:18px}
+.engines{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border)}
+.eng{background:var(--bg2);padding:18px 20px}
+.eng b{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;letter-spacing:-1px;display:block;line-height:1;font-variant-numeric:tabular-nums}
+.eng b.good{color:var(--green)}.eng b.mid{color:var(--gold)}.eng b.bad{color:var(--red2)}
+.eng span{font-size:12px;color:var(--gray);text-transform:uppercase;letter-spacing:1px;display:block;margin-top:8px}
+.eng .ebar{height:4px;background:rgba(242,237,228,.08);margin-top:12px;position:relative;overflow:hidden}
+.eng .ebar i{position:absolute;inset:0;transform-origin:left}
+@media(max-width:640px){.engines{grid-template-columns:1fr}}
+
+/* BREAKDOWN */
+.breakdown{padding:30px 0;border-bottom:1px solid var(--border)}
+.bd-row{display:flex;align-items:center;gap:16px;padding:12px 0}
+.bd-row .bl{width:120px;flex-shrink:0;font-size:13.5px;color:var(--mid);text-transform:capitalize}
+.bd-row .btrack{flex:1;height:7px;background:rgba(242,237,228,.07);position:relative;overflow:hidden}
+.bd-row .btrack i{position:absolute;inset:0;transform-origin:left;transform:scaleX(0);transition:transform 1s var(--ease)}
+.bd-row .bv{width:46px;text-align:right;font-family:'Syne',sans-serif;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+
+/* GAPS */
+.gaps{padding:30px 0}
+.gaps .sect-lab{margin-bottom:6px}
+.gaps .lede{font-size:13.5px;color:var(--gray);margin-bottom:22px}
+.gap{border-left:2px solid var(--red2);padding:4px 0 4px 20px;margin-bottom:22px}
+.gap:last-child{margin-bottom:0}
+.gap .gh{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:7px}
+.gap .gh b{font-size:16px;font-weight:600;color:var(--white)}
+.gap .imp{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--red2);border:1px solid rgba(200,37,30,.4);padding:3px 9px}
+.gap .imp.med{color:var(--gold);border-color:rgba(240,165,0,.4)}
+.gap .fix{font-size:14px;color:var(--mid);line-height:1.65}
+.gap .fix b{color:var(--white);font-weight:500}
+
+/* CTA */
+.result-cta{margin-top:8px;background:linear-gradient(180deg,rgba(240,165,0,.06),transparent);border:1px solid rgba(240,165,0,.3);padding:34px 32px;text-align:center}
+.result-cta h3{font-family:'Fraunces',serif;font-size:clamp(22px,3vw,30px);font-weight:900;line-height:1.15;margin-bottom:12px}
+.result-cta h3 em{font-style:italic;color:var(--gold)}
+.result-cta p{font-size:14.5px;color:var(--mid);max-width:480px;margin:0 auto 24px;line-height:1.65}
+.result-cta p b{color:var(--white);font-weight:500}
+.cta-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.btnr{background:var(--red);color:#fff;font-size:15px;font-weight:600;padding:16px 34px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;border:none;position:relative;overflow:hidden;transition:transform .25s var(--ease),box-shadow .25s}
+.btnr>*{position:relative;z-index:2}
+.btnr::before{content:'';position:absolute;inset:0;background:var(--red2);transform:translateX(-101%);transition:transform .35s var(--ease);z-index:1}
+.btnr:hover::before{transform:translateX(0)}
+.btnr:hover{box-shadow:0 14px 40px rgba(200,37,30,.35)}
+.btng{background:transparent;color:var(--white);font-size:15px;font-weight:500;padding:15px 28px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;border:1px solid var(--border2);transition:border-color .2s,color .2s}
+.btng:hover{border-color:var(--gold);color:var(--gold)}
+.rescan{display:block;text-align:center;margin-top:26px;font-size:13px;color:var(--gray);text-decoration:underline;text-underline-offset:3px;background:none;border:none;width:100%}
+.rescan:hover{color:var(--gold)}
+
+/* TRUST STRIP */
+.trust{margin-top:30px;display:flex;gap:28px;justify-content:center;flex-wrap:wrap}
+.trust span{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--gray);display:flex;align-items:center;gap:8px}
+.trust span::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--gold)}
+</style>
+</head>
+<body>
+<div id="grain"></div>
+
+<nav>
+  <a class="nlt" href="/">Vyrrah<span>.</span>Labs</a>
+  <a class="nback" href="/flyrank">← Vyrrah GEO</a>
+</nav>
+
+<div class="wrap">
+  <!-- INTRO + FORM -->
+  <div class="lead" id="lead">
+    <div class="ey">Free · 60-second scan · No card</div>
+    <h1>Is your business <em class="r">invisible</em> when buyers ask AI?</h1>
+    <p class="sub">Enter your website. We'll check where you stand in <b>ChatGPT, Perplexity, Claude and Google AI</b>, score your AI visibility 0–100, and show you the exact gaps your competitors are exploiting.</p>
+
+    <div class="card">
+      <div class="card-pad">
+        <form class="scan-form" id="scanForm" autocomplete="off">
+          <div class="ig">
+            <span class="pre">https://</span>
+            <input id="urlInput" type="text" placeholder="yourbusiness.com" aria-label="Your website URL" required>
+          </div>
+          <button class="scan-btn" type="submit" id="scanBtn"><span>Scan my site</span><span>→</span></button>
+        </form>
+        <p class="hint">We scan your live site. <b>No signup, no card</b> — your score is on screen in about a minute.</p>
+        <div class="err" id="formErr"></div>
+
+        <!-- SCANNING -->
+        <div class="scanning" id="scanning" style="margin-top:26px">
+          <div class="scan-step" data-step="0"><span class="sq"></span>Crawling your pages &amp; content…</div>
+          <div class="scan-step" data-step="1"><span class="sq"></span>Checking schema / structured data…</div>
+          <div class="scan-step" data-step="2"><span class="sq"></span>Querying ChatGPT, Perplexity &amp; Google AI…</div>
+          <div class="scan-step" data-step="3"><span class="sq"></span>Scoring against your competitors…</div>
+          <div class="scan-step" data-step="4"><span class="sq"></span>Building your scorecard…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="trust">
+      <span>Restoration · Dental · Staffing · Local &amp; DTC</span>
+      <span>3X reach in 90 days or money back</span>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="result" id="result">
+    <div class="verdict-tag" id="verdictTag"><span class="dot"></span><span id="verdictTagTxt">Critical · Nearly invisible</span></div>
+
+    <div class="score-block">
+      <div class="ring">
+        <svg viewBox="0 0 180 180" width="170" height="170">
+          <circle class="track" cx="90" cy="90" r="78"></circle>
+          <circle class="bar" id="ringBar" cx="90" cy="90" r="78" stroke-dasharray="490" stroke-dashoffset="490"></circle>
+        </svg>
+        <div class="lab"><b id="scoreNum">0</b><span>/ 100 AI-Visibility</span></div>
+      </div>
+      <div class="score-verdict">
+        <h2 id="verdictHead">You're <em class="r">nearly invisible</em> in AI search.</h2>
+        <p id="verdictSummary">When buyers ask AI for what you sell, your competitors get named — and you don't. The gap is fixable, and right now it's wide open.</p>
+      </div>
+    </div>
+
+    <!-- AI ENGINE VISIBILITY -->
+    <div class="aivis">
+      <div class="sect-lab">Where you show up across AI engines</div>
+      <div class="engines" id="engines"></div>
+    </div>
+
+    <!-- BREAKDOWN -->
+    <div class="breakdown">
+      <div class="sect-lab">Your score, broken down</div>
+      <div id="breakdown"></div>
+    </div>
+
+    <!-- GAPS -->
+    <div class="gaps">
+      <div class="sect-lab">Biggest gaps — ranked by impact</div>
+      <div class="lede">Fix these and your AI visibility climbs the fastest.</div>
+      <div id="gaps"></div>
+    </div>
+
+    <!-- CTA -->
+    <div class="result-cta">
+      <h3>Want this <em>fixed</em> — automatically?</h3>
+      <p>The Vyrrah GEO engine generates the content, writes the schema and tracks your citations until you're the one AI recommends. <b>From $500/mo. 3X reach in 90 days or money back.</b></p>
+      <div class="cta-btns">
+        <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener"><span>Start the engine</span><span>→</span></a>
+        <a class="btng" href="/flyrank">See how it works</a>
+      </div>
+    </div>
+    <button class="rescan" id="rescan" type="button">← Scan a different site</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var form = document.getElementById('scanForm');
+  var urlInput = document.getElementById('urlInput');
+  var scanBtn = document.getElementById('scanBtn');
+  var scanning = document.getElementById('scanning');
+  var formErr = document.getElementById('formErr');
+  var lead = document.getElementById('lead');
+  var result = document.getElementById('result');
+
+  function clr(n){ return Math.max(0, Math.min(100, Math.round(Number(n)||0))); }
+  function tier(s){ return s >= 70 ? 'good' : s >= 45 ? 'mid' : 'bad'; }
+  function color(s){ return s >= 70 ? 'var(--green)' : s >= 45 ? 'var(--gold)' : 'var(--red2)'; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  function runSteps(done){
+    var steps = scanning.querySelectorAll('.scan-step');
+    scanning.style.display = 'flex';
+    var i = 0;
+    function tick(){
+      if(i > 0) steps[i-1].classList.remove('on'), steps[i-1].classList.add('done');
+      if(i < steps.length){ steps[i].classList.add('on'); i++; setTimeout(tick, 620); }
+      else { done && done(); }
+    }
+    tick();
+  }
+  function resetSteps(){
+    scanning.style.display = 'none';
+    scanning.querySelectorAll('.scan-step').forEach(function(s){ s.classList.remove('on','done'); });
+  }
+
+  function animateScore(target){
+    var bar = document.getElementById('ringBar');
+    var numEl = document.getElementById('scoreNum');
+    var circ = 490;
+    bar.style.stroke = color(target);
+    requestAnimationFrame(function(){ bar.style.strokeDashoffset = circ - (circ * target / 100); });
+    var start = performance.now(), dur = 1400;
+    function step(now){
+      var p = Math.min(1, (now - start) / dur);
+      var e = 1 - Math.pow(1 - p, 3);
+      numEl.textContent = Math.round(target * e);
+      numEl.style.color = color(target);
+      if(p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function renderEngines(av){
+    av = av || {};
+    var map = [
+      ['ChatGPT', clr(av.chatgpt)],
+      ['Perplexity', clr(av.perplexity)],
+      ['Google AI', clr(av.google)]
+    ];
+    document.getElementById('engines').innerHTML = map.map(function(m){
+      var t = tier(m[1]);
+      return '<div class="eng"><b class="'+t+'">'+m[1]+'</b><span>'+esc(m[0])+'</span>'+
+        '<div class="ebar"><i style="background:'+color(m[1])+';transform:scaleX('+(m[1]/100)+')"></i></div></div>';
+    }).join('');
+  }
+
+  function renderBreakdown(bd){
+    bd = bd || {};
+    var keys = ['seo','aeo','schema','content','reviews'];
+    var labels = {seo:'SEO',aeo:'Answer-Engine (AEO)',schema:'Schema / structured data',content:'Content depth',reviews:'Reviews / reputation'};
+    var html = keys.map(function(k){
+      var v = clr(bd[k]);
+      return '<div class="bd-row"><div class="bl">'+esc(labels[k]||k)+'</div>'+
+        '<div class="btrack"><i data-v="'+(v/100)+'" style="background:'+color(v)+'"></i></div>'+
+        '<div class="bv" style="color:'+color(v)+'">'+v+'</div></div>';
+    }).join('');
+    var box = document.getElementById('breakdown');
+    box.innerHTML = html;
+    requestAnimationFrame(function(){
+      box.querySelectorAll('.btrack i').forEach(function(i){ i.style.transform = 'scaleX('+i.dataset.v+')'; });
+    });
+  }
+
+  function renderGaps(gaps){
+    gaps = (gaps && gaps.length) ? gaps : [];
+    if(!gaps.length){
+      document.getElementById('gaps').innerHTML = '<div class="gap"><div class="gh"><b>No critical gaps flagged</b></div><div class="fix">Solid foundation — now it’s about pulling ahead. The engine compounds the lead.</div></div>';
+      return;
+    }
+    document.getElementById('gaps').innerHTML = gaps.slice(0,5).map(function(g,idx){
+      var med = idx >= 2 ? ' med' : '';
+      var imp = g.impact ? esc(g.impact) : (idx < 2 ? 'High impact' : 'Medium impact');
+      return '<div class="gap"><div class="gh"><b>'+esc(g.title||'Gap')+'</b><span class="imp'+med+'">'+imp+'</span></div>'+
+        '<div class="fix"><b>Fix:</b> '+esc(g.fix||'Generate and optimize this with the engine.')+'</div></div>';
+    }).join('');
+  }
+
+  function setVerdict(score, summary){
+    var tag = document.getElementById('verdictTag');
+    var tagTxt = document.getElementById('verdictTagTxt');
+    var head = document.getElementById('verdictHead');
+    var sum = document.getElementById('verdictSummary');
+    tag.className = 'verdict-tag' + (score >= 70 ? ' good' : score >= 45 ? ' warn' : '');
+    if(score >= 70){
+      tagTxt.textContent = 'Strong · Visible in AI search';
+      head.innerHTML = 'You’re <em>visible</em> — now go widen the lead.';
+    } else if(score >= 45){
+      tagTxt.textContent = 'At risk · Partly visible';
+      head.innerHTML = 'You show up <em>sometimes</em>. Competitors show up <em class="r">always</em>.';
+    } else {
+      tagTxt.textContent = 'Critical · Nearly invisible';
+      head.innerHTML = 'You’re <em class="r">nearly invisible</em> in AI search.';
+    }
+    sum.textContent = summary || 'When buyers ask AI for what you sell, your competitors get named — and you don’t. The gap is fixable, and right now it’s wide open.';
+  }
+
+  function showResult(data){
+    var score = clr(data.score);
+    setVerdict(score, data.summary);
+    renderEngines(data.aiVisibility);
+    renderBreakdown(data.breakdown);
+    renderGaps(data.gaps);
+    lead.style.display = 'none';
+    result.style.display = 'block';
+    window.scrollTo({top:0, behavior:'smooth'});
+    animateScore(score);
+  }
+
+  function normalizeUrl(v){
+    v = (v||'').trim().replace(/^https?:\/\//i,'').replace(/\/+$/,'');
+    return v ? 'https://' + v : '';
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    formErr.style.display = 'none';
+    var url = normalizeUrl(urlInput.value);
+    if(!url || !/\.[a-z]{2,}/i.test(url)){
+      formErr.textContent = 'Enter a valid website, e.g. yourbusiness.com';
+      formErr.style.display = 'block';
+      return;
+    }
+    scanBtn.disabled = true; scanBtn.querySelector('span').textContent = 'Scanning…';
+    var animDone = false, dataReady = null, dataErr = null;
+
+    runSteps(function(){
+      animDone = true;
+      if(dataErr) return finishErr(dataErr);
+      if(dataReady) finishOk(dataReady);
+    });
+
+    fetch('/api/geo?path=scorecard', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: url })
+    })
+      .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+      .then(function(res){
+        if(!res.ok || (res.d && res.d.error)) throw new Error((res.d && res.d.error) || 'Scan failed');
+        dataReady = res.d;
+        if(animDone) finishOk(res.d);
+      })
+      .catch(function(err){ dataErr = err; if(animDone) finishErr(err); });
+
+    function finishOk(d){ resetSteps(); resetBtn(); showResult(d); }
+    function finishErr(err){
+      resetSteps(); resetBtn();
+      formErr.textContent = 'Could not scan that site right now — try again in a moment.';
+      formErr.style.display = 'block';
+    }
+    function resetBtn(){ scanBtn.disabled = false; scanBtn.querySelector('span').textContent = 'Scan my site'; }
+  });
+
+  document.getElementById('rescan').addEventListener('click', function(){
+    result.style.display = 'none';
+    lead.style.display = 'block';
+    urlInput.value = '';
+    window.scrollTo({top:0, behavior:'smooth'});
+    urlInput.focus();
+  });
+})();
+</script>
+</body>
+</html>

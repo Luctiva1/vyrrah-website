@@ -42,6 +42,34 @@
       "dest": "/case-production.html"
     },
     {
+      "src": "/flyrank",
+      "dest": "/flyrank.html"
+    },
+    {
+      "src": "/tool",
+      "dest": "/flyrank.html"
+    },
+    {
+      "src": "/scorecard",
+      "dest": "/scorecard.html"
+    },
+    {
+      "src": "/dashboard",
+      "dest": "/dashboard.html"
+    },
+    {
+      "src": "/for-restoration",
+      "dest": "/for-restoration.html"
+    },
+    {
+      "src": "/for-dental",
+      "dest": "/for-dental.html"
+    },
+    {
+      "src": "/for-staffing",
+      "dest": "/for-staffing.html"
+    },
+    {
       "src": "/command",
       "dest": "/command.html"
     },
@@ -60,6 +88,10 @@
     {
       "src": "/api/tool/(.*)",
       "dest": "/api/tool?path=$1"
+    },
+    {
+      "src": "/api/geo",
+      "dest": "/api/geo"
     },
     {
       "src": "/api/(.*)",
