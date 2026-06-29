@@ -1,5 +1,5 @@
-// Vyrrah GEO — AI SEO + Generative Engine Optimization backend.
-// A cheaper FlyRank.ai clone. Three contract endpoints, all routed via ?path=:
+// Vyrrah Beacon — AI SEO + Generative Engine Optimization backend.
+// Three contract endpoints, all routed via ?path=:
 //   POST /api/geo?path=scorecard  {url} -> visibility scorecard + ranked gaps
 //   POST /api/geo?path=generate   {url_or_topic,type} -> SEO/GEO content + JSON-LD
 //   GET  /api/geo?path=dashboard&client_id=X -> tracked growth metrics
@@ -145,6 +145,55 @@ function inferVertical(text) {
   return 'local business';
 }
 
+// ─── Domain authority / real-world recognition estimate ──────────────────────
+// The heart of the scoring fix. AI-search and Google visibility is driven first
+// by how authoritative and recognized a DOMAIN is, NOT by whether a page ships a
+// LocalBusiness/FAQ checklist. Reddit, Wikipedia, NYT etc. are cited constantly
+// by ChatGPT/Perplexity/Google AI even though they carry none of the local-SEO
+// markup a small business needs. This returns a 0-100 authority estimate from
+// the hostname alone (deterministic, works with no LLM and no network).
+const MEGA_AUTHORITY = new Set([
+  'reddit.com', 'wikipedia.org', 'youtube.com', 'amazon.com', 'github.com',
+  'stackoverflow.com', 'nytimes.com', 'medium.com', 'linkedin.com', 'quora.com',
+  'forbes.com', 'bbc.com', 'cnn.com', 'theguardian.com', 'apple.com',
+  'microsoft.com', 'google.com', 'imdb.com', 'yelp.com', 'tripadvisor.com',
+  'healthline.com', 'mayoclinic.org', 'webmd.com', 'investopedia.com',
+  'nih.gov', 'cdc.gov', 'harvard.edu', 'mit.edu', 'wikihow.com',
+  'facebook.com', 'instagram.com', 'x.com', 'twitter.com', 'pinterest.com',
+  'ebay.com', 'etsy.com', 'walmart.com', 'target.com', 'bestbuy.com',
+  'wsj.com', 'bloomberg.com', 'reuters.com', 'techcrunch.com', 'wired.com'
+]);
+function registrableHost(hostname) {
+  const parts = String(hostname || '').toLowerCase().replace(/^www\./, '').split('.');
+  if (parts.length <= 2) return parts.join('.');
+  // Handle common two-level public suffixes (co.uk, com.au, org.uk, gov.uk...).
+  const twoLevel = /^(co|com|org|net|gov|edu|ac)\.(uk|au|nz|in|za|jp|br|sg)$/;
+  const lastTwo = parts.slice(-2).join('.');
+  if (twoLevel.test(lastTwo)) return parts.slice(-3).join('.');
+  return parts.slice(-2).join('.');
+}
+function domainAuthority(hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/^www\./, '');
+  const reg = registrableHost(host);
+  const tld = host.split('.').pop();
+  let score = 40; // an ordinary, real, resolvable business domain baseline
+  let recognized = false;
+  if (MEGA_AUTHORITY.has(reg)) { score = 96; recognized = true; }
+  else {
+    // High-trust TLDs lift authority for sites we do not explicitly know.
+    if (tld === 'gov' || tld === 'edu') { score += 35; recognized = true; }
+    else if (tld === 'org') score += 8;
+    // Short, brandable registrable domains tend to be more established.
+    const core = reg.split('.')[0] || '';
+    if (core.length > 0 && core.length <= 6) score += 8;
+    else if (core.length <= 10) score += 4;
+    // Hyphen/number-heavy domains read as smaller / newer / spammier.
+    if ((core.match(/-/g) || []).length >= 1) score -= 6;
+    if (/\d/.test(core)) score -= 4;
+  }
+  return { authority: clamp(score, 0, 100), recognized };
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // 1) SCORECARD  —  POST /api/geo?path=scorecard  {url}
 //    -> {score, breakdown:{seo,aeo,schema,content,reviews}, gaps:[{title,impact,fix}],
@@ -187,46 +236,78 @@ function inspectHtml(html) {
 }
 
 // Heuristic breakdown from signals (the no-LLM baseline and the LLM's anchor).
-function heuristicBreakdown(sig) {
-  let seo = 30;
-  if (sig.titleLen >= 15 && sig.titleLen <= 65) seo += 20; else if (sig.titleLen) seo += 8;
-  if (sig.metaDescLen >= 50 && sig.metaDescLen <= 165) seo += 18; else if (sig.metaDescLen) seo += 6;
-  if (sig.h1Count === 1) seo += 14; else if (sig.h1Count > 1) seo += 6;
-  if (sig.hasCanonical) seo += 8;
-  if (sig.hasViewport) seo += 10;
+// `auth` is the {authority,recognized} estimate from domainAuthority(). The
+// breakdown blends real-world domain authority with on-page signals so a
+// recognized, content-rich domain (reddit.com) reads as HIGHLY visible even
+// without local-SEO markup, while a thin/new site reads as low.
+function heuristicBreakdown(sig, auth) {
+  const A = (auth && Number.isFinite(auth.authority)) ? auth.authority : 40;
+  const recognized = !!(auth && auth.recognized);
+  // Authority floor per dimension. A recognized mega-authority (reddit, etc.)
+  // is already trusted and surfaced everywhere, so it gets a HIGH floor in the
+  // visibility dimensions regardless of on-page markup. An unknown small biz
+  // (A~40) gets only a modest lift.
+  const floor = recognized ? Math.round(A * 0.85) : Math.round(A * 0.55);
 
+  // SEO = crawlability/classic ranking. Authority dominates real ranking power.
+  let seo = Math.round(A * (recognized ? 0.8 : 0.55));
+  if (sig.titleLen >= 15 && sig.titleLen <= 65) seo += 12; else if (sig.titleLen) seo += 6;
+  if (sig.metaDescLen >= 50 && sig.metaDescLen <= 165) seo += 8; else if (sig.metaDescLen) seo += 4;
+  if (sig.h1Count === 1) seo += 6; else if (sig.h1Count > 1) seo += 3;
+  if (sig.hasCanonical) seo += 4;
+  if (sig.hasViewport) seo += 5;
+  seo = Math.max(seo, recognized ? floor : 0);
+
+  // Schema is the one dimension that legitimately depends on on-page markup.
+  // It informs GAPS, not the headline, so its low weight in the overall keeps it
+  // from tanking an obviously-visible site. Authority gives only a small floor.
   let schema = sig.jsonLdCount ? 45 : 8;
   if (sig.schemaTypes.some((t) => /Organization|LocalBusiness/i.test(t))) schema += 22;
   if (sig.schemaTypes.some((t) => /FAQ/i.test(t))) schema += 18;
   if (sig.schemaTypes.some((t) => /Review|AggregateRating|Service|Product/i.test(t))) schema += 15;
+  schema = Math.max(schema, Math.round(A * 0.35));
 
-  let aeo = 18; // answer-engine readiness
-  if (sig.hasFaq) aeo += 22;
-  if (sig.schemaTypes.some((t) => /FAQ|HowTo|QAPage/i.test(t))) aeo += 20;
-  if (sig.metaDescLen >= 50) aeo += 10;
-  if (sig.textLen > 1800) aeo += 18; else if (sig.textLen > 600) aeo += 8;
+  // AEO = answer-engine citation likelihood. Recognized, broad sites get cited
+  // constantly regardless of FAQ markup, so authority is the primary driver.
+  let aeo = Math.round(A * (recognized ? 0.8 : 0.55));
+  if (sig.hasFaq) aeo += 10;
+  if (sig.schemaTypes.some((t) => /FAQ|HowTo|QAPage/i.test(t))) aeo += 10;
+  if (sig.textLen > 1800) aeo += 8; else if (sig.textLen > 600) aeo += 4;
+  aeo = Math.max(aeo, floor);
 
+  // Content breadth/depth. Big platforms have enormous breadth even if the
+  // single fetched page is short, so authority lifts the floor.
   let content = 20;
-  if (sig.textLen > 4000) content += 45; else if (sig.textLen > 1800) content += 32;
-  else if (sig.textLen > 600) content += 18;
-  if (sig.hasOpenGraph) content += 8;
-  if (sig.h1Count >= 1) content += 10;
+  if (sig.textLen > 4000) content += 40; else if (sig.textLen > 1800) content += 28;
+  else if (sig.textLen > 600) content += 16;
+  if (sig.hasOpenGraph) content += 6;
+  if (sig.h1Count >= 1) content += 8;
+  content = Math.max(content, floor);
 
+  // Reviews/trust. Authority is itself a trust signal at the domain level.
   let reviews = sig.hasReviews ? 55 : 12;
   if (sig.schemaTypes.some((t) => /AggregateRating|Review/i.test(t))) reviews += 25;
+  reviews = Math.max(reviews, Math.round(A * 0.45));
 
   return {
     seo: clamp(seo, 0, 100),
     aeo: clamp(aeo, 0, 100),
     schema: clamp(schema, 0, 100),
     content: clamp(content, 0, 100),
-    reviews: clamp(reviews, 0, 100)
+    reviews: clamp(reviews, 0, 100),
+    authority: clamp(A, 0, 100)
   };
 }
 
 function overallFromBreakdown(b) {
-  // Weighted toward AEO/schema since this is a GEO product.
-  return clamp(b.seo * 0.22 + b.aeo * 0.26 + b.schema * 0.22 + b.content * 0.18 + b.reviews * 0.12, 0, 100);
+  // Real discoverability is led by domain authority + AEO citation likelihood +
+  // content breadth + classic SEO. Schema/reviews matter but must NOT tank the
+  // headline score of an obviously-visible site, so they carry low weight.
+  const A = Number.isFinite(b.authority) ? b.authority : 50;
+  return clamp(
+    A * 0.36 + b.aeo * 0.22 + b.content * 0.16 + b.seo * 0.16 + b.schema * 0.06 + b.reviews * 0.04,
+    0, 100
+  );
 }
 
 // Per-engine AI visibility estimate derived from breakdown (heuristic baseline).
@@ -238,34 +319,49 @@ function heuristicAiVisibility(b) {
   };
 }
 
-// Ranked, deterministic gaps from signals — used as fallback AND merged with LLM.
-function heuristicGaps(sig, vertical) {
+// Deterministic candidate gaps from signals. Each carries a `tier`:
+//   'hard' = strategy/architecture/authority work that needs real expertise
+//            (the kind a client should hire us for).
+//   'easy' = trivial DIY on-page fixes (meta description, viewport, one H1).
+// We surface only the HARD gaps in the headline list and withhold the easy wins,
+// so the prospect feels they need help rather than a checklist they can DIY.
+function candidateGaps(sig, vertical) {
   const gaps = [];
+  // ── HARD: GEO/AEO strategy, schema architecture, content authority ──
   if (!sig.jsonLdCount || !sig.schemaTypes.some((t) => /Organization|LocalBusiness/i.test(t))) {
-    gaps.push({ title: 'No LocalBusiness / Organization schema', impact: 'AI engines and Google cannot reliably identify who you are, where you serve, or your contact details, so you are skipped in AI answers.', fix: 'Add JSON-LD LocalBusiness (or Organization) schema with name, address, phone, hours and serviceArea. The Engine can generate this for you in one click.' });
+    gaps.push({ tier: 'hard', title: 'No entity / schema architecture for AI engines', impact: 'AI engines cannot resolve who you are as an entity, so you are absent from the knowledge graph that ChatGPT, Perplexity and Google AI draw answers from. This is the single biggest reason invisible businesses stay invisible.', fix: 'Design a connected schema architecture (Organization/LocalBusiness plus Service, FAQ and Review entities) so engines can model your business, not just read a page. This is strategy work, not a one-click plugin.' });
   }
   if (!sig.hasFaq && !sig.schemaTypes.some((t) => /FAQ/i.test(t))) {
-    gaps.push({ title: 'No FAQ content or FAQPage schema', impact: 'ChatGPT, Perplexity and Google AI pull answers from Q&A-shaped content. Without it you rarely get cited.', fix: 'Publish a 6-10 question FAQ written in natural question form and mark it up with FAQPage JSON-LD.' });
-  }
-  if (sig.titleLen === 0 || sig.titleLen > 65) {
-    gaps.push({ title: sig.titleLen ? 'Title tag too long' : 'Missing title tag', impact: 'Weak or missing titles cut click-through and confuse AI crawlers about your core service.', fix: `Write a 50-60 char title leading with your primary ${vertical} service and city.` });
-  }
-  if (sig.metaDescLen === 0 || sig.metaDescLen > 165) {
-    gaps.push({ title: sig.metaDescLen ? 'Meta description too long' : 'Missing meta description', impact: 'Search and AI snippets fall back to random page text, lowering relevance.', fix: 'Add a 140-160 char meta description naming the service, location and a reason to choose you.' });
-  }
-  if (sig.h1Count !== 1) {
-    gaps.push({ title: sig.h1Count === 0 ? 'No H1 heading' : 'Multiple H1 headings', impact: 'Unclear page hierarchy makes it harder for AI to extract the main topic.', fix: 'Use exactly one descriptive H1 that states the service and city.' });
+    gaps.push({ tier: 'hard', title: 'No answer-engine (AEO) content strategy', impact: 'ChatGPT, Perplexity and Google AI cite Q&A-shaped, intent-matched content. Without an AEO content layer you are not in the consideration set when buyers ask AI for a recommendation.', fix: 'Build a researched AEO content program: map the questions buyers actually ask AI in your vertical, then publish authoritative answer pages with FAQPage structure that engines quote. Requires query research and editorial judgement.' });
   }
   if (sig.textLen < 1800) {
-    gaps.push({ title: 'Thin page content', impact: 'AI engines favour pages with depth they can quote. Thin pages get passed over for cited sources.', fix: 'Expand to 800+ words of genuinely useful, specific content. The Engine can draft foundational pages from scratch.' });
+    gaps.push({ tier: 'hard', title: 'Insufficient topical authority / content depth', impact: 'Engines favour sources with demonstrated depth on a topic. A thin footprint means you lose citations to deeper competitors even when you are the better business.', fix: 'Develop a topical authority plan: a hub-and-spoke content map that covers your service area and expertise comprehensively enough for engines to treat you as a primary source. Strategic content architecture, not a single page.' });
   }
-  if (!sig.hasReviews) {
-    gaps.push({ title: 'No visible reviews or rating signals', impact: 'Trust signals heavily influence whether AI recommends you over competitors.', fix: 'Surface reviews on-page and add AggregateRating schema. Start gathering reviews from new customers via SMS, then seed reputation content.' });
+  if (!sig.hasReviews || !sig.schemaTypes.some((t) => /AggregateRating|Review/i.test(t))) {
+    gaps.push({ tier: 'hard', title: 'No structured reputation / trust signal system', impact: 'Trust is decisive in whether AI recommends you over a competitor. Without a system that captures and structures reputation, engines have nothing to weigh in your favour.', fix: 'Stand up a reputation pipeline that gathers reviews from new customers and surfaces them with connected Review/AggregateRating schema engines can read. Ongoing system, not a widget.' });
+  }
+  // ── EASY: trivial DIY on-page fixes (withheld from the headline list) ──
+  if (sig.titleLen === 0 || sig.titleLen > 65) {
+    gaps.push({ tier: 'easy', title: sig.titleLen ? 'Title tag too long' : 'Missing title tag', impact: 'Weak or missing titles cut click-through and confuse crawlers about your core service.', fix: `Write a 50-60 char title leading with your primary ${vertical} service and city.` });
+  }
+  if (sig.metaDescLen === 0 || sig.metaDescLen > 165) {
+    gaps.push({ tier: 'easy', title: sig.metaDescLen ? 'Meta description too long' : 'Missing meta description', impact: 'Search and AI snippets fall back to random page text, lowering relevance.', fix: 'Add a 140-160 char meta description naming the service, location and a reason to choose you.' });
+  }
+  if (sig.h1Count !== 1) {
+    gaps.push({ tier: 'easy', title: sig.h1Count === 0 ? 'No H1 heading' : 'Multiple H1 headings', impact: 'Unclear page hierarchy makes it harder for AI to extract the main topic.', fix: 'Use exactly one descriptive H1 that states the service and city.' });
   }
   if (!sig.hasViewport) {
-    gaps.push({ title: 'No mobile viewport tag', impact: 'Mobile-unfriendly pages are demoted in search and AI sourcing.', fix: 'Add <meta name="viewport" content="width=device-width, initial-scale=1">.' });
+    gaps.push({ tier: 'easy', title: 'No mobile viewport tag', impact: 'Mobile-unfriendly pages are demoted in search and AI sourcing.', fix: 'Add <meta name="viewport" content="width=device-width, initial-scale=1">.' });
+  }
+  if (!sig.hasCanonical) {
+    gaps.push({ tier: 'easy', title: 'No canonical tag', impact: 'Without a canonical, duplicate URLs can split your ranking signals.', fix: 'Add <link rel="canonical"> pointing to the preferred URL of each page.' });
   }
   return gaps;
+}
+
+// Back-compat helper: total count of real gaps found across both tiers.
+function heuristicGaps(sig, vertical) {
+  return candidateGaps(sig, vertical);
 }
 
 async function handleScorecard(req, res) {
@@ -283,7 +379,7 @@ async function handleScorecard(req, res) {
     const r = await fetchWithTimeout(u.href, FETCH_TIMEOUT_MS, {
       redirect: 'follow',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 VyrrahGEO/1.0',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 VyrrahBeacon/1.0',
         'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9'
       }
     });
@@ -293,9 +389,21 @@ async function handleScorecard(req, res) {
 
   const sig = inspectHtml(html);
   const vertical = inferVertical((sig.title + ' ' + sig.metaDesc) || u.hostname);
-  const baseBreakdown = heuristicBreakdown(sig);
-  const baseGaps = heuristicGaps(sig, vertical);
-  const coldStart = !fetchOk || sig.textLen < 400;
+  const auth = domainAuthority(u.hostname);
+  const baseBreakdown = heuristicBreakdown(sig, auth);
+  const candGaps = candidateGaps(sig, vertical);
+  // Only the HARD gaps are the headline list; total counts every real gap found.
+  const baseHardGaps = candGaps.filter((g) => g.tier === 'hard').map(({ tier, ...g }) => g);
+  const baseGaps = baseHardGaps.length ? baseHardGaps : candGaps.map(({ tier, ...g }) => g);
+  const totalGapsFound = candGaps.length;
+  // A recognized mega-authority is never "cold start" even if the fetch was
+  // blocked (Reddit etc. often refuse bot UAs): the domain is demonstrably
+  // visible, so a cold-start verdict would directly contradict its high score.
+  const coldStart = !auth.recognized && (!fetchOk || sig.textLen < 400);
+
+  // Optional ad-spend value anchor — frames Beacon's $500-750/mo as tiny vs ads.
+  const adSpendRaw = Number(body.adSpend);
+  const adSpend = Number.isFinite(adSpendRaw) && adSpendRaw > 0 ? Math.round(adSpendRaw) : null;
 
   // 2) If an LLM is available, let it assess AEO/GEO readiness and rewrite the
   //    score, gaps, summary and per-engine estimates — anchored to real signals.
@@ -304,21 +412,25 @@ async function handleScorecard(req, res) {
     const system = [
       'You are a Generative Engine Optimization (GEO) and AI-search visibility auditor for local and DTC businesses.',
       'You assess how likely a site is to be CITED by ChatGPT, Perplexity, Claude and Google AI Overviews, plus classic SEO.',
-      'You are given deterministic on-page signals extracted from the HTML. Judge AEO/GEO readiness from them.',
+      'CRITICAL SCORING RULE: the headline score reflects REAL-WORLD search and AI discoverability — how visible and how often cited the site actually is today. Judge that from what YOU know about this domain: its authority, recognition, brand presence, and breadth/depth of content. A hugely visible, authoritative domain (for example reddit.com, wikipedia.org, a major newspaper, a well-known national brand) MUST score HIGH (80-100) even if the fetched page lacks LocalBusiness schema, an FAQ, or visible reviews. Those local-SEO checklist items are NOT what makes a site visible. Do NOT anchor the score to the on-page checklist.',
+      'The on-page signals and the heuristic checklist are provided ONLY to inform the GAPS (what to improve), not to lower the headline score of an obviously-visible site. A thin, brand-new, unknown site with little content should score LOW. A small local business with a modest real site should score MID.',
+      'You are also given a domainAuthority estimate (0-100) and whether the domain is recognized. Treat a high authority/recognized domain as strong evidence of high real visibility.',
       'Voice: confident, plain, second person ("your site"). Short sentences. No em dashes or en dashes. Never use: unlock, elevate, supercharge, seamless, leverage, transform, journey, delve, empower, revolutionize.',
       'Return JSON with EXACTLY these keys:',
-      'score (int 0-100 overall AI-visibility score),',
+      'score (int 0-100 overall real AI/search-visibility score, judged as described above),',
       'breakdown {seo,aeo,schema,content,reviews} (each int 0-100),',
       'aiVisibility {chatgpt,perplexity,google} (each int 0-100, your estimate of current citation likelihood per engine),',
-      'gaps (array of 3-6 objects {title,impact,fix}, ranked most-impactful first, specific to the signals),',
-      'summary (2-3 sentences, the headline verdict and the single biggest opportunity).',
-      coldStart ? 'IMPORTANT COLD START: this site has little or no fetchable content. Score honestly low, and make the summary and gaps about GENERATING foundational pages, FAQ and schema from scratch, plus starting to gather reviews from new customers going forward.' : ''
+      'gaps (array of EXACTLY the 3 HARDEST, most expertise-requiring gaps {title,impact,fix} — GEO/AEO strategy, schema architecture, content/topical authority, structured reputation. Do NOT include trivial DIY fixes like "add a meta description", "add a viewport tag", or "fix the H1". Each fix should read as strategic work that needs a specialist, not a checklist item.),',
+      'summary (2-3 sentences, the headline verdict and the single biggest strategic opportunity).',
+      coldStart ? 'IMPORTANT COLD START: this site has little or no fetchable content AND is not a recognized authority. Score honestly low, and make the summary and gaps about GENERATING foundational pages, FAQ and schema from scratch, plus standing up a reputation system going forward.' : ''
     ].join('\n');
     const user = JSON.stringify({
       host: u.hostname, vertical, coldStart,
+      domainAuthority: auth.authority, recognizedAuthority: auth.recognized,
       signals: sig,
       heuristic_breakdown: baseBreakdown,
-      heuristic_gaps: baseGaps.slice(0, 6)
+      note: 'heuristic_hard_gaps are candidate strategic gaps; return only the 3 hardest. Easy on-page fixes are deliberately excluded.',
+      heuristic_hard_gaps: baseHardGaps
     });
     const geminiSchema = {
       type: 'OBJECT',
@@ -345,16 +457,31 @@ async function handleScorecard(req, res) {
   let gaps = (out && Array.isArray(out.gaps) && out.gaps.length)
     ? out.gaps.filter((g) => g && g.title && g.fix).map((g) => ({ title: String(g.title).slice(0, 120), impact: String(g.impact || '').slice(0, 240), fix: String(g.fix || '').slice(0, 280) }))
     : baseGaps;
-  if (!gaps.length) gaps = baseGaps;
-  gaps = gaps.slice(0, 6);
+  if (!gaps.length) gaps = baseGaps.length ? baseGaps : candGaps.map(({ tier, ...g }) => g);
+  // FEWER, HARDER: surface only the top 3 hardest gaps. The full count is exposed
+  // separately so the prospect sees there is more than they would want to DIY.
+  gaps = gaps.slice(0, 3);
   const summary = (out && out.summary) ? String(out.summary).slice(0, 600)
     : (coldStart
-        ? `We could not read much content at ${u.hostname}, so you are close to invisible in AI search today. The fast path is to generate foundational pages, an FAQ and LocalBusiness schema from scratch, then start gathering reviews from new customers. Your AI-visibility score is ${score}/100.`
-        : `${u.hostname} scores ${score}/100 for AI visibility. The biggest lever is ${(gaps[0] && gaps[0].title) || 'adding structured data and answer-shaped content'} so engines like ChatGPT and Perplexity can cite you.`);
+        ? `We could not read much content at ${u.hostname}, so you are close to invisible in AI search today. The fast path is to generate foundational pages, an FAQ and connected schema from scratch, then stand up a reputation system. Your AI-visibility score is ${score}/100.`
+        : `${u.hostname} scores ${score}/100 for AI visibility. The biggest lever right now is ${((gaps[0] && gaps[0].title) || 'building schema architecture and answer-shaped content').charAt(0).toLowerCase() + ((gaps[0] && gaps[0].title) || 'building schema architecture and answer-shaped content').slice(1)}, so engines like ChatGPT and Perplexity cite you more often.`);
+
+  // AD-SPEND VALUE ANCHOR (optional). Frames $500-750/mo Beacon vs rented ad traffic.
+  let valueAnchor = null;
+  if (adSpend) {
+    const annualAdSpend = adSpend * 12;
+    const fmt = (n) => '$' + n.toLocaleString('en-US');
+    valueAnchor = {
+      annualAdSpend,
+      monthlyAdSpend: adSpend,
+      message: `You spend ${fmt(annualAdSpend)} a year renting traffic through ads. The moment you stop paying, that traffic stops. Beacon earns you traffic you OWN, citations and rankings that keep working, for a fraction of that at around $500 to $750 a month. If you can grow on ${fmt(adSpend)}/mo of rented clicks, imagine what owning the same visibility does to your numbers.`
+    };
+  }
 
   return res.status(200).json({
-    score, breakdown, gaps, aiVisibility, summary,
-    meta: { url: u.href, host: u.hostname, vertical, coldStart, fetched: fetchOk, mock: !out, signals: sig }
+    score, breakdown, gaps, totalGapsFound, aiVisibility, summary,
+    valueAnchor,
+    meta: { url: u.href, host: u.hostname, vertical, coldStart, fetched: fetchOk, mock: !out, domainAuthority: auth.authority, recognizedAuthority: auth.recognized, signals: sig }
   });
 }
 
@@ -374,7 +501,7 @@ function buildSchemaFor(type, { topic, host, vertical }) {
   if (type === 'landing') {
     return {
       ...base, '@type': 'LocalBusiness', name: topic || `Your ${vertical} business`,
-      description: `Foundational ${vertical} landing page generated by Vyrrah GEO.`,
+      description: `Foundational ${vertical} landing page generated by Vyrrah Beacon.`,
       url, areaServed: 'Local service area',
       aggregateRating: { '@type': 'AggregateRating', ratingValue: '5.0', reviewCount: '1', description: 'Reputation gathering in progress for this new business.' }
     };

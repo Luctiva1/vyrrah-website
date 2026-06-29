@@ -58,6 +58,12 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 .scan-form .ig .pre{padding:0 0 0 18px;color:var(--gray);font-size:15px;white-space:nowrap}
 .scan-form input{flex:1;background:transparent;border:none;color:var(--white);font-family:'DM Sans',sans-serif;font-size:15px;padding:17px 18px 17px 6px;outline:none;min-width:0}
 .scan-form input::placeholder{color:var(--gray)}
+.ig-spend{display:flex;align-items:center;background:var(--bg);border:1px solid var(--border2);transition:border-color .2s;margin-top:12px;min-width:0}
+.ig-spend:focus-within{border-color:var(--gold)}
+.ig-spend .pre{padding:0 0 0 18px;color:var(--gray);font-size:15px;white-space:nowrap}
+.ig-spend .suf{padding:0 18px 0 0;color:var(--gray);font-size:13px;white-space:nowrap}
+.ig-spend input{flex:1;background:transparent;border:none;color:var(--white);font-family:'DM Sans',sans-serif;font-size:15px;padding:15px 12px 15px 6px;outline:none;min-width:0}
+.ig-spend input::placeholder{color:var(--gray)}
 .scan-btn{background:var(--red);color:#fff;font-size:15px;font-weight:600;padding:17px 32px;border:none;display:inline-flex;align-items:center;gap:10px;position:relative;overflow:hidden;transition:transform .25s var(--ease),box-shadow .25s;white-space:nowrap}
 .scan-btn>*{position:relative;z-index:2}
 .scan-btn::before{content:'';position:absolute;inset:0;background:var(--red2);transform:translateX(-101%);transition:transform .35s var(--ease);z-index:1}
@@ -104,6 +110,23 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 .score-verdict p b{color:var(--white);font-weight:500}
 @media(max-width:640px){.score-block{grid-template-columns:1fr;gap:24px;justify-items:center;text-align:center}.score-verdict p{margin:0 auto}}
 
+/* VALUE ANCHOR */
+.value-anchor{display:none;margin-top:28px;border:1px solid rgba(240,165,0,.32);background:linear-gradient(180deg,rgba(240,165,0,.07),rgba(200,37,30,.04));padding:26px 28px;position:relative;overflow:hidden}
+.value-anchor::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gold)}
+.value-anchor .va-lab{font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:14px;font-weight:600}
+.va-figs{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px}
+.va-fig{min-width:0}
+.va-fig .vn{font-family:'Syne',sans-serif;font-size:clamp(26px,4vw,40px);font-weight:800;letter-spacing:-1.5px;line-height:1;font-variant-numeric:tabular-nums}
+.va-fig.spend .vn{color:var(--red2)}
+.va-fig.tool .vn{color:var(--gold)}
+.va-fig .vc{font-size:12.5px;color:var(--mid);margin-top:8px;line-height:1.45}
+.va-fig .vc b{color:var(--white);font-weight:500}
+.va-vs{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:1px;color:var(--gray);text-transform:uppercase;flex-shrink:0}
+.va-line{font-size:15px;color:var(--white);line-height:1.6;margin-top:20px;padding-top:18px;border-top:1px solid var(--border)}
+.va-line b{color:var(--gold);font-weight:600}
+.va-line em{font-style:italic;color:var(--gold)}
+@media(max-width:560px){.va-figs{grid-template-columns:1fr;gap:14px;text-align:center}.va-vs{margin:0 auto}}
+
 /* AI ENGINES REVEAL */
 .aivis{padding:30px 0;border-bottom:1px solid var(--border)}
 .sect-lab{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);margin-bottom:18px}
@@ -136,6 +159,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 .gap .imp.med{color:var(--gold);border-color:rgba(240,165,0,.4)}
 .gap .fix{font-size:14px;color:var(--mid);line-height:1.65}
 .gap .fix b{color:var(--white);font-weight:500}
+.gaps-more{display:none;margin-top:24px;padding:18px 22px;border:1px dashed rgba(240,165,0,.4);background:rgba(240,165,0,.04);font-size:14.5px;color:var(--mid);line-height:1.6}
+.gaps-more b{color:var(--gold);font-weight:600}
+.gaps-more .locked{display:inline-flex;align-items:center;gap:7px;color:var(--white);font-weight:500}
+.gaps-more .locked::before{content:'';width:11px;height:9px;border:1.5px solid var(--gold);border-radius:2px;position:relative;top:1px}
 
 /* CTA */
 .result-cta{margin-top:8px;background:linear-gradient(180deg,rgba(240,165,0,.06),transparent);border:1px solid rgba(240,165,0,.3);padding:34px 32px;text-align:center}
@@ -165,7 +192,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 
 <nav>
   <a class="nlt" href="/">Vyrrah<span>.</span>Labs</a>
-  <a class="nback" href="/flyrank">← Vyrrah GEO</a>
+  <a class="nback" href="/beacon">← Vyrrah Beacon</a>
 </nav>
 
 <div class="wrap">
@@ -184,7 +211,12 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
           </div>
           <button class="scan-btn" type="submit" id="scanBtn"><span>Scan my site</span><span>→</span></button>
         </form>
-        <p class="hint">We scan your live site. <b>No signup, no card</b> — your score is on screen in about a minute.</p>
+        <div class="ig ig-spend">
+          <span class="pre">$</span>
+          <input id="adSpendInput" type="text" inputmode="numeric" placeholder="Monthly ad spend (Google / Meta)" aria-label="Your monthly ad spend in dollars">
+          <span class="suf">/mo</span>
+        </div>
+        <p class="hint">We scan your live site. <b>No signup, no card</b> — your score is on screen in about a minute. The ad-spend figure tailors what your AI-visibility gap is costing you.</p>
         <div class="err" id="formErr"></div>
 
         <!-- SCANNING -->
@@ -222,6 +254,23 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       </div>
     </div>
 
+    <!-- VALUE ANCHOR -->
+    <div class="value-anchor" id="valueAnchor">
+      <div class="va-lab">What this gap is costing you</div>
+      <div class="va-figs">
+        <div class="va-fig spend">
+          <div class="vn" id="vaSpend">—</div>
+          <div class="vc" id="vaSpendCap">You spend this on ads <b>every month</b></div>
+        </div>
+        <div class="va-vs">vs</div>
+        <div class="va-fig tool">
+          <div class="vn" id="vaTool">$500–750<span style="font-size:14px;font-weight:400;color:var(--gray)">/mo</span></div>
+          <div class="vc">All of Vyrrah Beacon — content, schema &amp; citation tracking</div>
+        </div>
+      </div>
+      <div class="va-line" id="vaLine"></div>
+    </div>
+
     <!-- AI ENGINE VISIBILITY -->
     <div class="aivis">
       <div class="sect-lab">Where you show up across AI engines</div>
@@ -239,15 +288,16 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       <div class="sect-lab">Biggest gaps — ranked by impact</div>
       <div class="lede">Fix these and your AI visibility climbs the fastest.</div>
       <div id="gaps"></div>
+      <div class="gaps-more" id="gapsMore"></div>
     </div>
 
     <!-- CTA -->
     <div class="result-cta">
-      <h3>Want this <em>fixed</em> — automatically?</h3>
-      <p>The Vyrrah GEO engine generates the content, writes the schema and tracks your citations until you're the one AI recommends. <b>From $500/mo. 3X reach in 90 days or money back.</b></p>
+      <h3>Want this <em>fixed</em> automatically?</h3>
+      <p>The Vyrrah Beacon engine generates the content, writes the schema and tracks your citations until you're the one AI recommends. <b>From $500/mo. 3X reach in 90 days or money back.</b></p>
       <div class="cta-btns">
         <a class="btnr" href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener"><span>Start the engine</span><span>→</span></a>
-        <a class="btng" href="/flyrank">See how it works</a>
+        <a class="btng" href="/beacon">See how it works</a>
       </div>
     </div>
     <button class="rescan" id="rescan" type="button">← Scan a different site</button>
@@ -258,6 +308,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 (function(){
   var form = document.getElementById('scanForm');
   var urlInput = document.getElementById('urlInput');
+  var adSpendInput = document.getElementById('adSpendInput');
   var scanBtn = document.getElementById('scanBtn');
   var scanning = document.getElementById('scanning');
   var formErr = document.getElementById('formErr');
@@ -333,18 +384,64 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     });
   }
 
-  function renderGaps(gaps){
+  function renderGaps(gaps, totalGapsFound){
     gaps = (gaps && gaps.length) ? gaps : [];
+    var moreEl = document.getElementById('gapsMore');
+    moreEl.style.display = 'none';
+    moreEl.innerHTML = '';
     if(!gaps.length){
       document.getElementById('gaps').innerHTML = '<div class="gap"><div class="gh"><b>No critical gaps flagged</b></div><div class="fix">Solid foundation — now it’s about pulling ahead. The engine compounds the lead.</div></div>';
       return;
     }
-    document.getElementById('gaps').innerHTML = gaps.slice(0,5).map(function(g,idx){
+    // Show only the top 3 gaps — withhold the rest as a reason to book a call.
+    var shown = gaps.slice(0, 3);
+    document.getElementById('gaps').innerHTML = shown.map(function(g,idx){
       var med = idx >= 2 ? ' med' : '';
       var imp = g.impact ? esc(g.impact) : (idx < 2 ? 'High impact' : 'Medium impact');
       return '<div class="gap"><div class="gh"><b>'+esc(g.title||'Gap')+'</b><span class="imp'+med+'">'+imp+'</span></div>'+
         '<div class="fix"><b>Fix:</b> '+esc(g.fix||'Generate and optimize this with the engine.')+'</div></div>';
     }).join('');
+
+    // How many gaps did the audit actually find? Prefer the API count; fall back to returned array length.
+    var total = Number(totalGapsFound);
+    if(!Number.isFinite(total) || total < gaps.length) total = gaps.length;
+    var remaining = total - shown.length;
+    if(remaining > 0){
+      moreEl.innerHTML = '<span class="locked">+ '+remaining+' more visibility gap'+(remaining===1?'':'s')+' found</span> — '+
+        '<b>book a call to see the full roadmap.</b>';
+      moreEl.style.display = 'block';
+    }
+  }
+
+  function fmtMoney(n){
+    n = Math.round(Number(n)||0);
+    return '$' + n.toLocaleString('en-US');
+  }
+
+  function renderValueAnchor(data){
+    var box = document.getElementById('valueAnchor');
+    var va = data.valueAnchor;
+    var spend = Number(data.adSpend != null ? data.adSpend : (va && va.adSpend));
+    // Only show the anchor when we have a real ad-spend figure to anchor against.
+    if(!Number.isFinite(spend) || spend <= 0){ box.style.display = 'none'; return; }
+
+    document.getElementById('vaSpend').textContent = fmtMoney(spend);
+    document.getElementById('vaSpendCap').innerHTML = 'You spend this on ads <b>every month</b>';
+
+    // Prefer the API-provided framing line; otherwise build the "grow on that budget?" close ourselves.
+    var line = '';
+    if(va && typeof va === 'object' && va.line){ line = String(va.line); }
+    else if(typeof va === 'string' && va.trim()){ line = va; }
+    if(line){
+      document.getElementById('vaLine').innerHTML = esc(line)
+        .replace(/\$[\d,]+(?:\.\d+)?/g, function(m){ return '<b>'+m+'</b>'; });
+    } else {
+      var ratio = Math.max(1, Math.round(spend / 625));
+      document.getElementById('vaLine').innerHTML =
+        'You pour <b>'+fmtMoney(spend)+'/mo</b> into ads to rent attention. That is about <b>'+ratio+'×</b> what Vyrrah Beacon costs. ' +
+        'AI search is where buyers now decide, and you are <em>invisible</em> there. Can you really afford <b>not</b> to grow on that budget?';
+    }
+    box.style.display = 'block';
   }
 
   function setVerdict(score, summary){
@@ -369,9 +466,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
   function showResult(data){
     var score = clr(data.score);
     setVerdict(score, data.summary);
+    renderValueAnchor(data);
     renderEngines(data.aiVisibility);
     renderBreakdown(data.breakdown);
-    renderGaps(data.gaps);
+    renderGaps(data.gaps, data.totalGapsFound);
     lead.style.display = 'none';
     result.style.display = 'block';
     window.scrollTo({top:0, behavior:'smooth'});
@@ -392,6 +490,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       formErr.style.display = 'block';
       return;
     }
+    // Parse monthly ad spend (digits only) — optional, anchors the price framing.
+    var adSpend = parseInt(String(adSpendInput.value || '').replace(/[^0-9]/g, ''), 10);
+    if(!Number.isFinite(adSpend) || adSpend <= 0) adSpend = null;
+
     scanBtn.disabled = true; scanBtn.querySelector('span').textContent = 'Scanning…';
     var animDone = false, dataReady = null, dataErr = null;
 
@@ -402,7 +504,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     });
 
     fetch('/api/geo?path=scorecard', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: url })
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: url, adSpend: adSpend })
     })
       .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
       .then(function(res){
@@ -412,7 +514,12 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       })
       .catch(function(err){ dataErr = err; if(animDone) finishErr(err); });
 
-    function finishOk(d){ resetSteps(); resetBtn(); showResult(d); }
+    function finishOk(d){
+      resetSteps(); resetBtn();
+      // Ensure the entered ad spend is available to the value anchor even if the API does not echo it back.
+      if(adSpend != null && (d.adSpend == null)) d.adSpend = adSpend;
+      showResult(d);
+    }
     function finishErr(err){
       resetSteps(); resetBtn();
       formErr.textContent = 'Could not scan that site right now — try again in a moment.';
@@ -425,6 +532,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     result.style.display = 'none';
     lead.style.display = 'block';
     urlInput.value = '';
+    adSpendInput.value = '';
     window.scrollTo({top:0, behavior:'smooth'});
     urlInput.focus();
   });
