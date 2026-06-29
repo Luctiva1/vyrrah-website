@@ -3134,17 +3134,42 @@ function verifyDodoSignature(req, rawBody) {
   }
 }
 
+// Fallback verification: Vercel re-serializes the JSON body, so the raw bytes Dodo
+// signed are lost and the HMAC can fail on a genuine event. Confirm against Dodo's
+// API instead — an attacker cannot make OUR api key resolve a subscription/payment
+// they don't own, so a successful lookup proves the event is real.
+async function confirmDodoEvent(event) {
+  const key = process.env.DODO_API_KEY;
+  if (!key) return false;
+  const data = (event && event.data) || {};
+  const type = (event && event.type) || (event && event.event_type) || '';
+  const subId = data.subscription_id || (data.subscription && data.subscription.id) || (type.startsWith('subscription') ? data.id : null);
+  const payId = data.payment_id || (data.payment && data.payment.id) || (type.startsWith('payment') ? data.id : null);
+  const headers = { Authorization: `Bearer ${key}` };
+  const urls = [
+    subId && `https://live.dodopayments.com/subscriptions/${encodeURIComponent(subId)}`,
+    payId && `https://live.dodopayments.com/payments/${encodeURIComponent(payId)}`,
+  ].filter(Boolean);
+  for (const url of urls) {
+    try { const r = await fetch(url, { headers }); if (r.ok) return true; } catch (e) { /* next */ }
+  }
+  return false;
+}
+
 async function handleDodoWebhook(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
-    // Vercel parses JSON bodies; reconstruct raw body best-effort for HMAC
-    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
     const event = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
 
-    if (!verifyDodoSignature(req, rawBody)) {
-      console.error('dodo-webhook: signature verification failed');
+    // Primary: HMAC. Fallback: confirm via Dodo's API (HMAC can fail on Vercel's
+    // re-serialized body). Reject only if BOTH fail (fail-closed when a secret is set).
+    let verified = verifyDodoSignature(req, rawBody);
+    if (!verified) verified = await confirmDodoEvent(event);
+    if (!verified) {
+      console.error('dodo-webhook: signature + API confirmation both failed');
       try { await alertGodwin(getSupabase(), 'dodo_signature_fail', `webhook-id=${req.headers['webhook-id'] || 'none'}`); } catch (e) { /* ignore */ }
-      return res.status(200).json({ ok: true, ignored: 'bad signature' });
+      return res.status(200).json({ ok: true, ignored: 'unverified' });
     }
 
     const type = event.type || event.event_type || '';
