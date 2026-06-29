@@ -42,16 +42,20 @@
       "dest": "/case-production.html"
     },
     {
+      "src": "/vrank",
+      "dest": "/vrank.html"
+    },
+    {
       "src": "/beacon",
-      "dest": "/beacon.html"
+      "dest": "/vrank.html"
     },
     {
       "src": "/flyrank",
-      "dest": "/beacon.html"
+      "dest": "/vrank.html"
     },
     {
       "src": "/tool",
-      "dest": "/beacon.html"
+      "dest": "/vrank.html"
     },
     {
       "src": "/scorecard",
