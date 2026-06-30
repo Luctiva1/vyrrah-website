@@ -173,11 +173,22 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
   </div>
 </div>
 
+<div class="logingate" id="lockedGate" style="display:none">
+  <div class="loginbox">
+    <div class="loginmark">V-RANK<span style="color:var(--red)">.</span> · COMMAND</div>
+    <div class="loginh" id="lockedMsg">Your free trial has ended</div>
+    <div class="loginhint" style="margin-bottom:10px">Upgrade to keep your AI-visibility dashboard, content engine and weekly reports running. Cancel anytime.</div>
+    <button class="btn gold" id="upgradeBtn" type="button">Upgrade — $500/mo</button>
+    <button class="btn ghost" id="lockedSignout" type="button">Sign out</button>
+  </div>
+</div>
+
 <div class="wrap" id="app" style="display:none">
   <div class="top">
     <div class="wordmark">V-RANK<span class="dot">.</span> · COMMAND</div>
     <div class="toolbar">
       <span class="refresh" id="refresh">—</span>
+      <button class="btn gold" id="topUpgradeBtn" type="button" style="display:none">Upgrade — $500/mo</button>
       <button class="btn ghost" id="switchBtn">Sign out</button>
       <button class="btn gold" id="refreshBtn">Refresh</button>
     </div>
@@ -248,7 +259,7 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     <div class="rsum" id="reportSummary"></div>
     <div class="rnote" id="reportNote"></div>
     <div class="ractions">
-      <button class="btn gold" id="emailReportBtn" type="button">Email me this report</button>
+      <button class="btn gold" id="emailReportBtn" type="button">Save / print this report</button>
       <a class="btn ghost" href="/vrank">What's next →</a>
     </div>
   </div>
@@ -415,20 +426,13 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
 
     var items = pipe.items || d.contentPipeline || [];
     var box = document.getElementById('pipeItems');
+    var pmock = !!(d.meta && d.meta.mock);
     if(!items.length){
-      // synth a believable pipeline from counts so the dashboard always reads as alive
-      items = [];
-      var sample = [
-        ['Emergency water damage — 24/7 guide','Article'],
-        ['Mold remediation: cost & process','Landing page'],
-        ['Best restoration companies near you','Listicle'],
-        ['Service-area schema (JSON-LD)','Schema']
-      ];
-      for(var i=0;i<Math.min(4, Math.max(live+review+draft,1));i++){
-        var st = i < live ? 'live' : (i < live+review ? 'review' : 'draft');
-        var s = sample[i % sample.length];
-        items.push({ title:s[0], type:s[1], status:st });
-      }
+      // Never fabricate specific content items as if real work happened.
+      box.innerHTML = '<div class="empty">'+(pmock
+        ? 'Your content pipeline appears here as the engine publishes pages during your trial.'
+        : 'No content in the pipeline yet — items appear here as the engine generates and publishes them.')+'</div>';
+      return;
     }
     box.innerHTML = items.slice(0,5).map(function(it){
       var st = (it.status||'draft').toLowerCase();
@@ -470,6 +474,8 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     var mock = !!(d.meta && d.meta.mock);
     var sb = document.getElementById('sampleBanner'); if(sb) sb.style.display = mock ? 'block' : 'none';
     var ct = document.getElementById('citeTag'); if(ct) ct.textContent = mock ? 'Sample' : 'Real-time';
+    var _st = d.meta && d.meta.status;
+    var _tu = document.getElementById('topUpgradeBtn'); if(_tu) _tu.style.display = (_st === 'trial') ? 'inline-flex' : 'none';
     if(d.name || d.client_name){ document.getElementById('title').textContent = (d.name||d.client_name); }
     document.getElementById('subline').innerHTML = 'AI-search growth for <b>'+esc(d.name||d.client_name||clientId)+'</b> · half the price, fully accountable.';
     var score = clr(d.score);
@@ -511,6 +517,10 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     fetch(req.url, { headers: req.headers })
       .then(function(r){ return r.json().then(function(d){ return { ok:r.ok, status:r.status, d:d }; }); })
       .then(function(res){
+        if(res.status === 402 || (res.d && res.d.locked)){
+          showLocked((res.d && res.d.error) || 'Your access has ended.');
+          return;
+        }
         if(res.status === 401 || res.status === 403){
           // Stale / invalid session → drop it and show the login.
           if(!adminClientId) clearSession();
@@ -580,9 +590,28 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
   });
   document.getElementById('refreshBtn').addEventListener('click', load);
   document.getElementById('emailReportBtn').addEventListener('click', function(){
-    var b = this; b.disabled = true; b.textContent = 'Sent ✓';
-    setTimeout(function(){ b.disabled = false; b.textContent = 'Email me this report'; }, 2200);
+    window.print();
   });
+
+  function doUpgrade(){
+    var jwt = getJwt(), magic = getMagic();
+    var url = '/api/geo?path=checkout', headers = {};
+    if(jwt) headers['Authorization'] = 'Bearer ' + jwt;
+    else if(magic) url += '&token=' + encodeURIComponent(magic);
+    fetch(url, { headers: headers }).then(function(r){ return r.json(); }).then(function(d){
+      if(d && d.checkout_url){ window.location.href = d.checkout_url; }
+      else { alert(d && d.error ? d.error : 'Checkout is being set up — contact Godwin to activate your plan.'); }
+    }).catch(function(){ alert('Could not start checkout. Please try again.'); });
+  }
+  function showLocked(msg){
+    hideGate();
+    var app = document.getElementById('app'); if(app) app.style.display = 'none';
+    var lg = document.getElementById('lockedGate'); if(lg) lg.style.display = 'flex';
+    var lm = document.getElementById('lockedMsg'); if(lm && msg) lm.textContent = msg;
+  }
+  var _ub = document.getElementById('upgradeBtn'); if(_ub) _ub.addEventListener('click', doUpgrade);
+  var _tub = document.getElementById('topUpgradeBtn'); if(_tub) _tub.addEventListener('click', doUpgrade);
+  var _ls = document.getElementById('lockedSignout'); if(_ls) _ls.addEventListener('click', function(){ clearSession(); location.reload(); });
 
   if(hasSession()) load(); else showGate();
   setInterval(function(){ if(hasSession() && document.getElementById('app').style.display !== 'none') load(); }, 60000);

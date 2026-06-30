@@ -67,7 +67,8 @@ async function handleAuthMagic(req, res) {
   const { data: rows } = await supabase.from('tool_clients').select('*').ilike('owner_email', String(email).trim()).limit(1);
   const client = rows && rows[0];
   if (client && client.owner_email && client.magic_token) {
-    const link = `${PUBLIC_BASE}/recover?token=${encodeURIComponent(client.magic_token)}`;
+    const dest = client.plan === 'vrank' ? '/dashboard' : '/recover';
+    const link = `${PUBLIC_BASE}${dest}?token=${encodeURIComponent(client.magic_token)}`;
     try {
       await sendEmail({
         to: client.owner_email, toName: client.owner_name,
@@ -2756,6 +2757,7 @@ async function handleCronFlush(req, res) {
         .eq('status', 'trial');
       for (const client of trials || []) {
         try {
+          if (client.plan === 'vrank') continue; // V-Rank trials have their own lifecycle; never send Recaller (missed-call) emails
           if (!client.trial_started_at) continue;
           const days = Math.floor((Date.now() - new Date(client.trial_started_at).getTime()) / 86400000);
 
@@ -3451,6 +3453,7 @@ async function handleAdminOverview(req, res) {
     const DAY = 24 * 60 * 60 * 1000;
     const out = [];
     for (const c of clients || []) {
+      if (c.plan === 'vrank') continue; // V-Rank clients live in the V-Rank console, not the Recaller overview/MRR
       let s7 = null, s30 = null;
       try { s7 = await computeStats(supabase, c.id, 7); } catch (e) { console.error('overview s7', c.id, e); }
       try { s30 = await computeStats(supabase, c.id, 30); } catch (e) { console.error('overview s30', c.id, e); }
