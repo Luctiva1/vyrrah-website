@@ -11,6 +11,16 @@ function notFound(res) {
   return res.status(404).json({ error: 'Route not found' });
 }
 
+// Verify an inbound Twilio webhook signature. Returns true/false; never throws.
+// Callers reject (403) only when STRICT_TWILIO=1, so default stays warn-and-continue.
+function checkTwilioSignature(req, label) {
+  const sig = req.headers['x-twilio-signature'];
+  const url = `https://${req.headers.host}${req.url}`;
+  const ok = twilio.validateRequest(process.env.TWILIO_AUTH_TOKEN, sig, url, req.body || {});
+  if (!ok) console.warn(`Invalid Twilio signature on ${label} webhook`);
+  return ok;
+}
+
 async function sendEmail({ to, toName, subject, body, leadId }) {
   const apiKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'godwin@vyrrahlabs.com';
@@ -537,15 +547,8 @@ async function handleCallById(req, res, id) {
 async function handleWebhookSms(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const twilioSignature = req.headers['x-twilio-signature'];
-  const url = `https://${req.headers.host}${req.url}`;
-  const params = req.body || {};
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-
-  if (!twilio.validateRequest(authToken, twilioSignature, url, params)) {
-    console.warn('Invalid Twilio signature on SMS webhook');
-    // In production, uncomment the next line:
-    // return res.status(403).end();
+  if (!checkTwilioSignature(req, 'SMS') && process.env.STRICT_TWILIO === '1') {
+    return res.status(403).end();
   }
 
   const { From: from, Body: body, MessageSid: messageSid } = req.body;
@@ -609,15 +612,8 @@ async function handleWebhookVoice(req, res) {
 
   const FORWARD_TO = process.env.FORWARD_TO_MOBILE || '+918778974646';
 
-  const twilioSignature = req.headers['x-twilio-signature'];
-  const url = `https://${req.headers.host}${req.url}`;
-  const params = req.body || {};
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-
-  if (!twilio.validateRequest(authToken, twilioSignature, url, params)) {
-    console.warn('Invalid Twilio signature on voice webhook');
-    // In production, uncomment the next line:
-    // return res.status(403).end();
+  if (!checkTwilioSignature(req, 'voice') && process.env.STRICT_TWILIO === '1') {
+    return res.status(403).end();
   }
 
   const { From: from, CallSid: callSid, Direction: direction } = req.body;
@@ -666,15 +662,8 @@ async function handleWebhookVoice(req, res) {
 async function handleWebhookStatus(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const twilioSignature = req.headers['x-twilio-signature'];
-  const url = `https://${req.headers.host}${req.url}`;
-  const params = req.body || {};
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-
-  if (!twilio.validateRequest(authToken, twilioSignature, url, params)) {
-    console.warn('Invalid Twilio signature on status webhook');
-    // In production, uncomment the next line:
-    // return res.status(403).end();
+  if (!checkTwilioSignature(req, 'status') && process.env.STRICT_TWILIO === '1') {
+    return res.status(403).end();
   }
 
   const { CallSid: callSid, CallStatus: callStatus, CallDuration: callDuration } = req.body;
@@ -711,15 +700,8 @@ async function handleWebhookStatus(req, res) {
 async function handleWebhookRecording(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const twilioSignature = req.headers['x-twilio-signature'];
-  const url = `https://${req.headers.host}${req.url}`;
-  const params = req.body || {};
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-
-  if (!twilio.validateRequest(authToken, twilioSignature, url, params)) {
-    console.warn('Invalid Twilio signature on recording webhook');
-    // In production, uncomment the next line:
-    // return res.status(403).end();
+  if (!checkTwilioSignature(req, 'recording') && process.env.STRICT_TWILIO === '1') {
+    return res.status(403).end();
   }
 
   const {
