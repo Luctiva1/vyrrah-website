@@ -504,11 +504,12 @@ async function handleCallById(req, res, id) {
   try {
     if (!id) return res.status(400).json({ error: 'id required' });
 
-    const { outcome, notes, duration_seconds } = req.body;
+    const { outcome, notes, duration_seconds, call_sid } = req.body;
     const updates = {};
     if (outcome !== undefined) updates.outcome = outcome;
     if (notes !== undefined) updates.notes = notes;
     if (duration_seconds !== undefined) updates.duration_seconds = duration_seconds;
+    if (call_sid !== undefined) updates.call_sid = call_sid;
 
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -1432,6 +1433,119 @@ async function handleCallsBridge(req, res) {
   return res.status(200).send(twiml.toString());
 }
 
+// ─── Softphone / power-dialer (Twilio Voice SDK) ─────────────────────────────
+
+// Mint an AccessToken so the browser dialer can place calls through a headset
+// (no phone-ringing-first leg). Needs a Standard API Key + a TwiML App SID.
+async function handleVoiceToken(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const AccessToken = twilio.jwt.AccessToken;
+    const VoiceGrant = AccessToken.VoiceGrant;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const apiKey = process.env.TWILIO_API_KEY;
+    const apiSecret = process.env.TWILIO_API_SECRET;
+    const appSid = process.env.TWILIO_TWIML_APP_SID;
+    if (!apiKey || !apiSecret || !appSid) {
+      return res.status(503).json({ error: 'softphone_not_configured',
+        detail: 'Set TWILIO_API_KEY, TWILIO_API_SECRET, TWILIO_TWIML_APP_SID to enable the softphone.' });
+    }
+    const identity = 'agent';
+    const token = new AccessToken(accountSid, apiKey, apiSecret, { identity, ttl: 3600 });
+    token.addGrant(new VoiceGrant({ outgoingApplicationSid: appSid, incomingAllow: false }));
+    return res.status(200).json({ token: token.toJwt(), identity });
+  } catch (err) {
+    console.error('Voice token error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// TwiML the Voice SDK hits when the agent places a call. Dials the lead from
+// the US caller ID, bridges on answer, records (unless CALL_RECORDING=off).
+async function handleVoiceOutbound(req, res) {
+  const to = (req.body && (req.body.To || req.body.to)) || (req.query && req.query.To) || '';
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const twiml = new VoiceResponse();
+  const lead = String(to).replace(/[^\d+]/g, '');
+  if (!lead) {
+    twiml.say({ voice: 'alice' }, 'No number to dial. Goodbye.');
+    twiml.hangup();
+  } else {
+    const baseUrl = process.env.PUBLIC_BASE || 'https://vyrrahlabs.com';
+    const dialAttrs = { callerId: getFromNumber(lead), answerOnBridge: true, timeout: 25,
+      action: `${baseUrl}/api/voice/dial-status`, method: 'POST' };
+    if (process.env.CALL_RECORDING !== 'off') {
+      dialAttrs.record = 'record-from-answer-dual';
+      dialAttrs.recordingStatusCallback = `${baseUrl}/api/webhooks/recording`;
+    }
+    const dial = twiml.dial(dialAttrs);
+    dial.number({ statusCallback: `${baseUrl}/api/webhooks/status`,
+      statusCallbackEvent: 'initiated ringing answered completed', statusCallbackMethod: 'POST' }, lead);
+  }
+  res.setHeader('Content-Type', 'text/xml');
+  return res.status(200).send(twiml.toString());
+}
+
+// When the <Dial> finishes, end the agent leg cleanly.
+async function handleVoiceDialStatus(req, res) {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const t = new VoiceResponse();
+  t.hangup();
+  res.setHeader('Content-Type', 'text/xml');
+  return res.status(200).send(t.toString());
+}
+
+// Log a softphone call up front (opt-out check + calls row) so the UI has a
+// record id for outcome saving. The Twilio call SID is attached later via PUT.
+async function handleDialSdk(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const { to, lead_id } = req.body;
+    if (!to) return res.status(400).json({ error: 'to is required' });
+    const supabase = getSupabase();
+    const { data: optOut } = await supabase.from('opt_outs').select('id').eq('phone', to).maybeSingle();
+    if (optOut) return res.status(400).json({ error: 'This number has opted out' });
+    const { data: callRecord, error } = await supabase.from('calls')
+      .insert([{ lead_id: lead_id || null, phone: to, direction: 'outbound', outcome: null }])
+      .select().single();
+    if (error) console.error('dial-sdk DB log error:', error);
+    if (lead_id) {
+      await supabase.from('leads').update({ status: 'contacted' }).eq('id', lead_id).eq('status', 'new');
+    }
+    return res.status(200).json({ success: true, record_id: callRecord?.id || null });
+  } catch (err) {
+    console.error('dial-sdk error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// Voicemail drop: redirect the lead (child) leg to play a recorded message,
+// freeing the agent to advance. Falls back to TTS if VOICEMAIL_URL is unset.
+async function handleDropVoicemail(req, res) {
+  if (!requireAuth(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const { parent_call_sid } = req.body;
+    if (!parent_call_sid) return res.status(400).json({ error: 'parent_call_sid required' });
+    const client = getTwilio();
+    const VoiceResponse = twilio.twiml.VoiceResponse;
+    const t = new VoiceResponse();
+    if (process.env.VOICEMAIL_URL) t.play(process.env.VOICEMAIL_URL);
+    else t.say({ voice: 'alice' }, "Hi, this is Godwin with Vyrrah Labs. I help restoration companies stop losing jobs to missed calls. I will try you again, or you can reach me through vyrrah labs dot com.");
+    t.hangup();
+    const children = await client.calls.list({ parentCallSid: parent_call_sid, limit: 5 });
+    const live = children.find(c => ['in-progress', 'ringing', 'queued'].includes(c.status)) || children[0];
+    if (!live) return res.status(404).json({ error: 'No live lead leg found to drop into' });
+    await client.calls(live.sid).update({ twiml: t.toString() });
+    return res.status(200).json({ success: true, dropped_into: live.sid });
+  } catch (err) {
+    console.error('VM drop error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
 // ─── Conversations handler ───────────────────────────────────────────────────
 
 async function handleConversationsList(req, res) {
@@ -1536,6 +1650,27 @@ module.exports = async (req, res) => {
   // /api/calls/bridge (TwiML — called by Twilio when Godwin answers)
   if (seg0 === 'calls' && seg1 === 'bridge') {
     return handleCallsBridge(req, res);
+  }
+
+  // /api/calls/dial-sdk (softphone: log call + opt-out check)
+  if (seg0 === 'calls' && seg1 === 'dial-sdk') {
+    return handleDialSdk(req, res);
+  }
+
+  // /api/calls/drop-voicemail (softphone: voicemail drop)
+  if (seg0 === 'calls' && seg1 === 'drop-voicemail') {
+    return handleDropVoicemail(req, res);
+  }
+
+  // /api/voice/token | /api/voice/outbound | /api/voice/dial-status (softphone)
+  if (seg0 === 'voice' && seg1 === 'token') {
+    return handleVoiceToken(req, res);
+  }
+  if (seg0 === 'voice' && seg1 === 'outbound') {
+    return handleVoiceOutbound(req, res);
+  }
+  if (seg0 === 'voice' && seg1 === 'dial-status') {
+    return handleVoiceDialStatus(req, res);
   }
 
   // /api/calls/:id

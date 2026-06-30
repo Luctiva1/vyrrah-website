@@ -529,7 +529,9 @@
     <div class="page" id="page-dialer">
       <div class="page-header">
         <div><h2>Power Dialer</h2><p>Work through your call queue</p></div>
-        <div style="display:flex;gap:8px;align-items:center;">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:12px;color:var(--text-light);" id="sphone-status">Softphone: starting...</span>
+          <label style="font-size:12px;color:var(--text-light);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="autodial-toggle"> Auto-dial</label>
           <span style="font-size:13px;color:var(--text-light);" id="dialer-queue-info">Load contacts to start</span>
           <button class="btn btn-outline btn-sm" id="load-dialer-queue">Load Queue</button>
           <button class="btn btn-danger btn-sm" id="eod-btn">🌙 End of Day</button>
@@ -558,6 +560,7 @@
               <div style="text-align:center;margin-bottom:24px;">
                 <button class="call-btn idle" id="call-btn">📞</button>
                 <div id="call-timer" style="font-size:13px;color:var(--text-light);margin-top:-12px;margin-bottom:8px;"></div>
+                <button class="btn btn-outline btn-sm" id="drop-vm-btn" style="display:none;">📬 Drop Voicemail</button>
               </div>
 
               <div class="outcome-btns" id="outcome-btns">
@@ -856,6 +859,7 @@
   </div>
 </div>
 
+<script src="https://sdk.twilio.com/js/voice/releases/2.12.4/twilio.min.js"></script>
 <script>
 // ── UTILITIES ──
 const API = (path, opts = {}) => {
@@ -1392,6 +1396,8 @@ let currentCallId = null;
 let selectedOutcome = null;
 let callTimerInterval = null;
 let callStartTime = null;
+// Softphone (Twilio Voice SDK) power-dialer state
+let sphone = null, sphoneReady = false, activeConn = null, autoDial = false, sphoneTokenTimer = null;
 
 function startDialFromContacts(leadId, phone) {
   navigateTo('dialer');
@@ -1488,41 +1494,71 @@ function resetCallUI() {
   currentCallId = null;
 }
 
+function startCallTimer() {
+  callStartTime = Date.now();
+  callTimerInterval = setInterval(() => {
+    document.getElementById('call-timer').textContent = fmtDuration(Math.floor((Date.now() - callStartTime) / 1000));
+  }, 1000);
+}
+function setCallUiInCall() {
+  const b = document.getElementById('call-btn');
+  b.className = 'call-btn active'; b.textContent = '📵';
+  enableOutcomeButtons();
+  const vm = document.getElementById('drop-vm-btn'); if (vm) vm.style.display = '';
+}
+function setCallUiIdle() {
+  const b = document.getElementById('call-btn');
+  b.className = 'call-btn idle'; b.textContent = '📞';
+  clearInterval(callTimerInterval);
+  const vm = document.getElementById('drop-vm-btn'); if (vm) vm.style.display = 'none';
+}
+
+// Bridge mode (fallback): rings your phone first, then dials the lead.
+async function startBridgeCall(lead) {
+  const callBtn = document.getElementById('call-btn');
+  callBtn.className = 'call-btn disabled'; callBtn.textContent = '⏳';
+  try {
+    const data = await API('/api/calls/dial', { method: 'POST', body: JSON.stringify({ to: lead.phone, lead_id: lead.id }) });
+    currentCallSid = data.call_sid; currentCallId = data.record?.id;
+    setCallUiInCall(); startCallTimer();
+    toast('Your phone is ringing, pick up to connect to ' + lead.phone, 'info');
+  } catch (err) {
+    toast('Call error: ' + err.message, 'error'); setCallUiIdle();
+  }
+}
+
+// Softphone mode: dials the lead straight from the browser (headset).
+async function startSoftphoneCall(lead) {
+  const callBtn = document.getElementById('call-btn');
+  callBtn.className = 'call-btn disabled'; callBtn.textContent = '⏳';
+  try {
+    const data = await API('/api/calls/dial-sdk', { method: 'POST', body: JSON.stringify({ to: lead.phone, lead_id: lead.id }) });
+    currentCallId = data.record_id;
+    activeConn = await sphone.connect({ params: { To: lead.phone } });
+    activeConn.on('accept', () => {
+      currentCallSid = (activeConn.parameters && activeConn.parameters.CallSid) || null;
+      setCallUiInCall(); startCallTimer();
+    });
+    activeConn.on('disconnect', () => { activeConn = null; setCallUiIdle(); });
+    activeConn.on('error', (e) => { toast('Call error: ' + (e && e.message || e), 'error'); activeConn = null; setCallUiIdle(); });
+    toast('Dialing ' + lead.phone + ' ...', 'info');
+  } catch (err) {
+    toast('Call error: ' + err.message, 'error'); setCallUiIdle();
+  }
+}
+
 document.getElementById('call-btn').addEventListener('click', async () => {
   const lead = dialerQueue[dialerIndex];
   if (!lead) return;
   const callBtn = document.getElementById('call-btn');
   if (callBtn.classList.contains('active')) {
-    // Hang up not directly supported via REST for in-progress, just mark
-    callBtn.className = 'call-btn idle';
-    callBtn.textContent = '📞';
-    clearInterval(callTimerInterval);
-    document.getElementById('call-timer').textContent = '';
-    enableOutcomeButtons();
+    // Hang up
+    if (activeConn) { try { activeConn.disconnect(); } catch (e) {} activeConn = null; }
+    setCallUiIdle(); enableOutcomeButtons();
     return;
   }
-  callBtn.className = 'call-btn disabled';
-  callBtn.textContent = '⏳';
-  try {
-    const data = await API('/api/calls/dial', {
-      method: 'POST',
-      body: JSON.stringify({ to: lead.phone, lead_id: lead.id })
-    });
-    currentCallSid = data.call_sid;
-    currentCallId = data.record?.id;
-    callBtn.className = 'call-btn active';
-    callBtn.textContent = '📵';
-    callStartTime = Date.now();
-    callTimerInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
-      document.getElementById('call-timer').textContent = fmtDuration(elapsed);
-    }, 1000);
-    toast('📞 Your phone is ringing — pick up to connect to ' + lead.phone, 'info');
-  } catch (err) {
-    toast('Call error: ' + err.message, 'error');
-    callBtn.className = 'call-btn idle';
-    callBtn.textContent = '📞';
-  }
+  if (sphoneReady && sphone) return startSoftphoneCall(lead);
+  return startBridgeCall(lead);
 });
 
 function enableOutcomeButtons() {
@@ -1538,7 +1574,7 @@ document.querySelectorAll('.outcome-btn').forEach(btn => {
   });
 });
 
-document.getElementById('save-outcome-btn').addEventListener('click', async () => {
+async function saveOutcomeAndNext() {
   if (!selectedOutcome) return;
   const btn = document.getElementById('save-outcome-btn');
   btn.disabled = true; btn.textContent = 'Saving...';
@@ -1547,16 +1583,63 @@ document.getElementById('save-outcome-btn').addEventListener('click', async () =
       const elapsed = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
       await API(`/api/calls/${currentCallId}`, {
         method: 'PUT',
-        body: JSON.stringify({ outcome: selectedOutcome, notes: document.getElementById('dialer-notes').value, duration_seconds: elapsed })
+        body: JSON.stringify({ outcome: selectedOutcome, notes: document.getElementById('dialer-notes').value, duration_seconds: elapsed, call_sid: currentCallSid || undefined })
       });
     }
     toast('Outcome saved', 'success');
     dialerIndex++;
     loadDialerLead();
     loadCallHistory();
+    // Auto-dial: after a short gap, place the next call automatically
+    if (autoDial && dialerIndex < dialerQueue.length) {
+      setTimeout(() => { if (dialerQueue[dialerIndex]) document.getElementById('call-btn').click(); }, 1500);
+    }
   } catch (err) { toast('Error: ' + err.message, 'error'); }
   btn.disabled = false; btn.textContent = 'Save & Next';
+}
+document.getElementById('save-outcome-btn').addEventListener('click', saveOutcomeAndNext);
+
+// Voicemail drop: play the recorded message into the lead line, then advance.
+document.getElementById('drop-vm-btn')?.addEventListener('click', async () => {
+  if (!currentCallSid) { toast('Wait until the call connects before dropping a voicemail', 'error'); return; }
+  const btn = document.getElementById('drop-vm-btn');
+  btn.disabled = true; btn.textContent = 'Dropping...';
+  try {
+    await API('/api/calls/drop-voicemail', { method: 'POST', body: JSON.stringify({ parent_call_sid: currentCallSid }) });
+    toast('Voicemail dropped', 'success');
+    if (activeConn) { try { activeConn.disconnect(); } catch (e) {} activeConn = null; }
+    setCallUiIdle();
+    selectedOutcome = 'voicemail';
+    await saveOutcomeAndNext();
+  } catch (err) { toast('VM drop failed: ' + err.message, 'error'); }
+  btn.disabled = false; btn.textContent = '📬 Drop Voicemail';
 });
+
+// Auto-dial toggle
+document.getElementById('autodial-toggle')?.addEventListener('change', (e) => { autoDial = e.target.checked; });
+
+// Initialize the browser softphone. Falls back silently to bridge mode if the
+// Voice SDK is missing or the backend isn't configured yet.
+async function initSoftphone() {
+  const badge = document.getElementById('sphone-status');
+  if (!window.Twilio || !window.Twilio.Device) { if (badge) badge.textContent = 'Softphone: SDK unavailable (phone bridge)'; return; }
+  try {
+    const data = await API('/api/voice/token');
+    if (!data || !data.token) throw new Error('no token');
+    if (sphone) { try { sphone.destroy(); } catch (e) {} }
+    sphone = new window.Twilio.Device(data.token, { codecPreferences: ['opus', 'pcmu'], logLevel: 'error' });
+    sphone.on('registered', () => { sphoneReady = true; if (badge) { badge.textContent = '🎧 Softphone ready'; badge.style.color = '#2a9d8f'; } });
+    sphone.on('unregistered', () => { sphoneReady = false; });
+    sphone.on('error', (e) => { console.warn('Softphone error', e); if (badge) badge.textContent = 'Softphone: error (phone bridge)'; });
+    await sphone.register();
+    clearTimeout(sphoneTokenTimer);
+    sphoneTokenTimer = setTimeout(initSoftphone, 50 * 60 * 1000);
+  } catch (err) {
+    sphoneReady = false;
+    const notConfigured = err && err.message && err.message.indexOf('softphone_not_configured') !== -1;
+    if (badge) badge.textContent = notConfigured ? 'Softphone: not configured (phone bridge)' : 'Softphone: offline (phone bridge)';
+  }
+}
 
 document.getElementById('skip-lead-btn').addEventListener('click', () => {
   dialerIndex++;
@@ -2079,6 +2162,7 @@ function showNotification(title, body, onClick) {
 // Also init on load
 (async () => {
   await initNotifications();
+  if (localStorage.getItem('vyrrah_token')) initSoftphone();
 })();
 </script>
 </body>
