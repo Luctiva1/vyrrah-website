@@ -509,7 +509,6 @@
       : '<div class="num none">no website set</div>';
 
     var links = '';
-    if(c.id != null) links += '<a href="/dashboard?client_id='+encodeURIComponent(c.id)+'" target="_blank">Dashboard ↗</a>';
     if(c.owner_email) links += '<a href="mailto:'+encodeURIComponent(c.owner_email)+'">Email ↗</a>';
 
     var acts = '';
@@ -517,11 +516,20 @@
     if(status === 'paused') acts += '<span class="act" data-act="resume" data-id="'+esc(c.id)+'" data-view="vrank">Resume</span>';
     if(status === 'churned') acts += '<span class="act" data-act="reactivate_trial" data-id="'+esc(c.id)+'" data-view="vrank">Reactivate trial</span>';
     if(status !== 'churned') acts += '<span class="act danger" data-act="churn" data-id="'+esc(c.id)+'" data-view="vrank">Cancel / kick</span>';
+    acts += '<span class="act" data-act="view_metrics" data-id="'+esc(c.id)+'" data-view="vrank">View metrics</span>';
+    if(status === 'trial' || status === 'active') acts += '<span class="act" data-act="send_payment_link" data-id="'+esc(c.id)+'" data-view="vrank">Send payment link</span>';
+
+    var trialInfo = '';
+    if(status === 'trial' && c.trial_started_at){
+      var _elapsed = Math.floor((Date.now() - new Date(c.trial_started_at).getTime())/86400000);
+      var _dleft = Math.max(0, 7 - _elapsed);
+      trialInfo = '<span class="badge'+(_dleft<=2?' low':'')+'">Day '+(_elapsed+1)+' of 7 · '+_dleft+'d left</span>';
+    }
 
     return '<div class="c'+attn+'">'+
       '<div class="chead"><span class="hdot '+(score!=null&&score<40?'at_risk':'healthy')+'"></span>'+
         '<span class="cname">'+esc(c.practice_name || c.owner_email || 'V-Rank customer')+'</span>'+pill+'</div>'+
-      '<div class="badges">'+badges+'</div>'+
+      '<div class="badges">'+badges+trialInfo+'</div>'+
       siteLink + '<div class="seen">'+esc(c.owner_email||'')+' · joined '+esc(since(c.created_at))+'</div>'+
       '<div class="cstats">'+
         '<div class="cstat"><div class="sv gold">'+(score!=null?score:'—')+'</div><div class="sl">AI score</div></div>'+
@@ -577,6 +585,32 @@
     }
     if(action === 'set_value'){ /* not used in vrank */ }
     if(!isVrank){ return _origDoAction(id, action, el); }
+    // GET-based V-Rank actions (not admin-action POSTs):
+    if(action === 'send_payment_link'){
+      var _o1 = el.textContent; el.textContent = '…';
+      adminFetch('/api/geo?path=checkout&client_id='+encodeURIComponent(id))
+        .then(function(d){
+          el.textContent = _o1;
+          if(d && d.checkout_url){ window.prompt('Payment link — copy and send to the client:', d.checkout_url); }
+          else { alert(d && d.error ? ('Checkout: '+d.error) : 'Could not create a payment link (check the Dodo product/key).'); }
+        }).catch(function(e){ el.textContent = _o1; alert('Checkout failed: '+e.message); });
+      return;
+    }
+    if(action === 'view_metrics'){
+      var _o2 = el.textContent; el.textContent = '…';
+      adminFetch('/api/geo?path=dashboard&client_id='+encodeURIComponent(id))
+        .then(function(d){
+          el.textContent = _o2;
+          if(d && d.error){ alert('Could not load metrics: '+d.error); return; }
+          var rk = (d.rankings||[]).slice(0,4).map(function(r){ return '• '+r.keyword+' (#'+Math.round(r.position)+')'; }).join('\n');
+          alert('AI score: '+(d.score!=null?d.score:'—')+
+                '\nTraffic: '+(d.traffic||0)+'   AI referrals: '+(d.aiReferrals||0)+
+                '\nCitations: '+((d.citations||[]).length)+'   Indexed pages: '+(d.indexedPages||0)+
+                (rk?('\n\nTop rankings:\n'+rk):'')+
+                (d.meta&&d.meta.mock?'\n\n(sample/representative — no live data yet)':''));
+        }).catch(function(e){ el.textContent = _o2; alert('Metrics failed: '+e.message); });
+      return;
+    }
     var body = { client_id: id, action: action };
     var orig = el.textContent; el.textContent = '…';
     adminFetch('/api/tool/admin-action', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
