@@ -709,7 +709,7 @@ footer .flinks a:hover{color:var(--gold)}
   <a class="nlt" href="#top">Vyrrah<span>.</span>Labs</a>
   <div class="nlinks">
     <a href="#calculator">Calculator</a>
-    <a href="#leak">Scorecard</a>
+    <a href="/scorecard">Scorecard</a>
     <a href="#gap">Visibility gap</a>
     <a href="#pricing">Pricing</a>
     <a href="/results">Results</a>
@@ -732,7 +732,7 @@ footer .flinks a:hover{color:var(--gold)}
       </h1>
       <p class="hsub fade f2">I'm Godwin — I embed as your <strong>fractional head of growth</strong> and own one number: <strong>your growth</strong>. It starts with getting you found in <strong>Google AND AI search</strong> (ChatGPT, Perplexity, Claude) — my engine, <strong>V-Rank</strong>, writes the content, builds the schema and earns the citations. See your gaps free, run the engine yourself, or hand me the whole number. <strong>3X organic reach in 90 days or your money back.</strong></p>
       <div class="hbtns fade f3">
-        <a class="btnr" data-mag href="#leak">Get my free Scorecard <span class="arr">→</span></a>
+        <a class="btnr" data-mag href="/scorecard">Get my free Scorecard <span class="arr">→</span></a>
         <a class="btng" data-mag href="#calculator">What's invisibility costing you?</a>
       </div>
       <p class="hmicro fade f4">Free AI-Visibility Scorecard. No card. V-Rank runs from <b>$500/mo</b> — first report lands <b data-monday>Monday</b>.</p>
@@ -865,7 +865,7 @@ footer .flinks a:hover{color:var(--gold)}
       </div>
       <div class="calc-foot">
         <p class="fine">Estimates, not a guarantee. The math: a conservative share of searches now resolved by AI answers and zero-click results where you're not cited, and I only count half of those as real lost jobs to stay conservative. Screenshot this and show your business partner. Then run the free Scorecard and replace the estimate with your actual AI-visibility score.</p>
-        <a class="btnr" data-mag href="#leak">Get my free Scorecard <span class="arr">→</span></a>
+        <a class="btnr" data-mag href="/scorecard">Get my free Scorecard <span class="arr">→</span></a>
       </div>
     </div>
   </div>
@@ -1050,7 +1050,7 @@ footer .flinks a:hover{color:var(--gold)}
           </div>
           <p class="rdesc">Drop your URL and get graded across SEO, AEO, schema, content and reviews, plus where ChatGPT, Perplexity, Claude and Google AI cite you today. You walk away with a ranked list of the gaps holding you back. <b>Yours to keep, whether we work together or not.</b></p>
           <div class="rfeat"><span>One score, 0–100</span><span>Gaps ranked by impact</span><span>AI-citation snapshot</span><span>Zero obligation</span></div>
-          <a class="btnr" data-mag href="#leak">Get my free Scorecard <span class="arr">→</span></a>
+          <a class="btnr" data-mag href="/scorecard">Get my free Scorecard <span class="arr">→</span></a>
           <div class="slotline">1 of 3 <span data-month>June</span> slots left</div>
         </div>
       </div>
@@ -1219,9 +1219,9 @@ footer .flinks a:hover{color:var(--gold)}
       <h2>Someone will ask AI about your service today. <em>Decide whether you're in the answer.</em></h2>
       <p>Run the free Scorecard and see your AI-visibility score in 20 seconds. Either it's strong or it's costing you customers, and both answers are worth having. <b>1 slot left in <span data-month>June</span>.</b></p>
     </div>
-    <a class="btnw" data-mag data-reveal href="#leak">Get my free Scorecard <span class="arr">→</span></a>
+    <a class="btnw" data-mag data-reveal href="/scorecard">Get my free Scorecard <span class="arr">→</span></a>
   </div>
-  <a class="cta-marq" href="#leak" aria-label="Get my free Scorecard">
+  <a class="cta-marq" href="/scorecard" aria-label="Get my free Scorecard">
     <div class="track" id="cta-track">
       <span>GET MY FREE SCORECARD <i>◆</i> GET FOUND IN AI SEARCH <i>◆</i> 3X IN 90 DAYS <i>◆</i></span>
     </div>
@@ -1259,7 +1259,7 @@ footer .flinks a:hover{color:var(--gold)}
 <div id="claim" role="complementary">
   <span class="pulse"></span>
   <p><b><span data-month>June</span>: 1 founding slot left.</b> <span class="sub">Free AI-Visibility Scorecard, then $500–750/mo. 3X in 90 days or money back.</span></p>
-  <a class="btnr" href="#leak">Get my Scorecard <span class="arr">→</span></a>
+  <a class="btnr" href="/scorecard">Get my Scorecard <span class="arr">→</span></a>
   <button class="x" id="claim-x" aria-label="Dismiss">×</button>
 </div>
 
@@ -1270,7 +1270,7 @@ footer .flinks a:hover{color:var(--gold)}
     <div class="ey">Before you go</div>
     <h3>Someone asked AI about your service today. <em>Were you in the answer?</em></h3>
     <p>Most searches now end without a click, and the businesses the AI names win the customer. The free Scorecard puts a real number on it, measured on your actual site. No card. No contract. 20 seconds to your AI-visibility score.</p>
-    <a class="btnr" href="#leak">Get my free Scorecard <span class="arr">→</span></a>
+    <a class="btnr" href="/scorecard">Get my free Scorecard <span class="arr">→</span></a>
     <button class="skip" id="exit-skip" type="button">No thanks, I'll keep guessing</button>
   </div>
 </div>
@@ -1716,25 +1716,10 @@ leakForm.addEventListener('submit', function(e){
   try{ u = new URL(raw); }catch(err){ leakErr.textContent = 'That doesn\'t look like a web address. Try something like yourbusiness.com'; leakErr.style.display = 'block'; return; }
   if(!/\./.test(u.hostname)){ leakErr.textContent = 'That doesn\'t look like a web address. Try something like yourbusiness.com'; leakErr.style.display = 'block'; return; }
   lastLeakHost = u.hostname;
-  leakStage('scan');
-  runScanAnim();
-  track('Leak scan');
-  var ctl = new AbortController();
-  var to = setTimeout(function(){ ctl.abort(); }, 30000);
-  fetch('/api/analyze', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({url: u.href}),
-    signal: ctl.signal
-  }).then(function(r){ return r.json(); }).then(function(data){
-    clearTimeout(to);
-    if(data && data.ok && data.leak_title){ showVerdict(data); }
-    else{ stopScanAnim(); leakStage('fall'); }
-  }).catch(function(){
-    clearTimeout(to);
-    stopScanAnim();
-    leakStage('fall');
-  });
+  track('Scorecard redirect', { host: u.hostname });
+  // The real, credible scorecard lives at /scorecard (api/geo). Send them there
+  // with their URL prefilled, instead of the retired /api/analyze widget.
+  window.location.href = '/scorecard?url=' + encodeURIComponent(u.href);
 });
 document.getElementById('leak-again').addEventListener('click', function(){
   leakUrl.value = '';
@@ -2023,7 +2008,7 @@ if(ladder){
     box.classList.add('you');
     labEl.textContent = 'Walking out of your business';
     numEl.textContent = money(weekly) + '/wk';
-    subEl.innerHTML = 'about ' + money(weekly / 7) + ' a day, at your numbers. <a href="#leak">Get your free Scorecard →</a>';
+    subEl.innerHTML = 'about ' + money(weekly / 7) + ' a day, at your numbers. <a href="/scorecard">Get your free Scorecard →</a>';
     shown = true; sync();
   };
 })();

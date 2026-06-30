@@ -7,7 +7,7 @@
     },
     {
       "src": "/audit",
-      "dest": "/audit.html"
+      "dest": "/scorecard.html"
     },
     {
       "src": "/results",

@@ -156,7 +156,7 @@ async function llmJson(system, user, { geminiSchema = null, maxTokens = 1400 } =
   const oa = process.env.OPENAI_API_KEY;
   const tryGemini = async () => {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-    const gen = { temperature: 0.5, maxOutputTokens: maxTokens, responseMimeType: 'application/json' };
+    const gen = { temperature: 0, maxOutputTokens: maxTokens, responseMimeType: 'application/json' };
     if (geminiSchema) gen.responseSchema = geminiSchema;
     const r = await fetchWithTimeout(url, LLM_TIMEOUT_MS, {
       method: 'POST',
@@ -179,7 +179,7 @@ async function llmJson(system, user, { geminiSchema = null, maxTokens = 1400 } =
       headers: { 'Authorization': `Bearer ${oa}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: OPENAI_MODEL,
-        temperature: 0.5,
+        temperature: 0,
         max_tokens: maxTokens,
         response_format: { type: 'json_object' },
         messages: [{ role: 'system', content: system }, { role: 'user', content: user }]
@@ -344,16 +344,21 @@ function heuristicBreakdown(sig, auth) {
   // Content breadth/depth. Big platforms have enormous breadth even if the
   // single fetched page is short, so authority lifts the floor.
   let content = 20;
-  if (sig.textLen > 4000) content += 40; else if (sig.textLen > 1800) content += 28;
-  else if (sig.textLen > 600) content += 16;
+  if (sig.textLen > 6000) content += 46;
+  else if (sig.textLen > 4000) content += 40;
+  else if (sig.textLen > 2800) content += 33;
+  else if (sig.textLen > 1800) content += 27;
+  else if (sig.textLen > 1000) content += 19;
+  else if (sig.textLen > 600) content += 13;
+  else if (sig.textLen > 250) content += 7;
   if (sig.hasOpenGraph) content += 6;
   if (sig.h1Count >= 1) content += 8;
-  content = Math.max(content, floor);
+  content = Math.max(content, recognized ? floor : Math.round(A * 0.3));
 
   // Reviews/trust. Authority is itself a trust signal at the domain level.
-  let reviews = sig.hasReviews ? 55 : 12;
+  let reviews = sig.hasReviews ? 52 : 14;
   if (sig.schemaTypes.some((t) => /AggregateRating|Review/i.test(t))) reviews += 25;
-  reviews = Math.max(reviews, Math.round(A * 0.45));
+  reviews = Math.max(reviews, Math.round(A * 0.3));
 
   return {
     seo: clamp(seo, 0, 100),
@@ -371,7 +376,7 @@ function overallFromBreakdown(b) {
   // headline score of an obviously-visible site, so they carry low weight.
   const A = Number.isFinite(b.authority) ? b.authority : 50;
   return clamp(
-    A * 0.36 + b.aeo * 0.22 + b.content * 0.16 + b.seo * 0.16 + b.schema * 0.06 + b.reviews * 0.04,
+    A * 0.22 + b.aeo * 0.24 + b.content * 0.18 + b.seo * 0.18 + b.schema * 0.12 + b.reviews * 0.06,
     0, 100
   );
 }
@@ -403,7 +408,10 @@ function candidateGaps(sig, vertical) {
   if (sig.textLen < 1800) {
     gaps.push({ tier: 'hard', title: 'Insufficient topical authority / content depth', impact: 'Engines favour sources with demonstrated depth on a topic. A thin footprint means you lose citations to deeper competitors even when you are the better business.', fix: 'Develop a topical authority plan: a hub-and-spoke content map that covers your service area and expertise comprehensively enough for engines to treat you as a primary source. Strategic content architecture, not a single page.' });
   }
-  if (!sig.hasReviews || !sig.schemaTypes.some((t) => /AggregateRating|Review/i.test(t))) {
+  const hasReviewSchema = sig.schemaTypes.some((t) => /AggregateRating|Review/i.test(t));
+  if (sig.hasReviews && !hasReviewSchema) {
+    gaps.push({ tier: 'hard', title: 'Reviews not marked up for AI engines', impact: 'You clearly have customer reviews, but they are not exposed as Review or AggregateRating schema, so ChatGPT, Perplexity and Google AI cannot read or weigh them when deciding who to recommend.', fix: 'Mark up your existing reviews with connected Review/AggregateRating schema and wire in a pipeline that keeps fresh ratings flowing into it, so engines can see the reputation you have already earned.' });
+  } else if (!sig.hasReviews) {
     gaps.push({ tier: 'hard', title: 'No structured reputation / trust signal system', impact: 'Trust is decisive in whether AI recommends you over a competitor. Without a system that captures and structures reputation, engines have nothing to weigh in your favour.', fix: 'Stand up a reputation pipeline that gathers reviews from new customers and surfaces them with connected Review/AggregateRating schema engines can read. Ongoing system, not a widget.' });
   }
   // ── EASY: trivial DIY on-page fixes (withheld from the headline list) ──
@@ -430,6 +438,11 @@ function heuristicGaps(sig, vertical) {
   return candidateGaps(sig, vertical);
 }
 
+// Per-host scorecard cache: a rescan of the same site on a live call returns the
+// IDENTICAL score/gaps (within a warm instance). Keyed by host + adSpend bucket.
+const SCORECARD_CACHE = new Map();
+const SCORECARD_TTL_MS = 30 * 60 * 1000;
+
 async function handleScorecard(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (rateLimited(req)) return res.status(429).json({ error: 'Too many requests, slow down.' });
@@ -437,6 +450,14 @@ async function handleScorecard(req, res) {
   const body = readBody(req);
   const u = safeUrl(body.url);
   if (!u) return res.status(400).json({ error: 'A valid http(s) url is required.' });
+
+  // Return a cached payload for a repeat scan so the number never moves on a live rescan.
+  const adSpendBucket = (Number.isFinite(Number(body.adSpend)) && Number(body.adSpend) > 0) ? Math.round(Number(body.adSpend)) : 0;
+  const cacheKey = u.hostname.replace(/^www\./, '') + '|' + adSpendBucket;
+  const cachedHit = SCORECARD_CACHE.get(cacheKey);
+  if (cachedHit && (Date.now() - cachedHit.at) < SCORECARD_TTL_MS) {
+    return res.status(200).json(cachedHit.payload);
+  }
 
   // 1) Fetch the page. A fetch failure is NOT fatal — we treat it as a cold-start
   //    site with no data and still return a useful, generative-path scorecard.
@@ -460,7 +481,13 @@ async function handleScorecard(req, res) {
   const candGaps = candidateGaps(sig, vertical);
   // Only the HARD gaps are the headline list; total counts every real gap found.
   const baseHardGaps = candGaps.filter((g) => g.tier === 'hard').map(({ tier, ...g }) => g);
-  const baseGaps = baseHardGaps.length ? baseHardGaps : candGaps.map(({ tier, ...g }) => g);
+  // Pad the headline list to 3 so a heuristic fallback never collapses to 1 gap
+  // (keeps parity with the LLM's "exactly 3" contract on a live rescan).
+  const allStripped = candGaps.map(({ tier, ...g }) => g);
+  const baseGaps = (baseHardGaps.length >= 3
+    ? baseHardGaps
+    : [...baseHardGaps, ...allStripped.filter((g) => !baseHardGaps.some((h) => h.title === g.title))]
+  ).slice(0, 3);
   const totalGapsFound = candGaps.length;
   // A recognized mega-authority is never "cold start" even if the fetch was
   // blocked (Reddit etc. often refuse bot UAs): the domain is demonstrably
@@ -517,9 +544,13 @@ async function handleScorecard(req, res) {
     ? { seo: clamp(out.breakdown.seo, 0, 100), aeo: clamp(out.breakdown.aeo, 0, 100), schema: clamp(out.breakdown.schema, 0, 100), content: clamp(out.breakdown.content, 0, 100), reviews: clamp(out.breakdown.reviews, 0, 100) }
     : baseBreakdown;
   const score = (out && Number.isFinite(out.score)) ? clamp(out.score, 0, 100) : overallFromBreakdown(breakdown);
-  const aiVisibility = (out && out.aiVisibility && ['chatgpt', 'perplexity', 'google'].every((k) => Number.isFinite(out.aiVisibility[k])))
-    ? { chatgpt: clamp(out.aiVisibility.chatgpt, 0, 100), perplexity: clamp(out.aiVisibility.perplexity, 0, 100), google: clamp(out.aiVisibility.google, 0, 100) }
+  const rawAi = (out && out.aiVisibility && ['chatgpt', 'perplexity', 'google'].every((k) => Number.isFinite(out.aiVisibility[k])))
+    ? out.aiVisibility
     : heuristicAiVisibility(breakdown);
+  // Keep per-engine visibility coherent with the headline score (within ±15) so a
+  // low overall never sits next to "strong" engine bars on a live call.
+  const cohere = (v) => clamp(Math.round(Math.max(score - 15, Math.min(score + 15, v))), 0, 100);
+  const aiVisibility = { chatgpt: cohere(rawAi.chatgpt), perplexity: cohere(rawAi.perplexity), google: cohere(rawAi.google) };
   let gaps = (out && Array.isArray(out.gaps) && out.gaps.length)
     ? out.gaps.filter((g) => g && g.title && g.fix).map((g) => ({ title: String(g.title).slice(0, 120), impact: String(g.impact || '').slice(0, 240), fix: String(g.fix || '').slice(0, 280) }))
     : baseGaps;
@@ -544,11 +575,13 @@ async function handleScorecard(req, res) {
     };
   }
 
-  return res.status(200).json({
+  const payload = {
     score, breakdown, gaps, totalGapsFound, aiVisibility, summary,
     valueAnchor,
     meta: { url: u.href, host: u.hostname, vertical, coldStart, fetched: fetchOk, mock: !out, domainAuthority: auth.authority, recognizedAuthority: auth.recognized, signals: sig }
-  });
+  };
+  SCORECARD_CACHE.set(cacheKey, { at: Date.now(), payload });
+  return res.status(200).json(payload);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -727,19 +760,31 @@ function seededRandom(seedStr) {
   for (let i = 0; i < seedStr.length; i++) { h ^= seedStr.charCodeAt(i); h = Math.imul(h, 16777619); }
   return () => { h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-function representativeDashboard(clientId) {
+function representativeDashboard(clientId, siteText) {
   const rnd = seededRandom(String(clientId || 'demo'));
   const score = clamp(58 + rnd() * 34, 0, 100);
   const traffic = Math.round(900 + rnd() * 4200);
-  const verticals = ['restoration', 'dental', 'staffing', 'med-spa'];
   const keywords = {
     restoration: ['water damage restoration near me', 'emergency flood cleanup', 'mold remediation cost', '24 hour water removal'],
     dental: ['dentist near me', 'teeth whitening cost', 'emergency dentist', 'invisalign price'],
+    medspa: ['botox near me', 'lip filler cost', 'med spa near me', 'best facial treatments'],
     staffing: ['staffing agency near me', 'temp to hire jobs', 'warehouse staffing', 'how to find workers fast'],
-    'med-spa': ['botox near me', 'lip filler cost', 'med spa near me', 'best facial treatments']
+    roofing: ['roof replacement cost', 'roofers near me', 'storm damage roof repair', 'metal roof installation'],
+    legal: ['lawyer near me', 'free legal consultation', 'personal injury attorney', 'how much does a lawyer cost'],
+    home: ['plumber near me', 'hvac repair cost', 'emergency electrician near me', 'same day home repair'],
+    generic: ['best provider near me', 'top rated local service', 'same day service near me', 'service cost and quotes']
   };
-  const v = verticals[Math.floor(rnd() * verticals.length)];
-  const kw = keywords[v] || keywords.restoration;
+  // Seed the vertical from the client's OWN site so a roofer never sees dental terms.
+  const t = String(siteText || '').toLowerCase();
+  let v = 'generic';
+  if (/restoration|water damage|mold|flood|fire damage|remediation/.test(t)) v = 'restoration';
+  else if (/roof/.test(t)) v = 'roofing';
+  else if (/med ?spa|botox|filler|aesthetic|facial/.test(t)) v = 'medspa';
+  else if (/dental|dentist|orthodont|invisalign/.test(t)) v = 'dental';
+  else if (/staffing|recruit|temp agency|workforce/.test(t)) v = 'staffing';
+  else if (/lawyer|attorney|legal|law firm|injury/.test(t)) v = 'legal';
+  else if (/plumb|hvac|electric|contractor|handyman|landscap/.test(t)) v = 'home';
+  const kw = keywords[v] || keywords.generic;
   const rankings = kw.map((keyword) => ({ keyword, position: clamp(1 + rnd() * 18, 1, 50), change: Math.round((rnd() - 0.4) * 8) }));
   const engines = ['ChatGPT', 'Perplexity', 'Google AI Overview', 'Claude'];
   const citations = engines.map((engine) => ({
@@ -775,18 +820,24 @@ async function latestMetrics(clientId) {
 
 // Build the dashboard contract payload for a client, merging stored metrics over
 // deterministic representative data so the dashboard always renders.
-function buildDashboard(clientId, stored) {
-  const base = representativeDashboard(clientId);
+function buildDashboard(clientId, stored, siteText) {
+  const base = representativeDashboard(clientId, siteText);
   if (!stored) return { ...base, source: 'representative', mock: true };
+  // Treat 0 / empty as "not yet populated" so a score-only seed (fresh trial) shows the
+  // representative growth view instead of bare zeros. mock stays true until REAL work lands.
+  const hasReal = (Number.isFinite(stored.traffic) && stored.traffic > 0) ||
+    (Array.isArray(stored.citations) && stored.citations.length > 0) ||
+    (Number.isFinite(stored.ai_referrals) && stored.ai_referrals > 0);
   return {
     score: Number.isFinite(stored.score) ? clamp(stored.score, 0, 100) : base.score,
-    traffic: Number.isFinite(stored.traffic) ? stored.traffic : base.traffic,
-    aiReferrals: Number.isFinite(stored.ai_referrals) ? stored.ai_referrals : base.aiReferrals,
-    indexedPages: Number.isFinite(stored.indexed_pages) ? stored.indexed_pages : base.indexedPages,
-    rankings: Array.isArray(stored.rankings) ? stored.rankings : base.rankings,
-    citations: Array.isArray(stored.citations) ? stored.citations : base.citations,
-    generatedThisMonth: Number.isFinite(stored.generated_this_month) ? stored.generated_this_month : base.generatedThisMonth,
-    source: 'supabase'
+    traffic: (Number.isFinite(stored.traffic) && stored.traffic > 0) ? stored.traffic : base.traffic,
+    aiReferrals: (Number.isFinite(stored.ai_referrals) && stored.ai_referrals > 0) ? stored.ai_referrals : base.aiReferrals,
+    indexedPages: (Number.isFinite(stored.indexed_pages) && stored.indexed_pages > 0) ? stored.indexed_pages : base.indexedPages,
+    rankings: (Array.isArray(stored.rankings) && stored.rankings.length) ? stored.rankings : base.rankings,
+    citations: (Array.isArray(stored.citations) && stored.citations.length) ? stored.citations : base.citations,
+    generatedThisMonth: (Number.isFinite(stored.generated_this_month) && stored.generated_this_month > 0) ? stored.generated_this_month : base.generatedThisMonth,
+    source: hasReal ? 'supabase' : 'representative',
+    mock: !hasReal
   };
 }
 
@@ -805,12 +856,12 @@ async function handleDashboard(req, res) {
     const customer = await resolveCustomer(req);
     if (!customer) return res.status(401).json({ error: 'Sign in to view your dashboard.' });
     const stored = await latestMetrics(customer.id);
-    const { source, ...data } = buildDashboard(customer.id, stored);
+    const { source, mock, ...data } = buildDashboard(customer.id, stored, customer.website || customer.practice_name);
     return res.status(200).json({
       ...data,
       meta: {
         client_id: customer.id, mode: 'self', source: source || 'representative',
-        mock: !stored, website: customer.website || null, plan: customer.plan || 'recaller',
+        mock: !!mock, website: customer.website || null, plan: customer.plan || 'recaller',
         practice_name: customer.practice_name || null, status: customer.status || null
       }
     });
@@ -821,10 +872,10 @@ async function handleDashboard(req, res) {
   if (!requireAuth(req, res)) return; // sends 401 itself when locked down
   const clientId = req.query.client_id || 'demo';
   const stored = await latestMetrics(clientId);
-  const { source, ...data } = buildDashboard(clientId, stored);
+  const { source, mock, ...data } = buildDashboard(clientId, stored, '');
   return res.status(200).json({
     ...data,
-    meta: { client_id: clientId, mode: 'admin', source: source || 'representative', mock: !stored }
+    meta: { client_id: clientId, mode: 'admin', source: source || 'representative', mock: !!mock }
   });
 }
 

@@ -462,7 +462,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 
     // Prefer the API-provided framing line; otherwise build the "grow on that budget?" close ourselves.
     var line = '';
-    if(va && typeof va === 'object' && va.line){ line = String(va.line); }
+    if(va && typeof va === 'object' && (va.message || va.line)){ line = String(va.message || va.line); }
     else if(typeof va === 'string' && va.trim()){ line = va; }
     if(line){
       document.getElementById('vaLine').innerHTML = esc(line)
@@ -567,6 +567,15 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
   var suBtn = document.getElementById('suBtn');
   var suBtnTxt = document.getElementById('suBtnTxt');
   var suErr = document.getElementById('suErr');
+  // Prefill + auto-run from ?url= (smooth handoff when arriving from the homepage widget).
+  try {
+    var _qUrl = new URLSearchParams(location.search).get('url');
+    if (_qUrl && urlInput) {
+      urlInput.value = _qUrl.replace(/^https?:\/\//i, '');
+      if (form && form.requestSubmit) form.requestSubmit();
+    }
+  } catch (e) {}
+
   signupForm.addEventListener('submit', function(e){
     e.preventDefault();
     suErr.style.display = 'none';

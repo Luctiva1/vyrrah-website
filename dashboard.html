@@ -185,6 +185,10 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
   <h1 id="title">Command Dashboard</h1>
   <p class="sub" id="subline">Your AI-search growth, all in one place.</p>
 
+  <div id="sampleBanner" style="display:none;background:#3a2d00;border:1px solid var(--gold);color:#ffd866;padding:12px 16px;border-radius:10px;margin:14px 0 4px;font-size:13.5px;line-height:1.55;font-weight:600">
+    <b>Sample preview.</b> These are representative figures for your vertical, so you can see exactly what your dashboard will look like. Your live numbers populate as the engine goes to work during your trial.
+  </div>
+
   <div class="err" id="err"></div>
 
   <!-- SCORE + TOP METRICS -->
@@ -209,7 +213,7 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
   <!-- CITATIONS + ENGINES -->
   <div class="cols">
     <div class="card">
-      <h2>Live AI citations <span class="tag">Real-time</span></h2>
+      <h2>Live AI citations <span class="tag" id="citeTag">Real-time</span></h2>
       <div class="ch-sub">Where AI engines are naming you right now</div>
       <div id="citations"><div class="empty">—</div></div>
     </div>
@@ -447,7 +451,10 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
       '<div class="rstat"><div class="rv gold">'+fmt(d.aiReferrals)+'</div><div class="rl">AI referrals</div></div>'+
       '<div class="rstat"><div class="rv up">+'+num(rep.newCitations != null ? rep.newCitations : Math.max(1,Math.round(clr(d.score)/12)))+'</div><div class="rl">New citations</div></div>'+
       '<div class="rstat"><div class="rv gold">'+num(d.generatedThisMonth)+'</div><div class="rl">Content live this mo</div></div>';
-    var note = rep.summary || ('Your AI-Visibility Score is <b>'+clr(d.score)+'/100</b> and trending up. The engine published new pages this week and you picked up fresh citations across AI engines. On pace for the <b>3X-in-90-days</b> target — keep approving the queue.');
+    var mock = !!(d.meta && d.meta.mock);
+    var note = rep.summary || (mock
+      ? ('Your AI-Visibility Score starts at <b>'+clr(d.score)+'/100</b>. This is a representative preview — once your trial work goes live, the engine publishes pages, earns citations, and these become your real tracked numbers on the way to the <b>3X-in-90-days</b> target.')
+      : ('Your AI-Visibility Score is <b>'+clr(d.score)+'/100</b> and trending up. The engine published new pages this week and you picked up fresh citations across AI engines. On pace for the <b>3X-in-90-days</b> target — keep approving the queue.'));
     document.getElementById('reportNote').innerHTML = note;
   }
 
@@ -459,6 +466,10 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
 
   function render(d, clientId){
     document.getElementById('err').style.display = 'none';
+    // Sample vs live: never present representative figures as the customer's real data.
+    var mock = !!(d.meta && d.meta.mock);
+    var sb = document.getElementById('sampleBanner'); if(sb) sb.style.display = mock ? 'block' : 'none';
+    var ct = document.getElementById('citeTag'); if(ct) ct.textContent = mock ? 'Sample' : 'Real-time';
     if(d.name || d.client_name){ document.getElementById('title').textContent = (d.name||d.client_name); }
     document.getElementById('subline').innerHTML = 'AI-search growth for <b>'+esc(d.name||d.client_name||clientId)+'</b> · half the price, fully accountable.';
     var score = clr(d.score);
