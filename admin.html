@@ -564,12 +564,12 @@
               </div>
 
               <div class="outcome-btns" id="outcome-btns">
-                <button class="outcome-btn" data-outcome="answered" disabled>✅ Answered</button>
-                <button class="outcome-btn" data-outcome="voicemail" disabled>📬 Voicemail</button>
-                <button class="outcome-btn" data-outcome="no_answer" disabled>📵 No Answer</button>
-                <button class="outcome-btn" data-outcome="callback" disabled>🔁 Callback</button>
-                <button class="outcome-btn" data-outcome="interested" disabled>🌟 Interested</button>
-                <button class="outcome-btn" data-outcome="not_interested" disabled>❌ Not Int.</button>
+                <button class="outcome-btn" data-outcome="no_answer" disabled>📵 No Answer (1)</button>
+                <button class="outcome-btn" data-outcome="voicemail" disabled>📬 Voicemail (2)</button>
+                <button class="outcome-btn" data-outcome="answered" disabled>✅ Answered (3)</button>
+                <button class="outcome-btn" data-outcome="interested" disabled>🌟 Interested (4)</button>
+                <button class="outcome-btn" data-outcome="not_interested" disabled>❌ Not Int. (5)</button>
+                <button class="outcome-btn" data-outcome="callback" disabled>🔁 Callback (6)</button>
               </div>
 
               <textarea class="notes-area" id="dialer-notes" placeholder="Call notes..."></textarea>
@@ -1617,6 +1617,27 @@ document.getElementById('drop-vm-btn')?.addEventListener('click', async () => {
 
 // Auto-dial toggle
 document.getElementById('autodial-toggle')?.addEventListener('change', (e) => { autoDial = e.target.checked; });
+
+// One-key dispositions: press a number to log the outcome and advance.
+// Removes two clicks on every dial. Voicemail key triggers the VM drop if live.
+const KEY_OUTCOME = { '1': 'no_answer', '2': 'voicemail', '3': 'answered', '4': 'interested', '5': 'not_interested', '6': 'callback' };
+document.addEventListener('keydown', (e) => {
+  const panel = document.getElementById('dialer-lead-panel');
+  if (!panel || panel.style.display === 'none') return;                 // only when a lead is loaded
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (tag === 'TEXTAREA' || tag === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
+  const oc = KEY_OUTCOME[e.key];
+  if (!oc || !dialerQueue[dialerIndex]) return;
+  e.preventDefault();
+  // Voicemail: if a call is live, drop the recorded VM (which saves + advances)
+  if (oc === 'voicemail') {
+    const vm = document.getElementById('drop-vm-btn');
+    if (currentCallSid && vm && vm.style.display !== 'none') { vm.click(); return; }
+  }
+  selectedOutcome = oc;
+  document.querySelectorAll('.outcome-btn').forEach(b => b.classList.toggle('selected', b.dataset.outcome === oc));
+  saveOutcomeAndNext();
+});
 
 // Initialize the browser softphone. Falls back silently to bridge mode if the
 // Voice SDK is missing or the backend isn't configured yet.

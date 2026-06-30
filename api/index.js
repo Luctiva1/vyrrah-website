@@ -1473,7 +1473,7 @@ async function handleVoiceOutbound(req, res) {
     twiml.hangup();
   } else {
     const baseUrl = process.env.PUBLIC_BASE || 'https://vyrrahlabs.com';
-    const dialAttrs = { callerId: getFromNumber(lead), answerOnBridge: true, timeout: 25,
+    const dialAttrs = { callerId: getFromNumber(lead), answerOnBridge: true, timeout: 18,
       action: `${baseUrl}/api/voice/dial-status`, method: 'POST' };
     if (process.env.CALL_RECORDING !== 'off') {
       dialAttrs.record = 'record-from-answer-dual';
