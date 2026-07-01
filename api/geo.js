@@ -704,6 +704,46 @@ function mockContent(type, { topic, vertical, host }) {
   ].join('\n');
 }
 
+// ── Multi-pass QA + risk gate ────────────────────────────────────────────────
+// Nothing risky ever auto-publishes under a client's brand. Regulated verticals
+// (medical/legal/financial) and unverifiable claims are FORCE-flagged for human
+// review even when the QA model is unavailable (fail closed, never fail open).
+const REGULATED_RX = /\b(medical|med ?spa|clinic|dental|dentist|doctor|physician|health|therapy|botox|filler|weight ?loss|glp-?1|hormone|trt|law|lawyer|attorney|legal|injury|financial|insurance)\b/i;
+// Only genuinely-dangerous claims hard-flag in the heuristic (fail-safe when the QA
+// model is down). Soft words ("best", "proven", "licensed") are left to the QA model
+// to judge in context, so we don't flag 100% of normal marketing copy.
+const CLAIM_RX = /\b(guarantee\w*|cure|#1|number one|clinically|fda|100%|risk-free|painless|permanent)\b/i;
+
+function heuristicRisk(text, vertical) {
+  const t = String(text || '');
+  if (REGULATED_RX.test(String(vertical)) || REGULATED_RX.test(t)) return 'high';
+  if (CLAIM_RX.test(t)) return 'high';
+  return 'low';
+}
+
+async function qaContent(content, { type, vertical, host }) {
+  const baseRisk = heuristicRisk(content + ' ' + vertical, vertical);
+  const fallback = (msg) => ({ risk: baseRisk, autoApprove: baseRisk === 'low', issues: baseRisk === 'high' ? [msg] : [], content });
+  if (!llmAvailable()) return fallback('Regulated/claim content — human review required (no QA model available).');
+  const system = [
+    'You are a STRICT content QA + compliance reviewer. This content will be PUBLISHED under a real client business brand, so a mistake costs them money or breaks the law.',
+    'Flag: factual hallucinations, invented specifics (fake reviews/awards/stats/credentials), and unverifiable or non-compliant CLAIMS (medical, legal, financial, "guaranteed", "best", "cure", "#1", "FDA").',
+    'If the vertical is regulated (medical, dental, health, legal, financial) OR any claim could be false/non-compliant, set risk "high" and autoApprove false — a human MUST review.',
+    'Otherwise, remove or soften any problem phrasing and set risk "low", autoApprove true.',
+    'Return JSON: { risk:"low"|"high", autoApprove:boolean, issues:[short strings], content: the reviewed/cleaned Markdown }.'
+  ].join('\n');
+  const schema = { type: 'OBJECT', properties: { risk: { type: 'STRING' }, autoApprove: { type: 'BOOLEAN' }, issues: { type: 'ARRAY', items: { type: 'STRING' } }, content: { type: 'STRING' } }, required: ['risk', 'autoApprove', 'issues', 'content'] };
+  const rev = await llmJson(system, JSON.stringify({ type, vertical, host, content }), { geminiSchema: schema, maxTokens: 2500 });
+  if (!rev) return fallback('Regulated/claim content — human review required (QA pass failed).');
+  const risk = (baseRisk === 'high' || rev.risk === 'high') ? 'high' : 'low'; // QA can never DOWNgrade heuristic risk
+  return {
+    risk,
+    autoApprove: risk === 'low' && rev.autoApprove !== false,
+    issues: Array.isArray(rev.issues) ? rev.issues.slice(0, 8) : [],
+    content: (typeof rev.content === 'string' && rev.content.trim()) ? rev.content : content,
+  };
+}
+
 async function handleGenerate(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (rateLimited(req)) return res.status(429).json({ error: 'Too many requests, slow down.' });
@@ -759,8 +799,12 @@ async function handleGenerate(req, res) {
   if (!schema || typeof schema !== 'object') schema = buildSchemaFor(type, { topic: title, host, vertical });
   if (!schema['@context']) schema['@context'] = 'https://schema.org';
 
+  // Multi-pass QA + risk gate: auto-approve low-risk, flag regulated/claim content for review.
+  const qa = await qaContent(content, { type, vertical, host });
+
   return res.status(200).json({
-    title, content, schema,
+    title, content: qa.content, schema,
+    qa: { status: qa.autoApprove ? 'approved' : 'needs_review', risk: qa.risk, autoApprove: qa.autoApprove, issues: qa.issues },
     meta: { type, vertical, coldStart: true, source: asUrl ? host : 'topic', mock: !out }
   });
 }
