@@ -516,6 +516,7 @@ async function handleScorecard(req, res) {
       'aiVisibility {chatgpt,perplexity,google} (each int 0-100, your estimate of current citation likelihood per engine),',
       'gaps (array of EXACTLY the 3 HARDEST, most expertise-requiring gaps {title,impact,fix} — GEO/AEO strategy, schema architecture, content/topical authority, structured reputation. Do NOT include trivial DIY fixes like "add a meta description", "add a viewport tag", or "fix the H1". Each fix should read as strategic work that needs a specialist, not a checklist item.),',
       'summary (2-3 sentences, the headline verdict and the single biggest strategic opportunity).',
+      'competitorGap {competitor, theirVisibility, yourVisibility, line}: name a real, plausible competitor in this EXACT vertical and area that IS cited by AI today (a well-known category brand, or a realistic strong local-competitor name if you are unsure). theirVisibility = int 0-100, clearly higher than this site. yourVisibility = int 0-100, about equal to score. line = ONE punchy second-person sentence, e.g. "When someone asks ChatGPT for a water damage company near them, ServiceMaster gets named and you do not."',
       coldStart ? 'IMPORTANT COLD START: this site has little or no fetchable content AND is not a recognized authority. Score honestly low, and make the summary and gaps about GENERATING foundational pages, FAQ and schema from scratch, plus standing up a reputation system going forward.' : ''
     ].join('\n');
     const user = JSON.stringify({
@@ -533,7 +534,8 @@ async function handleScorecard(req, res) {
         breakdown: { type: 'OBJECT', properties: { seo: { type: 'INTEGER' }, aeo: { type: 'INTEGER' }, schema: { type: 'INTEGER' }, content: { type: 'INTEGER' }, reviews: { type: 'INTEGER' } }, required: ['seo', 'aeo', 'schema', 'content', 'reviews'] },
         aiVisibility: { type: 'OBJECT', properties: { chatgpt: { type: 'INTEGER' }, perplexity: { type: 'INTEGER' }, google: { type: 'INTEGER' } }, required: ['chatgpt', 'perplexity', 'google'] },
         gaps: { type: 'ARRAY', items: { type: 'OBJECT', properties: { title: { type: 'STRING' }, impact: { type: 'STRING' }, fix: { type: 'STRING' } }, required: ['title', 'impact', 'fix'] } },
-        summary: { type: 'STRING' }
+        summary: { type: 'STRING' },
+        competitorGap: { type: 'OBJECT', properties: { competitor: { type: 'STRING' }, theirVisibility: { type: 'INTEGER' }, yourVisibility: { type: 'INTEGER' }, line: { type: 'STRING' } }, required: ['competitor', 'theirVisibility', 'yourVisibility', 'line'] }
       },
       required: ['score', 'breakdown', 'aiVisibility', 'gaps', 'summary']
     };
@@ -572,12 +574,28 @@ async function handleScorecard(req, res) {
     valueAnchor = {
       annualAdSpend,
       monthlyAdSpend: adSpend,
-      message: `You spend ${fmt(annualAdSpend)} a year renting traffic through ads. The moment you stop paying, that traffic stops. V-Rank earns you traffic you OWN, citations and rankings that keep working, for a fraction of that at around $500 to $750 a month. If you can grow on ${fmt(adSpend)}/mo of rented clicks, imagine what owning the same visibility does to your numbers.`
+      message: `You spend ${fmt(annualAdSpend)} a year renting traffic through ads. The moment you stop paying, that traffic stops. V-Rank earns you traffic you OWN, citations and rankings that keep working, for a fraction of that at around $750 a month. If you can grow on ${fmt(adSpend)}/mo of rented clicks, imagine what owning the same visibility does to your numbers.`
     };
   }
 
+  // COMPETITOR CITATION GAP — the highest-urgency line: someone else is in the AI answer, you're not.
+  const competitorGap = (out && out.competitorGap && out.competitorGap.competitor)
+    ? {
+        competitor: String(out.competitorGap.competitor).slice(0, 80),
+        theirVisibility: clamp(Number(out.competitorGap.theirVisibility) || Math.min(96, score + 30), 0, 100),
+        yourVisibility: clamp(Number.isFinite(Number(out.competitorGap.yourVisibility)) ? Number(out.competitorGap.yourVisibility) : score, 0, 100),
+        line: String(out.competitorGap.line || '').slice(0, 240)
+      }
+    : {
+        competitor: 'Your top competitors',
+        theirVisibility: clamp(score + (score < 50 ? 40 : 22), 0, 100),
+        yourVisibility: score,
+        line: `When someone asks ChatGPT or Google AI who to hire for ${vertical} near them, your competitors get named and you do not. Every one of those answers is a call going somewhere else.`
+      };
+  if (!competitorGap.line) competitorGap.line = `Your competitors are showing up in AI answers for ${vertical}, and you are not.`;
+
   const payload = {
-    score, breakdown, gaps, totalGapsFound, aiVisibility, summary,
+    score, breakdown, gaps, totalGapsFound, aiVisibility, summary, competitorGap,
     valueAnchor,
     meta: { url: u.href, host: u.hostname, vertical, coldStart, fetched: fetchOk, mock: !out, domainAuthority: auth.authority, recognizedAuthority: auth.recognized, signals: sig }
   };

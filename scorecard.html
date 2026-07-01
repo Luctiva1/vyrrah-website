@@ -268,6 +268,24 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       </div>
     </div>
 
+    <!-- COMPETITOR CITATION GAP -->
+    <div id="compGap" style="display:none;margin:22px 0;padding:20px 22px;border:1px solid rgba(229,72,77,.4);border-radius:14px;background:linear-gradient(180deg,rgba(229,72,77,.09),transparent)">
+      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#e5726f;font-weight:700;margin-bottom:8px">The gap that's losing you the job</div>
+      <div id="cgLine" style="font-size:16.5px;line-height:1.5;color:#f2ede4;font-weight:600;margin-bottom:16px"></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span id="cgTheirName" style="width:150px;font-size:13.5px;color:#a39c8e;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Competitor</span>
+          <div style="flex:1;height:10px;border-radius:6px;background:rgba(242,237,228,.08);overflow:hidden"><i id="cgTheirBar" style="display:block;height:100%;width:0;background:#e8b23a;transition:width .8s ease"></i></div>
+          <span id="cgTheirPct" style="width:46px;text-align:right;font-weight:700;color:#e8b23a">—</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="width:150px;font-size:13.5px;color:#a39c8e;flex-shrink:0">You</span>
+          <div style="flex:1;height:10px;border-radius:6px;background:rgba(242,237,228,.08);overflow:hidden"><i id="cgYouBar" style="display:block;height:100%;width:0;background:#e5484d;transition:width .8s ease"></i></div>
+          <span id="cgYouPct" style="width:46px;text-align:right;font-weight:700;color:#e5484d">—</span>
+        </div>
+      </div>
+    </div>
+
     <!-- VALUE ANCHOR -->
     <div class="value-anchor" id="valueAnchor">
       <div class="va-lab">What this gap is costing you</div>
@@ -278,7 +296,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
         </div>
         <div class="va-vs">vs</div>
         <div class="va-fig tool">
-          <div class="vn" id="vaTool">$500–750<span style="font-size:14px;font-weight:400;color:var(--gray)">/mo</span></div>
+          <div class="vn" id="vaTool">$750<span style="font-size:14px;font-weight:400;color:var(--gray)">/mo</span></div>
           <div class="vc">All of V-Rank — content, schema &amp; citation tracking</div>
         </div>
       </div>
@@ -450,6 +468,24 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     return '$' + n.toLocaleString('en-US');
   }
 
+  function renderCompetitor(data){
+    var c = data && data.competitorGap;
+    var box = document.getElementById('compGap');
+    if(!box) return;
+    if(!c || !c.line){ box.style.display = 'none'; return; }
+    document.getElementById('cgLine').textContent = c.line;
+    document.getElementById('cgTheirName').textContent = c.competitor || 'Top competitor';
+    var tv = Math.max(0, Math.min(100, Math.round(c.theirVisibility || 0)));
+    var yv = Math.max(0, Math.min(100, Math.round(c.yourVisibility || 0)));
+    document.getElementById('cgTheirPct').textContent = tv + '%';
+    document.getElementById('cgYouPct').textContent = yv + '%';
+    box.style.display = 'block';
+    setTimeout(function(){
+      document.getElementById('cgTheirBar').style.width = tv + '%';
+      document.getElementById('cgYouBar').style.width = yv + '%';
+    }, 80);
+  }
+
   function renderValueAnchor(data){
     var box = document.getElementById('valueAnchor');
     var va = data.valueAnchor;
@@ -499,6 +535,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     var score = clr(data.score);
     lastScan = { url: data.url || lastScan && lastScan.url || '', score: score };
     setVerdict(score, data.summary);
+    renderCompetitor(data);
     renderValueAnchor(data);
     renderEngines(data.aiVisibility);
     renderBreakdown(data.breakdown);
