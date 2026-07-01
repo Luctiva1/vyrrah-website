@@ -328,7 +328,7 @@ function heuristicBreakdown(sig, auth) {
   // It informs GAPS, not the headline, so its low weight in the overall keeps it
   // from tanking an obviously-visible site. Authority gives only a small floor.
   let schema = sig.jsonLdCount ? 45 : 8;
-  if (sig.schemaTypes.some((t) => /Organization|LocalBusiness/i.test(t))) schema += 22;
+  if (sig.schemaTypes.some((t) => /Organization|LocalBusiness|ProfessionalService|Corporation|Store|MedicalBusiness|MedicalOrganization|Dentist|Physician|HomeAndConstructionBusiness|LegalService|FinancialService/i.test(t))) schema += 22;
   if (sig.schemaTypes.some((t) => /FAQ/i.test(t))) schema += 18;
   if (sig.schemaTypes.some((t) => /Review|AggregateRating|Service|Product/i.test(t))) schema += 15;
   schema = Math.max(schema, Math.round(A * 0.35));
@@ -399,7 +399,7 @@ function heuristicAiVisibility(b) {
 function candidateGaps(sig, vertical) {
   const gaps = [];
   // ── HARD: GEO/AEO strategy, schema architecture, content authority ──
-  if (!sig.jsonLdCount || !sig.schemaTypes.some((t) => /Organization|LocalBusiness/i.test(t))) {
+  if (!sig.jsonLdCount || !sig.schemaTypes.some((t) => /Organization|LocalBusiness|ProfessionalService|Corporation|Store|MedicalBusiness|MedicalOrganization|Dentist|Physician|HomeAndConstructionBusiness|LegalService|FinancialService/i.test(t))) {
     gaps.push({ tier: 'hard', title: 'No entity / schema architecture for AI engines', impact: 'AI engines cannot resolve who you are as an entity, so you are absent from the knowledge graph that ChatGPT, Perplexity and Google AI draw answers from. This is the single biggest reason invisible businesses stay invisible.', fix: 'Design a connected schema architecture (Organization/LocalBusiness plus Service, FAQ and Review entities) so engines can model your business, not just read a page. This is strategy work, not a one-click plugin.' });
   }
   if (!sig.hasFaq && !sig.schemaTypes.some((t) => /FAQ/i.test(t))) {

@@ -532,6 +532,11 @@
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <span style="font-size:12px;color:var(--text-light);" id="sphone-status">Softphone: starting...</span>
           <label style="font-size:12px;color:var(--text-light);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="autodial-toggle"> Auto-dial</label>
+          <select id="queue-campaign" title="Which market to dial" style="font-size:12px;padding:4px 6px;border:1px solid var(--border,#ddd);border-radius:6px;">
+            <option value="">All markets</option>
+            <option value="USA Outreach">🇺🇸 US</option>
+            <option value="Australia Outreach">🇦🇺 Australia</option>
+          </select>
           <span style="font-size:13px;color:var(--text-light);" id="dialer-queue-info">Load contacts to start</span>
           <button class="btn btn-outline btn-sm" id="load-dialer-queue">Load Queue</button>
           <button class="btn btn-danger btn-sm" id="eod-btn">🌙 End of Day</button>
@@ -1440,9 +1445,11 @@ document.getElementById('eod-confirm-btn').addEventListener('click', async () =>
 
 document.getElementById('load-dialer-queue').addEventListener('click', async () => {
   try {
-    const data = await API('/api/contacts?status=new&limit=500');
+    const camp = document.getElementById('queue-campaign')?.value || '';
+    const cq = camp ? '&campaign=' + encodeURIComponent(camp) : '';
+    const data = await API('/api/contacts?status=new&limit=500' + cq);
     if (!data.leads.length) {
-      const d2 = await API('/api/contacts?status=follow_up&limit=500');
+      const d2 = await API('/api/contacts?status=follow_up&limit=500' + cq);
       dialerQueue = d2.leads;
     } else {
       dialerQueue = data.leads;
