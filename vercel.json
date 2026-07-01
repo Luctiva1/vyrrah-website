@@ -66,6 +66,14 @@
       "dest": "/scorecard.html"
     },
     {
+      "src": "/guides",
+      "dest": "/guides/index.html"
+    },
+    {
+      "src": "/guides/([^.]+)",
+      "dest": "/guides/$1.html"
+    },
+    {
       "src": "/dashboard",
       "dest": "/dashboard.html"
     },

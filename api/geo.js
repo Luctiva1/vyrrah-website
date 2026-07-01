@@ -454,7 +454,8 @@ async function handleScorecard(req, res) {
   // Return a cached payload for a repeat scan so the number never moves on a live rescan.
   const adSpendBucket = (Number.isFinite(Number(body.adSpend)) && Number(body.adSpend) > 0) ? Math.round(Number(body.adSpend)) : 0;
   const cacheKey = u.hostname.replace(/^www\./, '') + '|' + adSpendBucket;
-  const cachedHit = SCORECARD_CACHE.get(cacheKey);
+  const forceRefresh = !!(body.refresh || (req.query && req.query.refresh));
+  const cachedHit = forceRefresh ? null : SCORECARD_CACHE.get(cacheKey);
   if (cachedHit && (Date.now() - cachedHit.at) < SCORECARD_TTL_MS) {
     return res.status(200).json(cachedHit.payload);
   }
