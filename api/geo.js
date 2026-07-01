@@ -1238,6 +1238,134 @@ async function handleSaveMetrics(req, res) {
 
 // ─── Router ──────────────────────────────────────────────────────────────────
 // vercel.json: { "src": "/api/geo", "dest": "/api/geo" } so ?path= is preserved.
+// ════════════════════════════════════════════════════════════════════════════
+// SOURCES — where AI actually pulls from  —  POST /api/geo?path=sources {url,vertical?,location?}
+//   AI cites third-party sources (GBP, directories, review sites, Reddit, "best-of"
+//   listicles), NOT your own articles. This returns the sources to get INTO to rank
+//   FAST (days-weeks, not 90). With PERPLEXITY_API_KEY it LIVE-CONFIRMS which sources
+//   are cited today and whether you already appear. Works with zero keys (the map).
+// ════════════════════════════════════════════════════════════════════════════
+const SOURCE_MAP = {
+  restoration: [
+    { name: 'Google Business Profile', type: 'gbp', why: 'Feeds Google AI Overviews + Maps directly; the #1 "near me" source.', action: 'Claim + fully complete profile, categories, service area, photos; post weekly; drive fresh reviews.' },
+    { name: 'Yelp', type: 'directory', why: 'Heavily cited by ChatGPT + Google for local services.', action: 'Claim + complete the listing; build review volume + recency.' },
+    { name: 'Angi / Thumbtack / HomeAdvisor', type: 'directory', why: 'Category directories AI treats as authoritative.', action: 'Get listed + verified on each; collect platform reviews.' },
+    { name: 'IICRC locator + RIA', type: 'industry', why: 'Industry-trust directories engines use to vet restoration firms.', action: 'Keep certification current; ensure the listing is complete.' },
+    { name: 'Reddit (r/HomeImprovement + city subs)', type: 'reddit', why: 'ChatGPT + Google lean on Reddit for real recommendations.', action: 'Earn genuine mentions by being helpful in relevant threads (not spam).' },
+    { name: '"Best restoration company in [city]" listicles', type: 'listicle', why: 'Publishers own the "best-of" pages AI quotes verbatim.', action: 'Outreach to the publishers ranking for your city to get included.' },
+  ],
+  medspa: [
+    { name: 'Google Business Profile', type: 'gbp', why: 'Feeds Google AI Overviews + Maps.', action: 'Claim + optimize; weekly posts; drive reviews.' },
+    { name: 'RealSelf', type: 'industry', why: 'The category authority AI cites for aesthetics.', action: 'Build a complete provider profile + reviews + before/afters.' },
+    { name: 'Yelp + Google reviews', type: 'directory', why: 'Review volume/recency is a top citation signal.', action: 'Claim listings; run a review-generation flow.' },
+    { name: 'Healthgrades / Zocdoc', type: 'industry', why: 'Medical directories engines trust for clinics.', action: 'Complete profiles; enable booking; gather reviews.' },
+    { name: 'Reddit (r/SkincareAddiction + city subs)', type: 'reddit', why: 'Heavily retrieved for honest recommendations.', action: 'Earn genuine mentions via helpful expertise.' },
+    { name: '"Best med spa in [city]" listicles', type: 'listicle', why: 'AI quotes these "best-of" pages.', action: 'Outreach to the ranking publishers to get included.' },
+  ],
+  dental: [
+    { name: 'Google Business Profile', type: 'gbp', why: 'Feeds Google AI + Maps.', action: 'Claim + optimize; drive reviews.' },
+    { name: 'Healthgrades / Zocdoc', type: 'industry', why: 'Medical directories AI trusts.', action: 'Complete profiles + booking + reviews.' },
+    { name: 'Yelp', type: 'directory', why: 'Cited for local services.', action: 'Claim + build reviews.' },
+    { name: 'Reddit + "best dentist in [city]" listicles', type: 'listicle', why: 'Retrieved for recommendations.', action: 'Earn mentions + outreach to listicle publishers.' },
+  ],
+  staffing: [
+    { name: 'Google Business Profile', type: 'gbp', why: 'Local visibility base.', action: 'Claim + optimize.' },
+    { name: 'Clutch', type: 'industry', why: 'B2B services directory AI cites.', action: 'Build a profile + verified client reviews.' },
+    { name: 'LinkedIn + Glassdoor', type: 'directory', why: 'Trust + presence signals for firms.', action: 'Complete company pages; gather reviews.' },
+    { name: 'Reddit + "best staffing agency in [city]" listicles', type: 'listicle', why: 'Retrieved for recommendations.', action: 'Earn mentions + publisher outreach.' },
+  ],
+  home: [
+    { name: 'Google Business Profile', type: 'gbp', why: 'Feeds Google AI + Maps.', action: 'Claim + optimize; drive reviews.' },
+    { name: 'Angi / Thumbtack / HomeAdvisor', type: 'directory', why: 'Category directories AI trusts.', action: 'Get listed + verified; collect reviews.' },
+    { name: 'Yelp + Nextdoor', type: 'directory', why: 'Local recommendation sources.', action: 'Claim listings; earn neighborhood recs.' },
+    { name: 'Reddit + "best [trade] in [city]" listicles', type: 'listicle', why: 'Retrieved for recommendations.', action: 'Earn mentions + publisher outreach.' },
+  ],
+  legal: [
+    { name: 'Google Business Profile', type: 'gbp', why: 'Feeds Google AI + Maps.', action: 'Claim + optimize; drive reviews.' },
+    { name: 'Avvo / Justia / FindLaw', type: 'industry', why: 'Legal directories AI trusts.', action: 'Complete profiles + reviews.' },
+    { name: 'Yelp + Google reviews', type: 'directory', why: 'Review signals.', action: 'Claim + build reviews.' },
+    { name: 'Reddit + "best [practice] lawyer in [city]" listicles', type: 'listicle', why: 'Retrieved for recommendations.', action: 'Earn mentions + publisher outreach.' },
+  ],
+  saas: [
+    { name: 'G2 + Capterra', type: 'industry', why: 'The software directories AI cites for tool recommendations.', action: 'Build complete profiles + drive verified reviews.' },
+    { name: 'Reddit (r/SEO, r/marketing, r/SaaS)', type: 'reddit', why: 'ChatGPT + Google heavily cite Reddit for tools.', action: 'Earn genuine mentions by answering relevant threads.' },
+    { name: 'Product Hunt', type: 'directory', why: 'Launch + discovery source engines index.', action: 'Launch + maintain the profile.' },
+    { name: '"Best [category] tools" listicles', type: 'listicle', why: 'AI quotes these roundups.', action: 'Outreach to publishers ranking for your category.' },
+    { name: 'Original research / data report', type: 'content', why: 'Becomes a citable primary source.', action: 'Publish proprietary data others (and AI) cite.' },
+  ],
+  generic: [
+    { name: 'Google Business Profile', type: 'gbp', why: 'Feeds Google AI Overviews + Maps.', action: 'Claim + fully optimize; drive reviews.' },
+    { name: 'Yelp + Trustpilot', type: 'directory', why: 'Review sources AI cites.', action: 'Claim listings; build review volume + recency.' },
+    { name: 'Reddit', type: 'reddit', why: 'Heavily retrieved for recommendations.', action: 'Earn genuine mentions in relevant subreddits.' },
+    { name: 'Your top industry directory', type: 'industry', why: 'Category directories AI trusts.', action: 'Get listed + verified.' },
+    { name: '"Best [service] in [city]" listicles', type: 'listicle', why: 'AI quotes "best-of" pages.', action: 'Outreach to ranking publishers to get included.' },
+  ],
+};
+function sourcesForVertical(v) {
+  const key = ({ 'restoration': 'restoration', 'med-spa': 'medspa', 'medspa': 'medspa', 'dental/med-spa': 'medspa', 'dental': 'dental', 'staffing/recruitment': 'staffing', 'staffing': 'staffing', 'roofing': 'home', 'home services': 'home', 'legal': 'legal', 'saas': 'saas', 'technology': 'saas' })[String(v || '').toLowerCase()];
+  return SOURCE_MAP[key] || SOURCE_MAP.generic;
+}
+function matchSource(domain, target) {
+  const n = (target.name || '').toLowerCase(); const d = String(domain).toLowerCase();
+  const pairs = [['google business', 'google.'], ['yelp', 'yelp'], ['reddit', 'reddit'], ['realself', 'realself'], ['healthgrades', 'healthgrades'], ['zocdoc', 'zocdoc'], ['angi', 'angi'], ['angi', 'homeadvisor'], ['thumbtack', 'thumbtack'], ['g2', 'g2.com'], ['capterra', 'capterra'], ['clutch', 'clutch'], ['avvo', 'avvo'], ['justia', 'justia'], ['findlaw', 'findlaw'], ['bbb', 'bbb.org'], ['product hunt', 'producthunt'], ['nextdoor', 'nextdoor'], ['trustpilot', 'trustpilot'], ['glassdoor', 'glassdoor'], ['linkedin', 'linkedin']];
+  return pairs.some(([nk, dk]) => n.includes(nk) && d.includes(dk));
+}
+// Live citation check via Perplexity (its API returns the real cited URLs). Best-effort.
+async function perplexityCitations(prompts, host) {
+  const key = process.env.PERPLEXITY_API_KEY;
+  if (!key) return null;
+  const domains = {}; let present = false; const promptResults = [];
+  for (const p of prompts.slice(0, 3)) {
+    try {
+      const r = await fetchWithTimeout('https://api.perplexity.ai/chat/completions', LLM_TIMEOUT_MS, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'sonar', messages: [{ role: 'user', content: p }], max_tokens: 600 }),
+      });
+      if (!r.ok) continue;
+      const data = await r.json();
+      const cites = data.citations || (Array.isArray(data.search_results) ? data.search_results.map((s) => s.url) : []) || [];
+      const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+      const found = [];
+      for (const url of cites) { try { const h = new URL(url).hostname.replace(/^www\./, ''); domains[h] = (domains[h] || 0) + 1; found.push(h); } catch (e) {} }
+      const hostBare = String(host || '').replace(/^www\./, '');
+      const brand = hostBare.split('.')[0];
+      const iAmCited = found.some((h) => h.includes(hostBare)) || (brand && brand.length > 2 && text.toLowerCase().includes(brand));
+      if (iAmCited) present = true;
+      promptResults.push({ prompt: p, cited: found.slice(0, 8), youCited: iAmCited });
+    } catch (e) { /* skip */ }
+  }
+  const citedSources = Object.entries(domains).sort((a, b) => b[1] - a[1]).map(([domain, count]) => ({ domain, count }));
+  return { engine: 'perplexity', present, citedSources, prompts: promptResults };
+}
+async function handleSources(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (rateLimited(req)) return res.status(429).json({ error: 'Too many requests, slow down.' });
+  const body = readBody(req);
+  const u = safeUrl(body.url);
+  if (!u) return res.status(400).json({ error: 'A valid http(s) url is required.' });
+  const vertical = body.vertical || inferVertical(u.hostname);
+  const targets = sourcesForVertical(vertical);
+  const loc = body.location ? ` in ${body.location}` : ' near me';
+  const prompts = [
+    `Who are the best ${vertical} companies${loc}? List specific businesses.`,
+    `I need a ${vertical} provider${loc} — who do you recommend and why?`,
+    `Top rated ${vertical} services${loc}`,
+  ];
+  let live = null;
+  try { live = await perplexityCitations(prompts, u.hostname); } catch (e) { /* best-effort */ }
+  const citedDomains = (live && live.citedSources || []).map((s) => s.domain);
+  const enriched = targets.map((t) => ({ ...t, confirmedCited: citedDomains.some((d) => matchSource(d, t)) }));
+  return res.status(200).json({
+    host: u.hostname, vertical,
+    live: live ? { engine: live.engine, youArePresent: live.present, citedSources: live.citedSources, prompts: live.prompts } : null,
+    liveAvailable: !!live,
+    targets: enriched,
+    note: live
+      ? (live.present ? 'You already appear in some AI answers — now expand coverage across the sources below.' : 'You are not appearing in AI answers yet. Getting into the sources below is how you start being cited within weeks, not months.')
+      : 'These are the sources AI pulls from for your category. Get into them to rank fast. (Connect a Perplexity key to live-confirm exactly who is cited today.)',
+  });
+}
+
 module.exports = async (req, res) => {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -1246,6 +1374,7 @@ module.exports = async (req, res) => {
   const path = String((req.query && req.query.path) || '').replace(/^\/+/, '');
   try {
     if (path === 'scorecard') return await handleScorecard(req, res);
+    if (path === 'sources') return await handleSources(req, res);
     if (path === 'generate') return await handleGenerate(req, res);
     if (path === 'dashboard') return await handleDashboard(req, res);
     // ── V-Rank account / billing / admin (reuse Recaller account system) ──

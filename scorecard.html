@@ -309,6 +309,13 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       <div class="engines" id="engines"></div>
     </div>
 
+    <!-- WHERE AI PULLS FROM (the fast lever) -->
+    <div id="sourcesPanel" style="display:none;margin-top:26px">
+      <div class="sect-lab">Where AI pulls its answers from — get into these to rank fast</div>
+      <div id="sourcesNote" style="font-size:13.5px;color:var(--gray);margin:6px 0 14px"></div>
+      <div id="sourcesList"></div>
+    </div>
+
     <!-- BREAKDOWN -->
     <div class="breakdown">
       <div class="sect-lab">Your score, broken down</div>
@@ -468,6 +475,33 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     return '$' + n.toLocaleString('en-US');
   }
 
+  function loadSources(url, vertical){
+    var panel = document.getElementById('sourcesPanel');
+    var list = document.getElementById('sourcesList');
+    var note = document.getElementById('sourcesNote');
+    if(!panel) return;
+    panel.style.display = 'block';
+    note.textContent = '';
+    list.innerHTML = '<div style="color:var(--gray);font-size:13.5px">Checking where AI pulls from for your category…</div>';
+    fetch('/api/geo?path=sources', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url:url, vertical:vertical }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d || !Array.isArray(d.targets)){ panel.style.display='none'; return; }
+        note.textContent = d.note || '';
+        list.innerHTML = d.targets.map(function(t){
+          var badge = t.confirmedCited
+            ? '<span style="font-size:10px;font-weight:700;letter-spacing:.05em;color:#e8b23a;border:1px solid rgba(232,178,58,.5);border-radius:3px;padding:2px 7px;white-space:nowrap">AI CITES THIS</span>'
+            : '<span style="font-size:10px;font-weight:700;letter-spacing:.05em;color:#a39c8e;border:1px solid rgba(242,237,228,.18);border-radius:3px;padding:2px 7px;white-space:nowrap">GET IN</span>';
+          return '<div style="padding:14px 0;border-bottom:1px solid rgba(242,237,228,.1)">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:5px"><b style="font-size:15px;color:#f2ede4">'+esc(t.name)+'</b>'+badge+'</div>'
+            + '<div style="font-size:13px;color:#a39c8e;margin-bottom:4px">'+esc(t.why)+'</div>'
+            + '<div style="font-size:13px;color:#e7e2d7"><b style="color:#e8b23a">Do this:</b> '+esc(t.action)+'</div>'
+            + '</div>';
+        }).join('');
+      })
+      .catch(function(){ panel.style.display='none'; });
+  }
+
   function renderCompetitor(data){
     var c = data && data.competitorGap;
     var box = document.getElementById('compGap');
@@ -540,6 +574,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     renderEngines(data.aiVisibility);
     renderBreakdown(data.breakdown);
     renderGaps(data.gaps, data.totalGapsFound);
+    if(data.meta && data.meta.url) loadSources(data.meta.url, data.meta.vertical);
     lead.style.display = 'none';
     result.style.display = 'block';
     window.scrollTo({top:0, behavior:'smooth'});
