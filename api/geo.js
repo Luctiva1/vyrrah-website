@@ -483,13 +483,22 @@ async function handleScorecard(req, res) {
   // Only the HARD gaps are the headline list; total counts every real gap found.
   const baseHardGaps = candGaps.filter((g) => g.tier === 'hard').map(({ tier, ...g }) => g);
   // Pad the headline list to 3 so a heuristic fallback never collapses to 1 gap
-  // (keeps parity with the LLM's "exactly 3" contract on a live rescan).
+  // (keeps parity with the LLM's "exactly 3" contract on a live rescan). When a
+  // site passes the on-page checklist, pad from strategic gaps that are true of
+  // essentially every local business that isn't actively doing GEO work.
+  const STRATEGIC_POOL = [
+    { title: 'Not present in the sources AI actually cites', impact: 'ChatGPT, Perplexity and Google AI answer "who should I hire" from third-party sources: directories, review platforms, Reddit threads and best-of lists. If you are not in those sources, you are not in the answer, regardless of how good your own site is.', fix: 'Map the exact sources AI cites for your category and get placed in each: directory profiles, review velocity, and inclusion in the local best-of lists engines quote. Ongoing placement work, not a website tweak.' },
+    { title: 'No AI-citation tracking or share-of-voice baseline', impact: 'You cannot manage what you never see. Without tracking which AI answers name you versus competitors, you are blind to where the calls are actually going.', fix: 'Stand up weekly citation tracking across ChatGPT, Perplexity and Google AI for your money queries, baseline your share of voice, and work the gaps query by query.' },
+    { title: 'Answer-shaped content missing for buying-intent questions', impact: 'Engines quote sources that directly answer questions buyers ask ("how much does X cost", "how fast can someone come out"). Service pages alone rarely get quoted.', fix: 'Build a question-led content layer mapped to real buyer prompts in your vertical, structured so engines can lift the answer with your name attached.' },
+  ];
   const allStripped = candGaps.map(({ tier, ...g }) => g);
-  const baseGaps = (baseHardGaps.length >= 3
-    ? baseHardGaps
-    : [...baseHardGaps, ...allStripped.filter((g) => !baseHardGaps.some((h) => h.title === g.title))]
-  ).slice(0, 3);
-  const totalGapsFound = candGaps.length;
+  const padded = [...baseHardGaps, ...allStripped.filter((g) => !baseHardGaps.some((h) => h.title === g.title))];
+  for (const sg of STRATEGIC_POOL) {
+    if (padded.length >= 3) break;
+    if (!padded.some((g) => g.title === sg.title)) padded.push(sg);
+  }
+  const baseGaps = padded.slice(0, 3);
+  const totalGapsFound = Math.max(candGaps.length, baseGaps.length);
   // A recognized mega-authority is never "cold start" even if the fetch was
   // blocked (Reddit etc. often refuse bot UAs): the domain is demonstrably
   // visible, so a cold-start verdict would directly contradict its high score.
