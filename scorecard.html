@@ -722,11 +722,18 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     if(!email || email.indexOf('@') < 1){ suErr.textContent = 'Enter a valid work email.'; suErr.style.display='block'; return; }
     if(pass.length < 8){ suErr.textContent = 'Use a password of at least 8 characters.'; suErr.style.display='block'; return; }
     suBtn.disabled = true; suBtnTxt.textContent = 'Creating your account…';
+    var _full = (lastScan && lastScan.full) || {};
+    var _meta = _full.meta || {};
     var body = {
       email: email,
       password: pass,
-      website: (lastScan && lastScan.url) || '',
-      score: (lastScan && lastScan.score) != null ? lastScan.score : undefined
+      website: (lastScan && lastScan.url) || _meta.url || '',
+      score: (lastScan && lastScan.score) != null ? lastScan.score : undefined,
+      // Carry the whole scan so the dashboard opens on a real work plan, not a blank slate.
+      scan: {
+        host: _meta.host, vertical: _meta.vertical, score: _full.score, summary: _full.summary,
+        gaps: _full.gaps, competitorGap: _full.competitorGap, totalGapsFound: _full.totalGapsFound
+      }
     };
     fetch('/api/geo?path=signup', {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
