@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V-Rank · Lead Command</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--bg:#0c0c0e;--ink:#f2ede4;--muted:#a39c8e;--gold:#e8b23a;--green:#3ecf8e;--red:#e5484d;--line:rgba(242,237,228,.12);--card:#141416}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif}
+a{color:var(--gold)}
+.wrap{max-width:1400px;margin:0 auto;padding:18px 22px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px}
+.mark{font-weight:800;letter-spacing:.02em}.mark .d{color:var(--gold)}
+.gate{max-width:340px;margin:12vh auto;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px}
+.gate h1{font-size:18px;margin:0 0 14px}
+input,textarea,select,button{font:inherit}
+input,textarea{width:100%;background:#0a0a0c;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px 12px;margin-bottom:10px}
+textarea{min-height:120px;resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+.btn{background:var(--gold);color:#1a1400;font-weight:700;border:0;border-radius:8px;padding:10px 16px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.sm{padding:5px 9px;font-size:12px}
+.err{color:var(--red);font-size:12.5px;min-height:16px}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 14px}
+.stat b{font-size:18px;color:var(--gold)}.stat span{color:var(--muted);font-size:11px;display:block}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;background:var(--bg)}
+.sc{font-weight:800;font-family:ui-monospace,monospace}
+.tier{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;white-space:nowrap}
+.t-SWEET-SPOT{background:rgba(62,207,142,.15);color:var(--green)}
+.t-SKIP{background:rgba(242,237,228,.08);color:var(--muted)}
+.t-WEAK,.t-UNREACHABLE,.t-BLOCKED,.t-ERROR,.t-NO\ URL{background:rgba(229,72,77,.12);color:#e5726f}
+.flags span{display:inline-block;font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:1px 5px;margin:1px}
+.flags .on{color:var(--gold);border-color:rgba(232,178,58,.4)}
+.op{max-width:420px;color:#e7e2d7;font-size:12.5px}
+.op .cp{margin-top:4px}
+.phone a{color:var(--green);text-decoration:none;font-weight:600}
+.muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <h1>V-Rank<span style="color:var(--gold)">.</span> Lead Command</h1>
+  <input id="u" placeholder="admin username" autocomplete="username">
+  <input id="p" type="password" placeholder="admin password" autocomplete="current-password">
+  <button class="btn" id="login" style="width:100%">Sign in</button>
+  <div class="err" id="lerr"></div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="top">
+    <div class="mark">V-RANK<span class="d">.</span> LEAD COMMAND</div>
+    <button class="btn ghost sm" id="out">Sign out</button>
+  </div>
+  <p class="muted">Paste domains (one per line) or <b>upload a CSV</b> (Apollo/Maps export — website/company/first/phone/email auto-detected). Enriches with V-Rank score + signals + a value-led opener. No per-lead AI.</p>
+  <div class="bar">
+    <input type="file" id="file" accept=".csv" style="width:auto;margin:0">
+    <span class="muted">or</span>
+  </div>
+  <textarea id="paste" placeholder="acme-restoration.com&#10;https://example-plumbing.com&#10;or:  domain, Company, First, Phone, Email"></textarea>
+  <div class="bar">
+    <button class="btn" id="run">Enrich</button>
+    <label class="muted"><input type="checkbox" id="sweetOnly" style="width:auto;margin:0 4px 0 0"> sweet-spot only</label>
+    <label class="muted"><input type="checkbox" id="adsOnly" style="width:auto;margin:0 4px 0 0"> runs ads only</label>
+    <button class="btn ghost sm" id="exp">Export CSV</button>
+    <span class="muted" id="prog"></span>
+  </div>
+  <div class="err" id="rerr"></div>
+  <div class="bar" id="stats"></div>
+  <div style="overflow:auto"><table id="tbl"></table></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const TKEY='vyrrah_admin_jwt';
+let token=localStorage.getItem(TKEY)||'', ALL=[];
+
+function showApp(){ $('gate').style.display=token?'none':'block'; $('app').style.display=token?'block':'none'; }
+showApp();
+
+$('login').onclick=async()=>{
+  $('lerr').textContent='';
+  try{
+    const r=await fetch('/api/tool/auth/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:$('u').value,password:$('p').value})});
+    const d=await r.json();
+    if(!r.ok||!d.token) throw new Error(d.error||'Wrong login');
+    token=d.token; localStorage.setItem(TKEY,token); showApp();
+  }catch(e){ $('lerr').textContent=e.message; }
+};
+$('out').onclick=()=>{ localStorage.removeItem(TKEY); token=''; showApp(); };
+
+// --- CSV parse (quoted-safe) ---
+function parseCSV(t){const rows=[];let row=[],f='',q=false;for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}else if(c==='"')q=true;else if(c===',')  {row.push(f);f=''}else if(c==='\n'){row.push(f);rows.push(row);row=[];f=''}else if(c!=='\r')f+=c}if(f.length||row.length){row.push(f);rows.push(row)}const h=rows.shift()||[];return rows.filter(r=>r.length>1).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]??''])));}
+function pickCol(row,...c){const ks=Object.keys(row);for(const cand of c){const k=ks.find(k=>k.toLowerCase().replace(/[^a-z]/g,'')===cand);if(k&&row[k])return row[k]}for(const cand of c){const k=ks.find(k=>k.toLowerCase().includes(cand));if(k&&row[k])return row[k]}return''}
+
+function leadsFromCSV(rows){return rows.map(r=>({url:pickCol(r,'companywebsite','website','domain','url'),company:pickCol(r,'companyname','company','organization'),first:pickCol(r,'firstname','first'),contact:(pickCol(r,'firstname','first')+' '+pickCol(r,'lastname','last')).trim(),title:pickCol(r,'title'),phone:pickCol(r,'mobilenumber','companyphonenumber','phone'),email:pickCol(r,'email'),city:pickCol(r,'city'),vertical:'',tech:pickCol(r,'companytechnologies')})).filter(l=>l.url)}
+function leadsFromPaste(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const p=l.split(',').map(x=>x.trim());return {url:p[0],company:p[1]||'',first:p[2]||'',phone:p[3]||'',email:p[4]||''}}).filter(l=>l.url)}
+
+let pending=[];
+$('file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{pending=leadsFromCSV(parseCSV(rd.result));$('prog').textContent=pending.length+' leads loaded from CSV — hit Enrich';};rd.readAsText(f)};
+
+$('run').onclick=async()=>{
+  $('rerr').textContent='';
+  let leads = pending.length?pending:leadsFromPaste($('paste').value);
+  if(!leads.length){$('rerr').textContent='Add domains or a CSV first';return}
+  ALL=[]; renderStats(); $('tbl').innerHTML='';
+  const CH=40;
+  for(let i=0;i<leads.length;i+=CH){
+    $('prog').textContent=`enriching ${Math.min(i+CH,leads.length)}/${leads.length}...`;
+    try{
+      const r=await fetch('/api/geo?path=enrich',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({leads:leads.slice(i,i+CH)})});
+      if(r.status===401){$('rerr').textContent='Session expired — sign in again';localStorage.removeItem(TKEY);token='';showApp();return}
+      const d=await r.json(); ALL.push(...(d.leads||[])); render();
+    }catch(e){$('rerr').textContent=e.message}
+  }
+  pending=[]; $('prog').textContent=`done — ${ALL.length} enriched`;
+};
+
+function view(){let v=[...ALL];if($('sweetOnly').checked)v=v.filter(l=>l.tier==='SWEET-SPOT');if($('adsOnly').checked)v=v.filter(l=>l.runsAds);return v.sort((a,b)=>(a.score??999)-(b.score??999))}
+$('sweetOnly').onchange=$('adsOnly').onchange=render;
+
+function renderStats(){
+  const s=ALL.filter(l=>typeof l.score==='number');
+  $('stats').innerHTML=[
+    ['Enriched',ALL.length],['Reachable',s.length],['Runs ads',ALL.filter(l=>l.runsAds).length],
+    ['Sweet-spot',ALL.filter(l=>l.tier==='SWEET-SPOT').length],['Avg score',s.length?Math.round(s.reduce((a,l)=>a+l.score,0)/s.length):'—']
+  ].map(([k,v])=>`<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('');
+}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function render(){
+  renderStats();
+  const v=view();
+  $('tbl').innerHTML='<tr><th>Company</th><th>Score</th><th>Tier</th><th>Signals</th><th>Contact</th><th>Phone</th><th>Opener</th></tr>'+
+  v.map(l=>{
+    const sc=l.score==null?'—':l.score;
+    const col=l.score==null?'var(--muted)':l.score<45?'#e5726f':l.score<68?'var(--gold)':'var(--green)';
+    const fl=[['ads',l.runsAds],['schema',l.schema],['LclBiz',l.localbiz],['capture',l.hasCapture],['reviews',l.reviews]].map(([n,on])=>`<span class="${on?'on':''}">${n}</span>`).join('')+(l.loadMs?` <span class="${l.loadMs>4000?'on':''}">${(l.loadMs/1000).toFixed(1)}s</span>`:'');
+    const op=esc(l.callOpener||'')||'<span class="muted">— no strong hook (skip/manual)</span>';
+    const ph=l.phone?`<span class="phone"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a></span>`:'<span class="muted">—</span>';
+    return `<tr>
+      <td><b>${esc(l.company)}</b><div class="muted">${esc(l.website||'')}</div></td>
+      <td class="sc" style="color:${col}">${sc}</td>
+      <td><span class="tier t-${(l.tier||'').replace(' ','\\ ')}">${esc(l.tier||'')}</span></td>
+      <td class="flags">${fl}</td>
+      <td>${esc(l.contact||'')}<div class="muted">${esc(l.title||'')}</div></td>
+      <td>${ph}</td>
+      <td class="op">${op}${l.callOpener?`<div class="cp"><button class="btn ghost sm" onclick="navigator.clipboard.writeText(this.closest('td').querySelector('span,div')?'':'');navigator.clipboard.writeText(${JSON.stringify(l.callOpener)});this.textContent='Copied'">Copy</button></div>`:''}</td>
+    </tr>`;
+  }).join('');
+}
+$('exp').onclick=()=>{
+  if(!ALL.length)return;
+  const cols=['company','contact','title','phone','email','city','website','vertical','score','tier','runsAds','schema','localbiz','hasCapture','reviews','loadMs','callOpener','emailLine'];
+  const cell=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  const csv=[cols.join(','),...ALL.map(r=>cols.map(c=>cell(r[c])).join(','))].join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='vyrrah_enriched.csv';a.click();
+};
+</script>
+</body>
+</html>

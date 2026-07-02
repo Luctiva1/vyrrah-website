@@ -94,6 +94,10 @@
       "dest": "/command.html"
     },
     {
+      "src": "/leads",
+      "dest": "/leads.html"
+    },
+    {
       "src": "/privacy",
       "dest": "/privacy.html"
     },

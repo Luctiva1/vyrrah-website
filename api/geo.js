@@ -334,6 +334,10 @@ function inspectHtml(html) {
     hasFaq: /\bfaq\b|frequently asked/i.test(lower) || schemaTypes.some((t) => /faq/i.test(t)),
     hasTel: /href=["']tel:/i.test(h),
     city: ((h.match(/"addressLocality"\s*:\s*"([^"]{2,40})"/) || [])[1] || '').trim(),
+    hasForm: /<form|mailto:/i.test(h),
+    hasChat: /tawk\.to|intercom|tidio|livechat|podium|drift|hubspot/i.test(lower),
+    metaPixel: /fbq\(|connect\.facebook\.net\/[^"']*fbevents/i.test(h),
+    googleAds: /AW-[0-9]{9,}|googleadservices|gtag_report_conversion/i.test(h),
     hasReviews: /review|testimonial|★|stars?\b|rating/i.test(lower) || schemaTypes.some((t) => /review|aggregaterating/i.test(t)),
     jsonLdCount: jsonLdBlocks.length,
     schemaTypes: Array.from(new Set(schemaTypes)),
@@ -482,6 +486,95 @@ function heuristicGaps(sig, vertical) {
 // IDENTICAL score/gaps (within a warm instance). Keyed by host + adSpend bucket.
 const SCORECARD_CACHE = new Map();
 const SCORECARD_TTL_MS = 30 * 60 * 1000;
+
+// ─── Lead capture helpers ────────────────────────────────────────────────────
+// Every scorecard scan is a hot inbound lead: the visitor just checked their own
+// AI visibility. We log the domain even with no email (the calling/email chats
+// can work a domain list) and attach an email when the soft gate is used.
+function clientIp(req) {
+  return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+    req.headers['x-real-ip'] || (req.socket && req.socket.remoteAddress) || null;
+}
+
+// Self-contained SendGrid send (mirrors api/tool.js sendEmail — geo.js stays
+// independent per the design rule; never import across api files). Text/plain,
+// first-person Godwin voice enforced by the caller's copy.
+async function sendEmail({ to, toName, subject, body }) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'godwin@vyrrahlabs.com';
+  const fromName = process.env.SENDGRID_FROM_NAME || 'Godwin at Vyrrah Labs';
+  if (!apiKey) throw new Error('SENDGRID_API_KEY not configured');
+  const r = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: to, name: toName || '' }] }],
+      from: { email: fromEmail, name: fromName },
+      subject,
+      content: [{ type: 'text/plain', value: body }]
+    })
+  });
+  if (!r.ok) throw new Error(`SendGrid error ${r.status}: ${await r.text()}`);
+  return { status: r.status };
+}
+
+// Fail-soft: insert one geo_leads row for a fresh scan. Never throws, never
+// blocks the scorecard response. Returns the new lead id (or null).
+async function logScan(req, u, payload, body) {
+  try {
+    const supabase = getSupabase();
+    const m = payload.meta || {};
+    const row = {
+      host: u.hostname.replace(/^www\./, ''),
+      url: u.href,
+      score: Number.isFinite(payload.score) ? payload.score : null,
+      vertical: m.vertical || null,
+      ad_spend: (Number.isFinite(Number(body.adSpend)) && Number(body.adSpend) > 0) ? Math.round(Number(body.adSpend)) : null,
+      source: 'scan',
+      competitor: (payload.competitorGap && payload.competitorGap.competitor) || null,
+      cold_start: !!m.coldStart,
+      blocked: m.fetched === false,
+      ip: clientIp(req),
+      user_agent: (req.headers['user-agent'] || '').slice(0, 300) || null,
+      referer: (req.headers['referer'] || req.headers['referrer'] || '').slice(0, 300) || null
+    };
+    const { data, error } = await supabase.from('geo_leads').insert(row).select('id').single();
+    if (error) throw error;
+    return data && data.id;
+  } catch (e) {
+    // geo_leads not migrated yet, or transient — capture is best-effort.
+    return null;
+  }
+}
+
+// Plain-text work-plan email built from a scan the frontend already has in hand.
+// First person, no em/en dashes, no hype words. Delivers real value (their score
+// + the exact gaps) so the email itself earns the reply.
+function workPlanEmailBody(scan) {
+  const host = (scan && scan.host) || 'your site';
+  const score = Number.isFinite(Number(scan && scan.score)) ? Number(scan.score) : null;
+  const gaps = Array.isArray(scan && scan.gaps) ? scan.gaps.slice(0, 3) : [];
+  const comp = scan && scan.competitorGap;
+  const lines = [];
+  lines.push(`Here is the AI-visibility work plan for ${host}.`);
+  lines.push('');
+  if (score != null) lines.push(`Your score today: ${score} out of 100. This is how often ChatGPT, Perplexity, Claude and Google AI can find and cite you when someone asks who to hire.`);
+  if (comp && comp.competitor && comp.line) { lines.push(''); lines.push(comp.line); }
+  lines.push('');
+  lines.push('The three things holding you back, in the order I would fix them:');
+  gaps.forEach((g, i) => {
+    lines.push('');
+    lines.push(`${i + 1}. ${g.title}`);
+    if (g.impact) lines.push(`   Why it matters: ${g.impact}`);
+    if (g.fix) lines.push(`   The fix: ${g.fix}`);
+  });
+  lines.push('');
+  lines.push('I can run the whole plan for you with the V-Rank engine, or hand it to you to run yourself. If you want it moved, reply to this email or grab a time here: https://cal.com/godwin-rayen/30min');
+  lines.push('');
+  lines.push('Godwin');
+  lines.push('Vyrrah Labs');
+  return lines.join('\n');
+}
 
 async function handleScorecard(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -691,6 +784,10 @@ async function handleScorecard(req, res) {
     meta: { url: u.href, host: u.hostname, vertical, coldStart, fetched: fetchOk, mock: !out, domainAuthority: auth.authority, recognizedAuthority: auth.recognized, signals: sig }
   };
   SCORECARD_CACHE.set(cacheKey, { at: Date.now(), payload });
+  // Capture the scan as an inbound lead (fail-soft, non-blocking). Attach the
+  // lead id so the soft email gate can link an email to this exact scan.
+  const leadId = await logScan(req, u, payload, body);
+  if (leadId) payload.meta.leadId = leadId;
   return res.status(200).json(payload);
 }
 
@@ -1520,6 +1617,149 @@ async function handleSources(req, res) {
   });
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// ENRICH — POST /api/geo?path=enrich  {url,...} or {leads:[{url,first,company,vertical,city,phone,email,tech}]}
+//   Deterministic per-lead growth signals + V-Rank score + VALUE-LED opener.
+//   Admin-gated, batch-capable (<=60/req). No per-lead LLM → scales cheap. Powers /leads.
+// ════════════════════════════════════════════════════════════════════════════
+const ENRICH_COMP = { restoration: ['SERVPRO', 'ServiceMaster Restore', 'PuroClean'], roofing: ['Erie Home'], dental: ['Aspen Dental'], 'med-spa': ['Ideal Image', 'LaserAway'], legal: ['Morgan & Morgan'], 'home services': ['Roto-Rooter'], 'staffing/recruitment': ['Robert Half'] };
+function prizeNoun(v) { if (['restoration', 'roofing', 'home services'].includes(v)) return 'booked jobs'; if (['dental', 'med-spa'].includes(v)) return 'new patients'; if (v === 'legal') return 'new cases'; if (v === 'staffing/recruitment') return 'placements'; return 'new customers'; }
+// VALUE-LED opener (mirrors enricher/templates.mjs). Hook -> outcome -> soft CTA.
+// Only asserts DETECTED facts; returns '' when no real hook (blank beats generic filler).
+function buildOpener(f, channel) {
+  const p = prizeNoun(f.vertical); const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+  if (f.blocked) { const c = `your site blocks the crawlers ChatGPT, Perplexity and Google AI use to read you — so you're effectively invisible in AI search, and that's ${p} going to whoever they CAN read. I fix that fast`; return channel === 'email' ? cap(c) + '.' : `Hi ${f.first} — ${c}. Worth 15 minutes?`; }
+  let c = null;
+  if (f.runsAds) c = `you're renting every lead through paid ads — the day you stop, it stops. I get businesses like yours the same ${p} from Google and AI search at a fraction of that ad spend`;
+  else if (f.score != null && f.score < 58 && f.competitor) c = `when your customers ask ChatGPT or Google AI who to use, ${f.competitor} gets named and you don't — that's ${p} handed straight to them. Getting you into that answer is exactly what I do`;
+  else if (f.loadS != null && f.loadS >= 5) c = `your site takes ${f.loadS}s to load, so you lose over half your visitors before it opens — you're paying for traffic that never sees you. I win those ${p} back`;
+  else if (!f.hasForm && !f.hasChat && f.score != null && f.score >= 45) c = `you're sending visitors to a homepage with no way to capture them — that traffic leaks straight out. I turn the visitors you already get into ${p}`;
+  else if (f.score != null && f.score < 62 && f.competitor) c = `you're near-invisible in AI search while ${f.competitor} isn't, and that's where your buyers are starting to look. I get you found there before they lock it up, and it turns into ${p}`;
+  if (!c) return '';
+  return channel === 'email' ? cap(c) + '.' : `Hi ${f.first} — ${c}. Worth 15 minutes to see how?`;
+}
+async function enrichLead(lead) {
+  const u = safeUrl(lead.url || lead.website || '');
+  const company = String(lead.company || '').trim() || (u ? u.hostname.replace(/^www\./, '') : 'this company');
+  if (!u) return { company, error: 'no valid url', score: null, tier: 'NO URL', callOpener: '', emailLine: '' };
+  let html = '', ms = 0, status = 0; const t = Date.now();
+  try {
+    const r = await fetchWithTimeout(u.href, FETCH_TIMEOUT_MS, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 AppleWebKit/537.36 Chrome/124 Safari/537.36 VRank/1.0', 'Accept': 'text/html' } });
+    ms = Date.now() - t; status = r.status; const ct = r.headers.get('content-type') || '';
+    if (r.ok && ct.includes('html')) html = await r.text();
+  } catch (e) { ms = Date.now() - t; }
+  const noContent = !html || html.length < 200;
+  const blocked = noContent && (status === 0 || [401, 403, 406, 429, 503].includes(status));
+  const sig = inspectHtml(html);
+  const vertical = String(lead.vertical || '').trim() || inferVertical([company, lead.industry, lead.keywords, sig.title, sig.metaDesc, u.hostname].join(' '));
+  const auth = domainAuthority(u.hostname);
+  const score = noContent ? (blocked ? clamp(auth.authority, 0, 100) : null) : overallFromBreakdown(heuristicBreakdown(sig, auth));
+  const tech = String(lead.tech || lead.technologies || '').toLowerCase();
+  const runsAds = !!(sig.metaPixel || sig.googleAds) || /google ads|facebook|meta pixel|adroll|taboola/.test(tech);
+  const competitor = (ENRICH_COMP[vertical] || ['your top competitor'])[0];
+  const f = { first: lead.first || 'there', company, vertical, score: score == null ? null : Math.round(score), blocked, runsAds, hasForm: !!sig.hasForm, hasChat: !!sig.hasChat, reviews: !!sig.hasReviews, loadS: noContent ? null : +(ms / 1000).toFixed(1), competitor };
+  const tier = blocked ? 'BLOCKED' : score == null ? 'UNREACHABLE' : score >= 72 ? 'SKIP' : score < 28 ? 'WEAK' : 'SWEET-SPOT';
+  return {
+    company, contact: lead.contact || '', title: lead.title || '', phone: lead.phone || '', email: lead.email || '',
+    city: lead.city || sig.city || '', website: u.href, vertical, score: f.score, tier, runsAds,
+    schema: sig.jsonLdCount > 0, localbiz: sig.schemaTypes.some(t => /LocalBusiness|Organization/i.test(t)),
+    hasCapture: !!(sig.hasForm || sig.hasChat), reviews: !!sig.hasReviews, loadMs: noContent ? null : ms,
+    callOpener: buildOpener(f, 'call'), emailLine: buildOpener(f, 'email'),
+  };
+}
+async function handleEnrich(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!requireAuth(req, res)) return;
+  const body = readBody(req);
+  let leads = Array.isArray(body.leads) ? body.leads : (body.url ? [body] : []);
+  if (!leads.length) return res.status(400).json({ error: 'send {url} or {leads:[...]}' });
+  leads = leads.slice(0, 60);
+  const out = []; const BATCH = 8;
+  for (let i = 0; i < leads.length; i += BATCH) {
+    const chunk = leads.slice(i, i + BATCH);
+    const rs = await Promise.all(chunk.map(l => enrichLead(l).catch(e => ({ company: l.company || '?', error: String(e.message || e), score: null, tier: 'ERROR', callOpener: '', emailLine: '' }))));
+    out.push(...rs);
+  }
+  return res.status(200).json({ count: out.length, leads: out });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// LEAD-EMAIL — POST /api/geo?path=lead-email  {email, url?, score?, scan?, lead_id?}
+//   The soft gate: the score shows free on-screen; this captures an EMAIL (no
+//   password, no account) in exchange for the full work plan emailed. Creates a
+//   geo_leads row and fires the plan email. Capturing the lead is the priority,
+//   so a SendGrid failure never fails the request.
+// ════════════════════════════════════════════════════════════════════════════
+async function handleLeadEmail(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (rateLimited(req)) return res.status(429).json({ error: 'Too many requests, slow down.' });
+  const body = readBody(req);
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  if (!email || !email.includes('@') || email.length > 200) {
+    return res.status(400).json({ error: 'A valid email is required.' });
+  }
+  const scan = (body.scan && typeof body.scan === 'object') ? body.scan : {};
+  let host = null;
+  const rawUrl = body.url || scan.url || scan.host;
+  if (rawUrl) { const su = safeUrl(/^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`); host = su ? su.hostname.replace(/^www\./, '') : String(rawUrl).slice(0, 200); }
+  const score = Number.isFinite(Number(body.score)) ? clamp(Number(body.score), 0, 100)
+    : (Number.isFinite(Number(scan.score)) ? clamp(Number(scan.score), 0, 100) : null);
+
+  // Persist the lead (fail-soft). This is the whole point — never lose it.
+  try {
+    const supabase = getSupabase();
+    await supabase.from('geo_leads').insert({
+      host, url: rawUrl ? String(rawUrl).slice(0, 300) : null, score,
+      vertical: scan.vertical || (scan.meta && scan.meta.vertical) || null,
+      email, source: 'email-report',
+      competitor: (scan.competitorGap && scan.competitorGap.competitor) || null,
+      ip: clientIp(req), user_agent: (req.headers['user-agent'] || '').slice(0, 300) || null,
+      referer: (req.headers['referer'] || req.headers['referrer'] || '').slice(0, 300) || null,
+      emailed_at: new Date().toISOString()
+    });
+  } catch (e) { /* geo_leads absent or transient — still try to email below */ }
+
+  // Send the work-plan email (fail-soft — the lead is already captured).
+  let emailed = false;
+  try {
+    await sendEmail({
+      to: email,
+      subject: `Your AI-visibility work plan${host ? ' for ' + host : ''}`,
+      body: workPlanEmailBody({ host, score, gaps: scan.gaps, competitorGap: scan.competitorGap })
+    });
+    emailed = true;
+  } catch (e) { console.error('lead-email send failed:', e.message); }
+  return res.status(200).json({ ok: true, emailed });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ADMIN-LEADS — GET /api/geo?path=admin-leads[&sort=score][&limit=N]
+//   Every captured scan, newest first (default) or hottest first (sort=score,
+//   lowest score = biggest gap = easiest pitch). Powers the /command leads view.
+// ════════════════════════════════════════════════════════════════════════════
+async function handleAdminLeads(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (!requireAuth(req, res)) return;
+  const limit = Math.min(500, Math.max(1, parseInt((req.query && req.query.limit) || '200', 10) || 200));
+  const byScore = (req.query && req.query.sort) === 'score';
+  try {
+    const supabase = getSupabase();
+    let q = supabase.from('geo_leads').select('*').limit(limit);
+    q = byScore ? q.order('score', { ascending: true, nullsFirst: false }) : q.order('created_at', { ascending: false });
+    const { data, error } = await q;
+    if (error) throw error;
+    const leads = data || [];
+    const stats = {
+      total: leads.length,
+      withEmail: leads.filter((l) => l.email).length,
+      last24h: leads.filter((l) => l.created_at && (Date.now() - new Date(l.created_at).getTime()) < 864e5).length
+    };
+    return res.status(200).json({ ok: true, stats, leads });
+  } catch (e) {
+    return res.status(200).json({ ok: true, stats: { total: 0, withEmail: 0, last24h: 0 }, leads: [], note: 'geo_leads unavailable — run migrations/2026-07-geo-leads.sql' });
+  }
+}
+
 module.exports = async (req, res) => {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -1529,16 +1769,19 @@ module.exports = async (req, res) => {
   try {
     if (path === 'scorecard') return await handleScorecard(req, res);
     if (path === 'sources') return await handleSources(req, res);
+    if (path === 'enrich') return await handleEnrich(req, res);
     if (path === 'generate') return await handleGenerate(req, res);
     if (path === 'dashboard') return await handleDashboard(req, res);
     // ── V-Rank account / billing / admin (reuse Recaller account system) ──
     if (path === 'signup') return await handleSignup(req, res);
+    if (path === 'lead-email') return await handleLeadEmail(req, res);
     if (path === 'checkout') return await handleCheckout(req, res);
     if (path === 'save-metrics') return await handleSaveMetrics(req, res);
     if (path === 'admin-clients') return await handleAdminClients(req, res);
     if (path === 'admin-client') return await handleAdminClient(req, res);
+    if (path === 'admin-leads') return await handleAdminLeads(req, res);
     if (path === 'admin-action') return await handleAdminActionGeo(req, res);
-    return res.status(404).json({ error: 'Route not found. Use ?path=scorecard|generate|dashboard|signup|checkout|save-metrics|admin-clients|admin-client|admin-action' });
+    return res.status(404).json({ error: 'Route not found. Use ?path=scorecard|generate|dashboard|signup|checkout|lead-email|save-metrics|admin-clients|admin-client|admin-leads|admin-action' });
   } catch (err) {
     console.error('geo router error:', err);
     if (!res.headersSent) return res.status(500).json({ error: 'Internal server error' });

@@ -2,3 +2,7 @@
 node_modules/
 .vercel/
 .claude/
+
+# local deploy secret (never commit)
+.env.deploy
+.env.local
