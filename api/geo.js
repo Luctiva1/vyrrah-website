@@ -1138,8 +1138,23 @@ async function handleDashboard(req, res) {
     }
     const stored = await latestMetrics(customer.id);
     const { source, mock, ...data } = buildDashboard(customer.id, stored, customer.website || customer.practice_name);
+    // Work plan: the stored scan turned into a prioritized to-do list. This is the
+    // day-1 reason to come back — the trial is not a blank dashboard, it is a plan.
+    const scan = (stored && stored.scan && typeof stored.scan === 'object') ? stored.scan : null;
+    const workPlan = scan ? {
+      score: Number.isFinite(scan.score) ? scan.score : (Number.isFinite(data.score) ? data.score : null),
+      summary: scan.summary || null,
+      competitorGap: scan.competitorGap || null,
+      tasks: (Array.isArray(scan.gaps) ? scan.gaps : []).slice(0, 6).map((g, i) => ({
+        id: i, title: String(g.title || ('Gap ' + (i + 1))).slice(0, 160),
+        fix: String(g.fix || '').slice(0, 400), impact: String(g.impact || '').slice(0, 400)
+      })),
+      totalGaps: Number.isFinite(scan.totalGapsFound) ? scan.totalGapsFound : (Array.isArray(scan.gaps) ? scan.gaps.length : 0),
+      website: scan.host || customer.website || null
+    } : null;
     return res.status(200).json({
       ...data,
+      workPlan,
       meta: {
         client_id: customer.id, mode: 'self', source: source || 'representative',
         mock: !!mock, website: customer.website || null, plan: customer.plan || 'recaller',
@@ -1254,17 +1269,20 @@ async function handleSignup(req, res) {
     }
   }
 
-  // Optionally seed the dashboard with the scorecard result so it shows real data
-  // immediately. Best-effort — never fail signup if geo_metrics is absent.
+  // Seed the dashboard with the scorecard result so it shows real data + a work
+  // plan immediately. Best-effort — never fail signup if geo_metrics is absent.
   const score = Number(body.score);
-  if (Number.isFinite(score)) {
+  const scan = (body.scan && typeof body.scan === 'object') ? body.scan : null;
+  if (Number.isFinite(score) || scan) {
+    const base = { client_id: String(client.id), created_at: new Date().toISOString() };
+    if (Number.isFinite(score)) base.score = clamp(score, 0, 100);
     try {
-      await supabase.from('geo_metrics').insert({
-        client_id: String(client.id),
-        score: clamp(score, 0, 100),
-        created_at: new Date().toISOString()
-      });
-    } catch (e) { /* geo_metrics may not exist — ignore */ }
+      // Preferred: store the full scan (the work plan lives here).
+      await supabase.from('geo_metrics').insert(scan ? { ...base, scan } : base);
+    } catch (e) {
+      // scan column not migrated yet → retry without it so the seed still lands.
+      try { await supabase.from('geo_metrics').insert(base); } catch (e2) { /* geo_metrics absent — ignore */ }
+    }
   }
 
   return res.status(200).json({
