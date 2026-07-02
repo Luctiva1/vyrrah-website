@@ -518,6 +518,15 @@ async function sendEmail({ to, toName, subject, body }) {
   return { status: r.status };
 }
 
+// Fail-soft funnel event. Never throws, never blocks a response. The nurture cron
+// also reads these to avoid re-sending a touch.
+async function logEvent(type, { client_id = null, lead_id = null, meta = null } = {}) {
+  try {
+    const supabase = getSupabase();
+    await supabase.from('geo_events').insert({ type, client_id: client_id ? String(client_id) : null, lead_id: lead_id ? String(lead_id) : null, meta });
+  } catch (e) { /* geo_events not migrated — analytics are best-effort */ }
+}
+
 // Fail-soft: insert one geo_leads row for a fresh scan. Never throws, never
 // blocks the scorecard response. Returns the new lead id (or null).
 async function logScan(req, u, payload, body) {
@@ -791,6 +800,7 @@ async function handleScorecard(req, res) {
   // lead id so the soft email gate can link an email to this exact scan.
   const leadId = await logScan(req, u, payload, body);
   if (leadId) payload.meta.leadId = leadId;
+  await logEvent('scan', { lead_id: leadId, meta: { host: u.hostname.replace(/^www\./, ''), score: payload.score } });
   return res.status(200).json(payload);
 }
 
@@ -1742,6 +1752,42 @@ async function enrichLead(lead) {
     callOpener: buildOpener(f, 'call'), emailLine: buildOpener(f, 'email'),
   };
 }
+// Map an enrichLead() result to an enriched_leads DB row. Returns null if there's
+// no usable host (nothing to key on / dedupe against).
+function enrichedToRow(r, source) {
+  let host = '';
+  try { host = new URL(r.website).hostname.replace(/^www\./, ''); } catch (e) { return null; }
+  if (!host) return null;
+  return {
+    host, company: r.company || null, contact: r.contact || null, title: r.title || null,
+    phone: r.phone || null, email: r.email || null, city: r.city || null, website: r.website || null,
+    vertical: r.vertical || null, score: (typeof r.score === 'number' ? r.score : null), tier: r.tier || null,
+    runs_ads: !!r.runsAds,
+    signals: { schema: !!r.schema, localbiz: !!r.localbiz, hasCapture: !!r.hasCapture, reviews: !!r.reviews, loadMs: r.loadMs ?? null },
+    call_opener: r.callOpener || null, email_line: r.emailLine || null,
+    source_list: source || null,
+  };
+}
+// Best-effort upsert of enriched rows into enriched_leads (on conflict host → UPDATE).
+// Never throws: persistence failing must not fail the enrichment response. On a
+// conflicting host the existing status/created_at are preserved (not in the SET).
+async function persistEnriched(rows, source) {
+  try {
+    const seen = new Set();
+    const dedup = [];
+    for (const r of rows) {
+      const row = enrichedToRow(r, source);
+      if (!row || seen.has(row.host)) continue;
+      seen.add(row.host); dedup.push(row);
+    }
+    if (!dedup.length) return { saved: 0 };
+    const supabase = getSupabase();
+    const { error } = await supabase.from('enriched_leads').upsert(dedup, { onConflict: 'host', ignoreDuplicates: false });
+    if (error) return { saved: 0, error: error.message };
+    return { saved: dedup.length };
+  } catch (e) { return { saved: 0, error: String(e.message || e) }; }
+}
+
 async function handleEnrich(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!requireAuth(req, res)) return;
@@ -1755,7 +1801,48 @@ async function handleEnrich(req, res) {
     const rs = await Promise.all(chunk.map(l => enrichLead(l).catch(e => ({ company: l.company || '?', error: String(e.message || e), score: null, tier: 'ERROR', callOpener: '', emailLine: '' }))));
     out.push(...rs);
   }
-  return res.status(200).json({ count: out.length, leads: out });
+  // Persist unless the caller opts out (save:false). Labelled by source_list.
+  const persist = body.save === false ? { saved: 0, skipped: true } : await persistEnriched(out, body.source_list);
+  return res.status(200).json({ count: out.length, saved: persist.saved || 0, persistError: persist.error || null, leads: out });
+}
+
+// GET/POST /api/geo?path=saved-leads — read persisted enriched_leads with filters.
+//   Filters: tier, status, source_list (exact), runs_ads (true/false),
+//   min_score, max_score, limit (default 500, cap 2000). Ordered by score desc.
+async function handleSavedLeads(req, res) {
+  if (!requireAuth(req, res)) return;
+  const q = { ...(req.query || {}), ...(req.method === 'POST' ? readBody(req) : {}) };
+  const supabase = getSupabase();
+  let query = supabase.from('enriched_leads').select('*');
+  if (q.tier) query = query.eq('tier', String(q.tier));
+  if (q.status) query = query.eq('status', String(q.status));
+  if (q.source_list) query = query.eq('source_list', String(q.source_list));
+  if (q.runs_ads === true || q.runs_ads === 'true') query = query.eq('runs_ads', true);
+  if (q.min_score != null && q.min_score !== '') query = query.gte('score', Number(q.min_score));
+  if (q.max_score != null && q.max_score !== '') query = query.lte('score', Number(q.max_score));
+  const limit = Math.min(Math.max(parseInt(q.limit, 10) || 500, 1), 2000);
+  query = query.order('score', { ascending: false, nullsFirst: false }).limit(limit);
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ count: (data || []).length, leads: data || [] });
+}
+
+// POST /api/geo?path=lead-status — mark a lead's outreach status.
+//   Body: {host, status}  status ∈ new|called|emailed|booked|skip
+const LEAD_STATUSES = ['new', 'called', 'emailed', 'booked', 'skip'];
+async function handleLeadStatus(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!requireAuth(req, res)) return;
+  const body = readBody(req);
+  const host = String(body.host || '').replace(/^www\./, '').trim();
+  const status = String(body.status || '').toLowerCase().trim();
+  if (!host) return res.status(400).json({ error: 'host required' });
+  if (!LEAD_STATUSES.includes(status)) return res.status(400).json({ error: 'status must be one of ' + LEAD_STATUSES.join(', ') });
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from('enriched_leads').update({ status }).eq('host', host).select('host,status');
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data || !data.length) return res.status(404).json({ error: 'no lead with that host' });
+  return res.status(200).json({ ok: true, host, status });
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1925,6 +2012,8 @@ module.exports = async (req, res) => {
     if (path === 'scorecard') return await handleScorecard(req, res);
     if (path === 'sources') return await handleSources(req, res);
     if (path === 'enrich') return await handleEnrich(req, res);
+    if (path === 'saved-leads') return await handleSavedLeads(req, res);
+    if (path === 'lead-status') return await handleLeadStatus(req, res);
     if (path === 'generate') return await handleGenerate(req, res);
     if (path === 'dashboard') return await handleDashboard(req, res);
     // ── V-Rank account / billing / admin (reuse Recaller account system) ──

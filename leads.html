@@ -37,6 +37,8 @@ th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05
 .op{max-width:420px;color:#e7e2d7;font-size:12.5px}
 .op .cp{margin-top:4px}
 .phone a{color:var(--green);text-decoration:none;font-weight:600}
+select{background:#0a0a0c;border:1px solid var(--line);border-radius:7px;color:var(--ink);padding:5px 7px;font-size:12px}
+td select{padding:4px 6px}
 .muted{color:var(--muted)}
 </style>
 </head>
@@ -54,16 +56,22 @@ th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05
     <div class="mark">V-RANK<span class="d">.</span> LEAD COMMAND</div>
     <button class="btn ghost sm" id="out">Sign out</button>
   </div>
-  <p class="muted">Paste domains (one per line) or <b>upload a CSV</b> (Apollo/Maps export — website/company/first/phone/email auto-detected). Enriches with V-Rank score + signals + a value-led opener. No per-lead AI.</p>
+  <p class="muted">Paste domains (one per line) or <b>upload a CSV</b> (Apollo/Maps export, website/company/first/phone/email auto-detected). Enriches with V-Rank score + signals + a value-led opener, and saves every result. No per-lead AI.</p>
   <div class="bar">
     <input type="file" id="file" accept=".csv" style="width:auto;margin:0">
-    <span class="muted">or</span>
+    <input id="src" placeholder="list label (e.g. apollo-restoration-jul)" style="width:auto;flex:1;min-width:220px;margin:0">
   </div>
   <textarea id="paste" placeholder="acme-restoration.com&#10;https://example-plumbing.com&#10;or:  domain, Company, First, Phone, Email"></textarea>
   <div class="bar">
-    <button class="btn" id="run">Enrich</button>
+    <button class="btn" id="run">Enrich &amp; save</button>
+    <button class="btn ghost" id="load">Load saved</button>
     <label class="muted"><input type="checkbox" id="sweetOnly" style="width:auto;margin:0 4px 0 0"> sweet-spot only</label>
     <label class="muted"><input type="checkbox" id="adsOnly" style="width:auto;margin:0 4px 0 0"> runs ads only</label>
+    <select id="statusFilter" style="width:auto;margin:0;padding:7px 8px">
+      <option value="">all statuses</option>
+      <option value="new">new</option><option value="called">called</option>
+      <option value="emailed">emailed</option><option value="booked">booked</option><option value="skip">skip</option>
+    </select>
     <button class="btn ghost sm" id="exp">Export CSV</button>
     <span class="muted" id="prog"></span>
   </div>
@@ -99,27 +107,64 @@ function leadsFromCSV(rows){return rows.map(r=>({url:pickCol(r,'companywebsite',
 function leadsFromPaste(t){return t.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const p=l.split(',').map(x=>x.trim());return {url:p[0],company:p[1]||'',first:p[2]||'',phone:p[3]||'',email:p[4]||''}}).filter(l=>l.url)}
 
 let pending=[];
-$('file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{pending=leadsFromCSV(parseCSV(rd.result));$('prog').textContent=pending.length+' leads loaded from CSV — hit Enrich';};rd.readAsText(f)};
+$('file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{pending=leadsFromCSV(parseCSV(rd.result));$('prog').textContent=pending.length+' leads loaded from CSV, hit Enrich';};rd.readAsText(f)};
+
+// Normalize either shape (live enrich = camelCase / saved DB row = snake_case + signals jsonb)
+// into one row the table renders. host is the key we use for status updates.
+function hostOf(w){try{return new URL(w).hostname.replace(/^www\./,'')}catch(e){return ''}}
+function norm(l){
+  if(l.call_opener!==undefined||l.signals!==undefined){ // DB row
+    const s=l.signals||{};
+    return {company:l.company,contact:l.contact,title:l.title,phone:l.phone,email:l.email,city:l.city,website:l.website,host:l.host||hostOf(l.website),vertical:l.vertical,score:l.score,tier:l.tier,runsAds:!!l.runs_ads,schema:!!s.schema,localbiz:!!s.localbiz,hasCapture:!!s.hasCapture,reviews:!!s.reviews,loadMs:s.loadMs??null,callOpener:l.call_opener||'',emailLine:l.email_line||'',status:l.status||'new'};
+  }
+  return {...l,host:l.host||hostOf(l.website),status:l.status||'new'};
+}
 
 $('run').onclick=async()=>{
   $('rerr').textContent='';
   let leads = pending.length?pending:leadsFromPaste($('paste').value);
   if(!leads.length){$('rerr').textContent='Add domains or a CSV first';return}
-  ALL=[]; renderStats(); $('tbl').innerHTML='';
+  const source=$('src').value.trim()||null;
+  ALL=[]; let saved=0; renderStats(); $('tbl').innerHTML='';
   const CH=40;
   for(let i=0;i<leads.length;i+=CH){
     $('prog').textContent=`enriching ${Math.min(i+CH,leads.length)}/${leads.length}...`;
     try{
-      const r=await fetch('/api/geo?path=enrich',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({leads:leads.slice(i,i+CH)})});
-      if(r.status===401){$('rerr').textContent='Session expired — sign in again';localStorage.removeItem(TKEY);token='';showApp();return}
-      const d=await r.json(); ALL.push(...(d.leads||[])); render();
+      const r=await fetch('/api/geo?path=enrich',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({leads:leads.slice(i,i+CH),source_list:source})});
+      if(r.status===401){$('rerr').textContent='Session expired, sign in again';localStorage.removeItem(TKEY);token='';showApp();return}
+      const d=await r.json(); saved+=(d.saved||0); if(d.persistError)$('rerr').textContent='saved with warning: '+d.persistError;
+      ALL.push(...(d.leads||[]).map(norm)); render();
     }catch(e){$('rerr').textContent=e.message}
   }
-  pending=[]; $('prog').textContent=`done — ${ALL.length} enriched`;
+  pending=[]; $('prog').textContent=`done, ${ALL.length} enriched, ${saved} saved to DB`;
 };
 
-function view(){let v=[...ALL];if($('sweetOnly').checked)v=v.filter(l=>l.tier==='SWEET-SPOT');if($('adsOnly').checked)v=v.filter(l=>l.runsAds);return v.sort((a,b)=>(a.score??999)-(b.score??999))}
-$('sweetOnly').onchange=$('adsOnly').onchange=render;
+$('load').onclick=async()=>{
+  $('rerr').textContent=''; $('prog').textContent='loading saved leads...';
+  const p=new URLSearchParams({limit:'2000'});
+  if($('sweetOnly').checked)p.set('tier','SWEET-SPOT');
+  if($('adsOnly').checked)p.set('runs_ads','true');
+  if($('statusFilter').value)p.set('status',$('statusFilter').value);
+  if($('src').value.trim())p.set('source_list',$('src').value.trim());
+  try{
+    const r=await fetch('/api/geo?path=saved-leads&'+p.toString(),{headers:{'Authorization':'Bearer '+token}});
+    if(r.status===401){$('rerr').textContent='Session expired, sign in again';localStorage.removeItem(TKEY);token='';showApp();return}
+    const d=await r.json(); if(!r.ok)throw new Error(d.error||'load failed');
+    ALL=(d.leads||[]).map(norm); render(); $('prog').textContent=`loaded ${ALL.length} saved leads`;
+  }catch(e){$('rerr').textContent=e.message; $('prog').textContent='';}
+};
+
+async function setStatus(host,status,el){
+  try{
+    const r=await fetch('/api/geo?path=lead-status',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({host,status})});
+    const d=await r.json(); if(!r.ok)throw new Error(d.error||'failed');
+    const row=ALL.find(l=>l.host===host); if(row)row.status=status; render();
+  }catch(e){$('rerr').textContent=e.message}
+}
+window.setStatus=setStatus;
+
+function view(){let v=[...ALL];if($('sweetOnly').checked)v=v.filter(l=>l.tier==='SWEET-SPOT');if($('adsOnly').checked)v=v.filter(l=>l.runsAds);if($('statusFilter').value)v=v.filter(l=>l.status===$('statusFilter').value);return v.sort((a,b)=>(a.score??999)-(b.score??999))}
+$('sweetOnly').onchange=$('adsOnly').onchange=$('statusFilter').onchange=render;
 
 function renderStats(){
   const s=ALL.filter(l=>typeof l.score==='number');
@@ -129,30 +174,34 @@ function renderStats(){
   ].map(([k,v])=>`<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('');
 }
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+const STATUSES=['new','called','emailed','booked','skip'];
 function render(){
   renderStats();
   const v=view();
-  $('tbl').innerHTML='<tr><th>Company</th><th>Score</th><th>Tier</th><th>Signals</th><th>Contact</th><th>Phone</th><th>Opener</th></tr>'+
+  $('tbl').innerHTML='<tr><th>Company</th><th>Score</th><th>Tier</th><th>Signals</th><th>Contact</th><th>Phone</th><th>Opener</th><th>Status</th></tr>'+
   v.map(l=>{
     const sc=l.score==null?'—':l.score;
     const col=l.score==null?'var(--muted)':l.score<45?'#e5726f':l.score<68?'var(--gold)':'var(--green)';
     const fl=[['ads',l.runsAds],['schema',l.schema],['LclBiz',l.localbiz],['capture',l.hasCapture],['reviews',l.reviews]].map(([n,on])=>`<span class="${on?'on':''}">${n}</span>`).join('')+(l.loadMs?` <span class="${l.loadMs>4000?'on':''}">${(l.loadMs/1000).toFixed(1)}s</span>`:'');
-    const op=esc(l.callOpener||'')||'<span class="muted">— no strong hook (skip/manual)</span>';
+    const op=esc(l.callOpener||'')||'<span class="muted">no strong hook (skip/manual)</span>';
     const ph=l.phone?`<span class="phone"><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a></span>`:'<span class="muted">—</span>';
+    const host=esc(l.host||'');
+    const sel=l.host?`<select onchange="setStatus('${host}',this.value)">${STATUSES.map(s=>`<option value="${s}"${l.status===s?' selected':''}>${s}</option>`).join('')}</select>`:'<span class="muted">—</span>';
     return `<tr>
-      <td><b>${esc(l.company)}</b><div class="muted">${esc(l.website||'')}</div></td>
+      <td><b>${esc(l.company)}</b><div class="muted">${host}</div></td>
       <td class="sc" style="color:${col}">${sc}</td>
       <td><span class="tier t-${(l.tier||'').replace(' ','\\ ')}">${esc(l.tier||'')}</span></td>
       <td class="flags">${fl}</td>
       <td>${esc(l.contact||'')}<div class="muted">${esc(l.title||'')}</div></td>
       <td>${ph}</td>
-      <td class="op">${op}${l.callOpener?`<div class="cp"><button class="btn ghost sm" onclick="navigator.clipboard.writeText(this.closest('td').querySelector('span,div')?'':'');navigator.clipboard.writeText(${JSON.stringify(l.callOpener)});this.textContent='Copied'">Copy</button></div>`:''}</td>
+      <td class="op">${op}${l.callOpener?`<div class="cp"><button class="btn ghost sm" onclick="navigator.clipboard.writeText(${JSON.stringify(l.callOpener)});this.textContent='Copied'">Copy</button></div>`:''}</td>
+      <td>${sel}</td>
     </tr>`;
   }).join('');
 }
 $('exp').onclick=()=>{
   if(!ALL.length)return;
-  const cols=['company','contact','title','phone','email','city','website','vertical','score','tier','runsAds','schema','localbiz','hasCapture','reviews','loadMs','callOpener','emailLine'];
+  const cols=['company','contact','title','phone','email','city','website','host','vertical','score','tier','runsAds','schema','localbiz','hasCapture','reviews','loadMs','status','callOpener','emailLine'];
   const cell=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const csv=[cols.join(','),...ALL.map(r=>cols.map(c=>cell(r[c])).join(','))].join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='vyrrah_enriched.csv';a.click();

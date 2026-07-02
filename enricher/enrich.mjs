@@ -6,8 +6,12 @@
  *
  * Usage:
  *   node enricher/enrich.mjs <input.csv> [--limit N] [--out DIR] [--concurrency 20]
+ *                                        [--source LABEL] [--no-persist]
  * Optional env:
  *   PAGESPEED_API_KEY   (real mobile speed score; free quota — added to sweet-spot leads)
+ *   SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SECRET) — when both are set,
+ *     results are upserted into the enriched_leads table (on conflict host, so a lead's
+ *     outreach status is never reset by a re-run). --no-persist forces CSV-only.
  *
  * Design: fully deterministic scoring (mirrors the V-Rank heuristic) so it runs at
  * 50K for ~$0. Per-domain cache (.cache.json) makes re-runs + daily incrementals free
@@ -118,6 +122,43 @@ async function pageSpeed(url) {
 }
 // TODO phase-2: placesReviews(name,city) via Google Places; metaAdLibrary(domain) for live ad count/creatives.
 
+// ---- optional Supabase persistence (upsert on host; never resets status) ----
+const SB_URL = process.env.SUPABASE_URL;
+const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET || process.env.SUPABASE_KEY;
+const PERSIST = !!(SB_URL && SB_KEY) && !args.includes('--no-persist');
+function dbRow(o, source) {
+  let host = '';
+  try { host = new URL(/^https?:/i.test(o.Website) ? o.Website : 'https://' + o.Website).hostname.replace(/^www\./, ''); } catch { return null; }
+  if (!host) return null;
+  return {
+    host, company: o.Company || null, contact: o.Contact || null, title: o.Title || null,
+    phone: o.Phone || null, email: o.Email || null, city: o.City || null, state: o.State || null,
+    website: o.Website || null, vertical: o.Vertical || null,
+    score: typeof o.Score === 'number' ? o.Score : null, tier: o.Tier || null,
+    runs_ads: o.RunsAds === 'Y',
+    signals: { schema: o.Schema === 'Y', localbiz: o.LocalBiz === 'Y', hasCapture: o.LeadCapture === 'Y', reviews: o.Reviews === 'Y', loadMs: o.LoadMs === '' ? null : Number(o.LoadMs), pageSpeed: o.PageSpeed === '' ? null : Number(o.PageSpeed) },
+    call_opener: o.CallOpener || null, email_line: o.EmailLine || null, source_list: source || null,
+  };
+}
+async function persist(rows, source) {
+  const seen = new Set(); const batch = [];
+  for (const o of rows) { const r = dbRow(o, source); if (!r || seen.has(r.host)) continue; seen.add(r.host); batch.push(r); }
+  let saved = 0;
+  for (let i = 0; i < batch.length; i += 500) {
+    const chunk = batch.slice(i, i + 500);
+    try {
+      const res = await fetch(`${SB_URL}/rest/v1/enriched_leads?on_conflict=host`, {
+        method: 'POST',
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(chunk),
+      });
+      if (res.ok) saved += chunk.length;
+      else console.error('  persist chunk failed:', res.status, (await res.text()).slice(0, 200));
+    } catch (e) { console.error('  persist chunk error:', e.message); }
+  }
+  return saved;
+}
+
 // ---- cache (resumable) ----
 const CACHE_PATH = join(HERE, '.cache.json');
 const cache = existsSync(CACHE_PATH) ? JSON.parse(readFileSync(CACHE_PATH, 'utf8')) : {};
@@ -128,16 +169,21 @@ async function enrichOne(row) {
   const company = pick(row, 'companyname', 'company', 'organization', 'name') || 'this company';
   const host = website.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
   const key = host || company;
-  let sig, ms, blocked;
-  if (cache[key]) { ({ sig, ms, blocked } = cache[key]); }
+  let sig, ms, blocked, unreachable;
+  if (cache[key]) { ({ sig, ms, blocked, unreachable } = cache[key]); }
   else {
     const { html, ms: m, status, err } = await fetchSite(website || company);
-    blocked = !!err || [401, 403, 406, 429, 503].includes(status) || html.length < 200;
-    sig = blocked ? {} : signals(html); ms = m;
-    cache[key] = { sig, ms, blocked }; if (++cacheDirty % 25 === 0) writeFileSync(CACHE_PATH, JSON.stringify(cache));
+    const noContent = !!err || html.length < 200;
+    // blocked = a LIVE server refusing a readable response (a real, assertable fact).
+    // unreachable = DNS/connection failure or empty page — NOT crawler-blocking, so no
+    // "your site blocks crawlers" claim (would be fabricated). Mirrors api/geo.js.
+    blocked = noContent && [401, 403, 406, 429, 503].includes(status);
+    unreachable = noContent && !blocked;
+    sig = noContent ? {} : signals(html); ms = m;
+    cache[key] = { sig, ms, blocked, unreachable }; if (++cacheDirty % 25 === 0) writeFileSync(CACHE_PATH, JSON.stringify(cache));
   }
   const vertical = inferVertical([company, pick(row, 'industry', 'keywords', 'companyseodescription'), website].join(' '));
-  const score = scoreOf(sig, blocked);
+  const score = scoreOf(sig, blocked || unreachable);
   const tech = (pick(row, 'companytechnologies') || '').toLowerCase();
   const runsAds = !!(sig.metaPixel || sig.googleAds) || /google ads|facebook|meta pixel|adroll|taboola/.test(tech);
   const f = {
@@ -145,7 +191,7 @@ async function enrichOne(row) {
     company, city: pick(row, 'city', 'companycity'), vertical,
     score, blocked, runsAds, localbiz: !!sig.localbiz, schema: !!sig.schema,
     hasForm: !!sig.hasForm, hasChat: !!sig.hasChat, reviews: !!sig.reviews,
-    loadS: blocked ? null : +(ms / 1000).toFixed(1),
+    loadS: (blocked || unreachable) ? null : +(ms / 1000).toFixed(1),
     competitor: (COMP[vertical] || COMP.default)[0],
     reviewCount: null, compReviews: null, adCount: 0, // filled by phase-2
   };
@@ -157,11 +203,11 @@ async function enrichOne(row) {
     Company: company, Contact: `${pick(row, 'firstname', 'first')} ${pick(row, 'lastname', 'last')}`.trim(),
     Title: pick(row, 'title'), Phone: pick(row, 'mobilenumber', 'companyphonenumber', 'phone'),
     Email: pick(row, 'email'), City: f.city, State: pick(row, 'state', 'companystate'),
-    Website: website, Vertical: vertical, Score: score ?? 'blocked',
+    Website: website, Vertical: vertical, Score: score == null ? '' : score,
     RunsAds: runsAds ? 'Y' : '', Schema: sig.schema ? 'Y' : '', LocalBiz: sig.localbiz ? 'Y' : '',
     LeadCapture: (sig.hasForm || sig.hasChat) ? 'Y' : '', Reviews: sig.reviews ? 'Y' : '',
-    LoadMs: blocked ? '' : ms, PageSpeed: f.pageSpeed ?? '',
-    Tier: blocked ? 'BLOCKED' : (score >= 72 ? 'SKIP (too strong)' : score < 28 ? 'WEAK/small' : 'SWEET-SPOT'),
+    LoadMs: (blocked || unreachable) ? '' : ms, PageSpeed: f.pageSpeed ?? '',
+    Tier: blocked ? 'BLOCKED' : unreachable ? 'UNREACHABLE' : (score >= 72 ? 'SKIP' : score < 28 ? 'WEAK' : 'SWEET-SPOT'),
     CallOpener: assembleOpener(f, 'call'), EmailLine: assembleOpener(f, 'email'),
   };
 }
@@ -183,7 +229,8 @@ async function run() {
   await Promise.all(Array.from({ length: Math.min(CONC, leads.length) }, worker));
   writeFileSync(CACHE_PATH, JSON.stringify(cache));
   const cols = Object.keys(out[0]);
-  const bySalience = [...out].sort((a, b) => (b.Score === 'blocked' ? -1 : b.Score) - (a.Score === 'blocked' ? -1 : a.Score));
+  const sv = x => typeof x.Score === 'number' ? x.Score : -1;
+  const bySalience = [...out].sort((a, b) => sv(b) - sv(a));
   const sweet = out.filter(o => o.Tier === 'SWEET-SPOT');
   const dial = sweet.filter(o => o.Phone).sort((a, b) => a.Score - b.Score);
   const email = sweet.filter(o => o.Email).sort((a, b) => a.Score - b.Score);
@@ -194,5 +241,13 @@ async function run() {
   const scored = out.filter(o => typeof o.Score === 'number');
   console.log(`\nDONE. reachable ${scored.length}/${out.length} | run ads ${out.filter(o => o.RunsAds).length} | sweet-spot ${sweet.length} | avg ${Math.round(scored.reduce((s, o) => s + o.Score, 0) / (scored.length || 1))}`);
   console.log(`out/: ${stamp}_ENRICHED.csv (all) · ${stamp}_DIAL.csv (${dial.length}) · ${stamp}_EMAIL.csv (${email.length})`);
+  if (PERSIST) {
+    const source = opt('source', stamp);
+    process.stdout.write(`persisting to enriched_leads (source=${source})...`);
+    const saved = await persist(out, source);
+    console.log(` ${saved}/${out.length} upserted`);
+  } else if (!args.includes('--no-persist')) {
+    console.log('(DB persist off: set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY to also upsert into enriched_leads)');
+  }
 }
 run();
