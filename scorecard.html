@@ -330,6 +330,22 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       <div class="gaps-more" id="gapsMore"></div>
     </div>
 
+    <!-- SOFT EMAIL GATE: capture the lead with the full plan emailed, no account -->
+    <div class="mailplan" id="mailplan" style="max-width:560px;margin:26px auto 0;padding:22px 22px 24px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.02)">
+      <div class="sect-lab">Take the full plan with you</div>
+      <p class="mailplan-lede" style="color:var(--mid);font-size:15px;line-height:1.6;margin:6px 0 16px">I will email you this exact plan: your score, the three gaps, and how I would fix each one. No login, no card.</p>
+      <form class="signup-form" id="mailForm" autocomplete="off" style="margin:0">
+        <div class="su-row">
+          <div class="ig su-ig">
+            <input id="mailEmail" type="email" placeholder="Work email" aria-label="Your work email" required>
+          </div>
+          <button class="btnr su-btn" type="submit" id="mailBtn"><span id="mailBtnTxt">Email me the plan</span><span>→</span></button>
+        </div>
+        <div class="err" id="mailErr"></div>
+        <div id="mailOk" style="display:none;color:var(--green);font-size:14px;margin-top:10px"></div>
+      </form>
+    </div>
+
     <!-- CTA -->
     <div class="result-cta">
       <h3>Want this <em>fixed</em> automatically?</h3>
@@ -567,7 +583,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
 
   function showResult(data){
     var score = clr(data.score);
-    lastScan = { url: data.url || lastScan && lastScan.url || '', score: score };
+    lastScan = { url: data.url || lastScan && lastScan.url || '', score: score, full: data };
     setVerdict(score, data.summary);
     renderCompetitor(data);
     renderValueAnchor(data);
@@ -690,6 +706,43 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
         suErr.style.display = 'block';
       });
   });
+
+  // ── SOFT EMAIL GATE → capture lead + emailed work plan (POST ?path=lead-email) ──
+  var mailForm = document.getElementById('mailForm');
+  if(mailForm){
+    var mailBtn = document.getElementById('mailBtn');
+    var mailBtnTxt = document.getElementById('mailBtnTxt');
+    var mailErr = document.getElementById('mailErr');
+    var mailOk = document.getElementById('mailOk');
+    mailForm.addEventListener('submit', function(e){
+      e.preventDefault();
+      mailErr.style.display = 'none';
+      var email = (document.getElementById('mailEmail').value || '').trim();
+      if(!email || email.indexOf('@') < 1){ mailErr.textContent = 'Enter a valid email.'; mailErr.style.display = 'block'; return; }
+      mailBtn.disabled = true; mailBtnTxt.textContent = 'Sending…';
+      var full = (lastScan && lastScan.full) || {};
+      var meta = full.meta || {};
+      fetch('/api/geo?path=lead-email', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          email: email,
+          url: (lastScan && lastScan.url) || meta.url || '',
+          score: (lastScan && lastScan.score),
+          scan: { host: meta.host, vertical: meta.vertical, score: full.score, gaps: full.gaps, competitorGap: full.competitorGap, url: full.url || meta.url }
+        })
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          mailBtnTxt.textContent = 'Sent ✓';
+          mailOk.textContent = (d && d.emailed) ? 'Check your inbox — the full plan is on its way.' : 'Got it. I have your plan and will be in touch.';
+          mailOk.style.display = 'block';
+        })
+        .catch(function(){
+          mailBtn.disabled = false; mailBtnTxt.textContent = 'Email me the plan';
+          mailErr.textContent = 'Could not send just now — try again in a moment.'; mailErr.style.display = 'block';
+        });
+    });
+  }
 
   document.getElementById('rescan').addEventListener('click', function(){
     result.style.display = 'none';

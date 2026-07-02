@@ -151,6 +151,7 @@
   <div class="tabs" id="tabs">
     <button class="tab active" data-view="recaller" type="button">Recaller</button>
     <button class="tab" data-view="vrank" type="button">V-Rank</button>
+    <button class="tab" data-view="leads" type="button">Leads</button>
   </div>
 
   <div class="err" id="err"></div>
@@ -297,6 +298,16 @@
     <div class="metrics" id="vrMetrics"></div>
     <div class="clients" id="vrClients"><div class="empty">Loading…</div></div>
   </div><!-- /view-vrank -->
+
+  <div class="view" id="view-leads">
+    <div class="metrics" id="ldMetrics"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin:2px 0 14px">
+      <button class="tab" id="ldSortNew" type="button" style="text-transform:none;font-size:11px">Newest</button>
+      <button class="tab active" id="ldSortHot" type="button" style="text-transform:none;font-size:11px">Hottest (lowest score)</button>
+      <button class="fs-edit" id="ldCsv" type="button" style="margin-left:auto">Export CSV</button>
+    </div>
+    <div class="clients" id="ldRows"><div class="empty">Loading…</div></div>
+  </div><!-- /view-leads -->
 </div>
 
 <div class="modal" id="detailModal">
@@ -621,6 +632,54 @@
       });
   };
 
+  // ── Leads: every captured scorecard scan (inbound). GET ?path=admin-leads ──
+  var ldSort = 'score', ldData = [];
+  function ago(iso){ if(!iso) return ''; var s=(Date.now()-new Date(iso).getTime())/1000; if(s<3600) return Math.max(1,Math.round(s/60))+'m ago'; if(s<86400) return Math.round(s/3600)+'h ago'; return Math.round(s/86400)+'d ago'; }
+  function scoreBadge(sc){ if(sc==null) return '<span style="color:var(--muted)">—</span>'; var c = sc>=70?'var(--green)':sc>=45?'var(--gold)':'var(--red)'; return '<b style="color:'+c+';font-variant-numeric:tabular-nums">'+sc+'</b>'; }
+  function loadLeads(){
+    adminFetch('/api/geo?path=admin-leads&sort=' + ldSort + '&limit=300')
+      .then(function(d){
+        if(d && d.error) throw new Error(d.error);
+        document.getElementById('err').style.display = 'none';
+        ldData = (d && d.leads) || [];
+        var st = (d && d.stats) || {};
+        document.getElementById('ldMetrics').innerHTML =
+          '<div class="metric"><div class="ml">Captured leads</div><div class="mv">'+(st.total||0)+'</div></div>'+
+          '<div class="metric"><div class="ml">With email</div><div class="mv">'+(st.withEmail||0)+'</div></div>'+
+          '<div class="metric"><div class="ml">Last 24h</div><div class="mv">'+(st.last24h||0)+'</div></div>';
+        if(d && d.note){ var er=document.getElementById('err'); er.textContent=d.note; er.style.display='block'; }
+        ldRender();
+      })
+      .catch(function(e){ document.getElementById('ldRows').innerHTML = '<div class="empty">Could not load leads: '+esc(e.message)+'</div>'; });
+  }
+  function ldRender(){
+    var rows = document.getElementById('ldRows');
+    if(!ldData.length){ rows.innerHTML = '<div class="empty">No scans captured yet. Every scorecard run lands here.</div>'; return; }
+    rows.innerHTML = ldData.map(function(l){
+      var host = esc(l.host || l.url || '?');
+      var site = (l.url || (l.host?('https://'+l.host):'')) || '';
+      var email = l.email ? '<a href="mailto:'+esc(l.email)+'" style="color:var(--gold)">'+esc(l.email)+'</a>' : '<span style="color:var(--muted)">no email</span>';
+      var src = l.source === 'email-report' ? '<span style="color:var(--green)">emailed plan</span>' : 'scan';
+      return '<div class="client" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+
+        '<div style="min-width:56px;font-size:22px">'+scoreBadge(l.score)+'</div>'+
+        '<div style="flex:1;min-width:200px">'+
+          '<div style="font-weight:700">'+(site?('<a href="'+esc(site)+'" target="_blank" rel="noopener" style="color:var(--text)">'+host+'</a>'):host)+'</div>'+
+          '<div style="font-size:12px;color:var(--muted)">'+esc(l.vertical||'—')+' · '+src+' · '+ago(l.created_at)+(l.competitor?(' · loses to '+esc(l.competitor)):'')+'</div>'+
+        '</div>'+
+        '<div style="min-width:180px;font-size:13px">'+email+'</div>'+
+      '</div>';
+    }).join('');
+  }
+  function ldSetSort(s){ ldSort = s; document.getElementById('ldSortHot').classList.toggle('active', s==='score'); document.getElementById('ldSortNew').classList.toggle('active', s==='new'); loadLeads(); }
+  document.getElementById('ldSortHot').addEventListener('click', function(){ ldSetSort('score'); });
+  document.getElementById('ldSortNew').addEventListener('click', function(){ ldSetSort('new'); });
+  document.getElementById('ldCsv').addEventListener('click', function(){
+    var head = ['created_at','host','score','vertical','email','source','competitor','url'];
+    var esc2 = function(v){ v = v==null?'':String(v); return '"'+v.replace(/"/g,'""')+'"'; };
+    var csv = head.join(',') + '\n' + ldData.map(function(l){ return head.map(function(k){ return esc2(l[k]); }).join(','); }).join('\n');
+    var a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download = 'vyrrah-leads.csv'; a.click();
+  });
+
   // Tab switching
   var currentView = 'recaller';
   document.getElementById('tabs').addEventListener('click', function(e){
@@ -630,7 +689,9 @@
     this.querySelectorAll('.tab').forEach(function(x){ x.classList.toggle('active', x.dataset.view === view); });
     document.getElementById('view-recaller').classList.toggle('on', view === 'recaller');
     document.getElementById('view-vrank').classList.toggle('on', view === 'vrank');
+    document.getElementById('view-leads').classList.toggle('on', view === 'leads');
     if(view === 'vrank') loadVrank();
+    else if(view === 'leads') loadLeads();
     else load();
   });
 
@@ -655,7 +716,7 @@
   });
 
   if(getJwt()){ hideGate(); load(); } else { showGate(); }
-  setInterval(function(){ if(!getJwt()) return; if(currentView === 'vrank') loadVrank(); else load(); }, 30000);
+  setInterval(function(){ if(!getJwt()) return; if(currentView === 'vrank') loadVrank(); else if(currentView === 'leads') loadLeads(); else load(); }, 30000);
 })();
 </script>
 </body>
