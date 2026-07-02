@@ -229,6 +229,15 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     </div>
   </div>
 
+  <!-- ASSET LIBRARY: the real pages/schema the engine has produced for this account -->
+  <div id="assetLib" style="display:none;background:var(--panel,#141414);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:18px 22px;margin:10px 0 8px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <b style="font-family:'Fraunces',serif;font-size:18px">Your published work</b>
+      <span id="assetStat" style="font-size:12.5px;color:var(--muted,#a39c8e)"></span>
+    </div>
+    <div id="assetRows"></div>
+  </div>
+
   <!-- SCORE + TOP METRICS -->
   <div class="head-grid">
     <div class="scorecard">
@@ -413,26 +422,34 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
       gen.disabled = true; gen.textContent = 'The engine is writing this…';
       out.style.display = 'block';
       out.innerHTML = '<div style="color:var(--muted,#a39c8e);font-size:13px">Generating a publishable asset…</div>';
-      fetch('/api/geo?path=generate', {
-        method:'POST', headers:{'Content-Type':'application/json'},
+      // Authenticate so the asset PERSISTS to this account (and goes live at /v/<id>
+      // when approved). That is real delivered work, not a throwaway preview.
+      var _h = { 'Content-Type':'application/json' };
+      var _jwt = getJwt(); if(_jwt) _h['Authorization'] = 'Bearer ' + _jwt;
+      var _gurl = '/api/geo?path=generate'; if(!_jwt){ var _m = getMagic(); if(_m) _gurl += '&token=' + encodeURIComponent(_m); }
+      fetch(_gurl, {
+        method:'POST', headers:_h,
         body: JSON.stringify({ type:type, url_or_topic: _wpWebsite || title, focus: title })
       })
         .then(function(r){ return r.json(); })
         .then(function(d){
           if(!d || d.error || !d.content) throw new Error((d&&d.error)||'failed');
           gen.style.display='none';
+          var live = d.asset && d.asset.url && d.asset.live;
           out.innerHTML = '<div style="border:1px solid rgba(240,165,0,.3);border-radius:10px;padding:14px;background:rgba(240,165,0,.04)">'+
             '<div style="font-weight:700;color:var(--text,#f2ede4);margin-bottom:6px">'+esc(d.title||'Generated asset')+'</div>'+
             '<div style="font-size:13px;color:var(--muted,#a39c8e);line-height:1.55;white-space:pre-wrap;max-height:180px;overflow:hidden">'+esc(String(d.content).slice(0,600))+'</div>'+
-            (d.schema&&typeof d.schema==='object'?'<div style="font-size:12px;color:var(--green,#3fb950);margin-top:8px">✓ Valid JSON-LD generated</div>':'')+
-            (d.qa&&d.qa.status==='needs_review'?'<div style="font-size:11.5px;color:var(--muted,#a39c8e);margin-top:5px">Flagged for a human review pass before publishing.</div>':'')+
+            (live?'<div style="font-size:12.5px;margin-top:10px">✓ Published live: <a href="'+esc(d.asset.url)+'" target="_blank" rel="noopener" style="color:var(--gold,#f0a500);font-weight:600">'+esc(d.asset.url)+'</a></div>':'')+
+            (d.schema&&typeof d.schema==='object'?'<div style="font-size:12px;color:var(--green,#3fb950);margin-top:6px">✓ Valid JSON-LD generated and embedded</div>':'')+
+            (d.qa&&d.qa.status==='needs_review'?'<div style="font-size:11.5px;color:var(--muted,#a39c8e);margin-top:5px">Saved to your library, flagged for a human review pass before it goes live (regulated or claim-heavy topic).</div>':'')+
           '</div>';
-          // The engine did the work → mark the task done.
+          // The engine did the work → mark the task done + refresh the library.
           var done = wpGetDone(_wpClient); var idn = Number(gid);
           if(done.indexOf(idn)===-1){ done.push(idn); wpSetDone(_wpClient, done); }
           var chkBtn = document.querySelector('.wp-check[data-id="'+gid+'"]');
           if(chkBtn){ chkBtn.style.background='var(--gold,#f0a500)'; chkBtn.style.borderColor='var(--gold,#f0a500)'; chkBtn.textContent='✓'; }
           if(_wpCache) wpUpdateProgress(_wpCache, _wpClient);
+          loadAssets();
         })
         .catch(function(){ gen.disabled=false; gen.textContent='Have the engine do this →'; out.innerHTML='<div style="color:var(--muted,#a39c8e);font-size:12.5px">The engine is busy — try again in a moment.</div>'; });
     }
@@ -457,6 +474,43 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(inp.value).then(done, function(){ inp.select(); document.execCommand('copy'); done(); }); }
     else { inp.select(); document.execCommand('copy'); done(); }
   }); }
+
+  // ── ASSET LIBRARY: the real work the engine has published for this account. Also
+  // the source of truth for work-plan progress (a task with an asset is really done). ──
+  function loadAssets(){
+    if(adminClientId){ document.getElementById('assetLib').style.display='none'; return; }
+    var jwt = getJwt(), magic = getMagic();
+    var url = '/api/geo?path=assets', headers = {};
+    if(jwt) headers['Authorization'] = 'Bearer ' + jwt; else if(magic) url += '&token=' + encodeURIComponent(magic);
+    fetch(url, { headers: headers })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var assets = (d && d.assets) || [];
+        var lib = document.getElementById('assetLib');
+        if(!assets.length){ lib.style.display = 'none'; return; }
+        lib.style.display = 'block';
+        var liveN = assets.filter(function(a){ return a.url; }).length;
+        document.getElementById('assetStat').textContent = assets.length + ' asset' + (assets.length===1?'':'s') + ' · ' + liveN + ' live';
+        document.getElementById('assetRows').innerHTML = assets.map(function(a){
+          var badge = a.qa_status==='approved' ? '<span style="color:var(--green,#3fb950)">live</span>' : '<span style="color:var(--muted,#a39c8e)">in review</span>';
+          var link = a.url ? '<a href="'+esc(a.url)+'" target="_blank" rel="noopener" style="color:var(--gold,#f0a500)">view →</a>' : '';
+          return '<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07)">'+
+            '<div style="flex:1"><div style="font-weight:600;color:var(--text,#f2ede4)">'+esc(a.title||a.type||'Asset')+'</div>'+
+            '<div style="font-size:12px;color:var(--muted,#a39c8e)">'+esc(a.type||'')+' · '+badge+'</div></div>'+
+            '<div style="font-size:13px;align-self:center">'+link+'</div></div>';
+        }).join('');
+        // Sync work-plan progress from real assets (server truth over localStorage).
+        if(_wpCache && _wpCache.tasks){
+          var done = wpGetDone(_wpClient), changed = false;
+          _wpCache.tasks.forEach(function(t){
+            var has = assets.some(function(a){ return a.focus && String(a.focus).slice(0,40) === String(t.title).slice(0,40); });
+            if(has && done.indexOf(t.id)===-1){ done.push(t.id); changed = true; }
+          });
+          if(changed){ wpSetDone(_wpClient, done); renderWorkPlan(_wpCache, { meta:{ website:_wpWebsite } }, _wpClient); }
+        }
+      })
+      .catch(function(){ /* leave hidden on error */ });
+  }
 
   function renderMetrics(d){
     document.getElementById('metrics').innerHTML =
@@ -619,6 +673,7 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     _wpCache = d.workPlan || null; _wpClient = clientId;
     renderWorkPlan(d.workPlan, d, clientId);
     renderReferral(d);
+    loadAssets();
     renderMetrics(d);
     renderCitations(d.citations);
     renderEngines(d.citations, d.aiVisibility);
