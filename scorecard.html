@@ -475,7 +475,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     return '$' + n.toLocaleString('en-US');
   }
 
-  function loadSources(url, vertical){
+  function loadSources(url, vertical, city){
     var panel = document.getElementById('sourcesPanel');
     var list = document.getElementById('sourcesList');
     var note = document.getElementById('sourcesNote');
@@ -483,7 +483,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     panel.style.display = 'block';
     note.textContent = '';
     list.innerHTML = '<div style="color:var(--gray);font-size:13.5px">Checking where AI pulls from for your category…</div>';
-    fetch('/api/geo?path=sources', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url:url, vertical:vertical }) })
+    fetch('/api/geo?path=sources', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url:url, vertical:vertical, location: city || undefined }) })
       .then(function(r){ return r.json(); })
       .then(function(d){
         if(!d || !Array.isArray(d.targets)){ panel.style.display='none'; return; }
@@ -574,7 +574,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
     renderEngines(data.aiVisibility);
     renderBreakdown(data.breakdown);
     renderGaps(data.gaps, data.totalGapsFound);
-    if(data.meta && data.meta.url) loadSources(data.meta.url, data.meta.vertical);
+    if(data.meta && data.meta.url) loadSources(data.meta.url, data.meta.vertical, data.meta.signals && data.meta.signals.city);
     lead.style.display = 'none';
     result.style.display = 'block';
     window.scrollTo({top:0, behavior:'smooth'});

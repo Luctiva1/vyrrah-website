@@ -146,14 +146,34 @@ function readBody(req) {
 
 // ─── LLM availability + cheap-first JSON call ────────────────────────────────
 function llmAvailable() {
-  return !!(process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY);
+  return !!(process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY);
 }
 
-// Ask the cheapest available model for a JSON object. Gemini first (free tier),
-// OpenAI (OPENAI_API_KEY) next. Returns a parsed object or null on any failure.
+// Ask the cheapest available model for a JSON object. Anthropic first (key is
+// live in prod), Gemini next (free tier), OpenAI last. Null on any failure.
 async function llmJson(system, user, { geminiSchema = null, maxTokens = 1400 } = {}) {
+  const ant = process.env.ANTHROPIC_API_KEY;
   const gem = process.env.GEMINI_API_KEY;
   const oa = process.env.OPENAI_API_KEY;
+  const tryAnthropic = async () => {
+    const r = await fetchWithTimeout('https://api.anthropic.com/v1/messages', LLM_TIMEOUT_MS, {
+      method: 'POST',
+      headers: { 'x-api-key': ant, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: maxTokens,
+        system: system + '\nRespond with ONLY the JSON object. No prose, no markdown fences.',
+        messages: [{ role: 'user', content: user }]
+      })
+    });
+    if (!r.ok) throw new Error('anthropic ' + r.status);
+    const data = await r.json();
+    let text = (data.content && data.content[0] && data.content[0].text) || '';
+    text = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    const start = text.indexOf('{');
+    if (start > 0) text = text.slice(start);
+    return JSON.parse(text);
+  };
   const tryGemini = async () => {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
     const gen = { temperature: 0, maxOutputTokens: maxTokens, responseMimeType: 'application/json' };
@@ -189,21 +209,28 @@ async function llmJson(system, user, { geminiSchema = null, maxTokens = 1400 } =
     const data = await r.json();
     return JSON.parse(data.choices[0].message.content);
   };
-  try {
-    if (gem) return await tryGemini();
-    if (oa) return await tryOpenAI();
-  } catch (e) {
-    if (gem && oa) { try { return await tryOpenAI(); } catch (e2) { /* fall through */ } }
-    console.error('llmJson failed:', e.message);
+  // Try every available provider in order; fall through on failure so a single
+  // provider outage/rate-limit never silently drops the tool into mock mode.
+  const chain = [];
+  if (ant) chain.push(['anthropic', tryAnthropic]);
+  if (gem) chain.push(['gemini', tryGemini]);
+  if (oa) chain.push(['openai', tryOpenAI]);
+  for (const [name, fn] of chain) {
+    try { return await fn(); }
+    catch (e) { console.error(`llmJson ${name} failed:`, e.message); }
   }
   return null;
 }
 
 // ─── Vertical inference (reuse of the tool.js idea, standalone here) ──────────
 function inferVertical(text) {
-  const t = String(text || '').toLowerCase();
+  const t = String(text || '').toLowerCase().trim();
+  if (!t) return 'local business';
   if (/restoration|water damage|fire damage|flood|\bmold|mitigation|smoke damage|biohazard/.test(t)) return 'restoration';
-  if (/dental|dentist|orthodon|med ?spa|medspa|aesthetic|botox|filler|cosmetic/.test(t)) return 'dental/med-spa';
+  if (/dental|dentist|orthodon|invisalign|veneer|teeth|tooth/.test(t)) return 'dental';
+  if (/med ?spa|medspa|aesthetic|botox|filler|laser hair|coolsculpt|body contour/.test(t)) return 'med-spa';
+  if (/attorney|lawyer|law firm|legal|paralegal|injury law|litigation/.test(t)) return 'legal';
+  if (/\bsaas\b|software|\bapp\b|platform|api\b|developer tool/.test(t)) return 'saas';
   if (/staffing|recruit|talent|placement|hiring|headhunt/.test(t)) return 'staffing/recruitment';
   if (/roof|storm|hail|shingle|gutter/.test(t)) return 'roofing';
   if (/plumb|drain|sewer|hvac|heating|cooling|electric/.test(t)) return 'home services';
@@ -244,7 +271,19 @@ function domainAuthority(hostname) {
   const tld = host.split('.').pop();
   let score = 40; // an ordinary, real, resolvable business domain baseline
   let recognized = false;
+  // National vertical leaders: known franchise/category brands AI already cites.
+  // Without this, SERVPRO scores like a random local site and the verdict reads wrong.
+  const VERTICAL_LEADERS = {
+    'servpro.com': 88, 'servicemasterrestore.com': 84, 'belfor.com': 82, 'puroclean.com': 80,
+    'pauldavis.com': 80, 'rainbowrestores.com': 76, '911restoration.com': 72, 'servicemaster.com': 84,
+    'idealimage.com': 82, 'laseraway.com': 80, 'sonobello.com': 80,
+    'aspendental.com': 84, 'westerndental.com': 76,
+    'rotorooter.com': 84, 'mrrooter.com': 78, 'stanleysteemer.com': 80,
+    'roberthalf.com': 86, 'aerotek.com': 82, 'randstadusa.com': 80,
+    'forlawfirmsonly.com': 60, 'morganandmorgan.com': 86,
+  };
   if (MEGA_AUTHORITY.has(reg)) { score = 96; recognized = true; }
+  else if (VERTICAL_LEADERS[reg]) { score = VERTICAL_LEADERS[reg]; recognized = true; }
   else {
     // High-trust TLDs lift authority for sites we do not explicitly know.
     if (tld === 'gov' || tld === 'edu') { score += 35; recognized = true; }
@@ -294,6 +333,7 @@ function inspectHtml(html) {
     hasOpenGraph: /property=["']og:/i.test(h),
     hasFaq: /\bfaq\b|frequently asked/i.test(lower) || schemaTypes.some((t) => /faq/i.test(t)),
     hasTel: /href=["']tel:/i.test(h),
+    city: ((h.match(/"addressLocality"\s*:\s*"([^"]{2,40})"/) || [])[1] || '').trim(),
     hasReviews: /review|testimonial|★|stars?\b|rating/i.test(lower) || schemaTypes.some((t) => /review|aggregaterating/i.test(t)),
     jsonLdCount: jsonLdBlocks.length,
     schemaTypes: Array.from(new Set(schemaTypes)),
@@ -462,7 +502,7 @@ async function handleScorecard(req, res) {
 
   // 1) Fetch the page. A fetch failure is NOT fatal — we treat it as a cold-start
   //    site with no data and still return a useful, generative-path scorecard.
-  let html = '', fetchOk = false;
+  let html = '', fetchOk = false, fetchStatus = 0;
   try {
     const r = await fetchWithTimeout(u.href, FETCH_TIMEOUT_MS, {
       redirect: 'follow',
@@ -471,12 +511,20 @@ async function handleScorecard(req, res) {
         'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9'
       }
     });
+    fetchStatus = r.status;
     const ctype = r.headers.get('content-type') || '';
     if (r.ok && ctype.includes('html')) { html = await r.text(); fetchOk = html.length >= 200; }
   } catch (e) { /* treat as cold start below */ }
+  // A WAF/bot-block (403 etc.) is NOT "invisible" — the site refused OUR crawler.
+  // Same class of bot AI engines use, which is itself a finding — but never score
+  // it like an empty site or the verdict is flat wrong on a live call.
+  const blocked = !fetchOk && [401, 403, 406, 429, 503].includes(fetchStatus);
 
   const sig = inspectHtml(html);
-  const vertical = inferVertical((sig.title + ' ' + sig.metaDesc) || u.hostname);
+  // Two-step: infer from page text; if that yields nothing specific, re-infer
+  // from the hostname (the old `|| u.hostname` never fired — ' ' is truthy).
+  let vertical = inferVertical((sig.title + ' ' + sig.metaDesc).trim());
+  if (vertical === 'local business') vertical = inferVertical(u.hostname.replace(/[.-]/g, ' '));
   const auth = domainAuthority(u.hostname);
   const baseBreakdown = heuristicBreakdown(sig, auth);
   const candGaps = candidateGaps(sig, vertical);
@@ -491,18 +539,25 @@ async function handleScorecard(req, res) {
     { title: 'No AI-citation tracking or share-of-voice baseline', impact: 'You cannot manage what you never see. Without tracking which AI answers name you versus competitors, you are blind to where the calls are actually going.', fix: 'Stand up weekly citation tracking across ChatGPT, Perplexity and Google AI for your money queries, baseline your share of voice, and work the gaps query by query.' },
     { title: 'Answer-shaped content missing for buying-intent questions', impact: 'Engines quote sources that directly answer questions buyers ask ("how much does X cost", "how fast can someone come out"). Service pages alone rarely get quoted.', fix: 'Build a question-led content layer mapped to real buyer prompts in your vertical, structured so engines can lift the answer with your name attached.' },
   ];
-  const allStripped = candGaps.map(({ tier, ...g }) => g);
-  const padded = [...baseHardGaps, ...allStripped.filter((g) => !baseHardGaps.some((h) => h.title === g.title))];
+  // Order matters: hard gaps first, then the strategic pool, and easy DIY fixes
+  // only as a last resort — "Meta description too long" must never headline the
+  // verdict (it reads as a checklist item, not a reason to hire anyone).
+  const easyStripped = candGaps.filter((g) => g.tier === 'easy').map(({ tier, ...g }) => g);
+  const padded = [...baseHardGaps];
   for (const sg of STRATEGIC_POOL) {
     if (padded.length >= 3) break;
     if (!padded.some((g) => g.title === sg.title)) padded.push(sg);
+  }
+  for (const eg of easyStripped) {
+    if (padded.length >= 3) break;
+    if (!padded.some((g) => g.title === eg.title)) padded.push(eg);
   }
   const baseGaps = padded.slice(0, 3);
   const totalGapsFound = Math.max(candGaps.length, baseGaps.length);
   // A recognized mega-authority is never "cold start" even if the fetch was
   // blocked (Reddit etc. often refuse bot UAs): the domain is demonstrably
   // visible, so a cold-start verdict would directly contradict its high score.
-  const coldStart = !auth.recognized && (!fetchOk || sig.textLen < 400);
+  const coldStart = !auth.recognized && !blocked && (!fetchOk || sig.textLen < 400);
 
   // Optional ad-spend value anchor — frames V-Rank's $500-750/mo as tiny vs ads.
   const adSpendRaw = Number(body.adSpend);
@@ -525,7 +580,7 @@ async function handleScorecard(req, res) {
       'aiVisibility {chatgpt,perplexity,google} (each int 0-100, your estimate of current citation likelihood per engine),',
       'gaps (array of EXACTLY the 3 HARDEST, most expertise-requiring gaps {title,impact,fix} — GEO/AEO strategy, schema architecture, content/topical authority, structured reputation. Do NOT include trivial DIY fixes like "add a meta description", "add a viewport tag", or "fix the H1". Each fix should read as strategic work that needs a specialist, not a checklist item.),',
       'summary (2-3 sentences, the headline verdict and the single biggest strategic opportunity).',
-      'competitorGap {competitor, theirVisibility, yourVisibility, line}: name a real, plausible competitor in this EXACT vertical and area that IS cited by AI today (a well-known category brand, or a realistic strong local-competitor name if you are unsure). theirVisibility = int 0-100, clearly higher than this site. yourVisibility = int 0-100, about equal to score. line = ONE punchy second-person sentence, e.g. "When someone asks ChatGPT for a water damage company near them, ServiceMaster gets named and you do not."',
+      'competitorGap {competitor, theirVisibility, yourVisibility, line}: name ONLY a real, well-known NATIONAL brand in this exact vertical that IS cited by AI today (e.g. restoration: SERVPRO, ServiceMaster Restore, PuroClean; med spa: Ideal Image, LaserAway; dental: Aspen Dental). NEVER invent a local business name — if unsure, use "your top competitors". theirVisibility = int 0-100, clearly higher than this site. yourVisibility = int 0-100, about equal to score. line = ONE punchy second-person sentence, e.g. "When someone asks ChatGPT for a water damage company near them, SERVPRO gets named and you do not."',
       coldStart ? 'IMPORTANT COLD START: this site has little or no fetchable content AND is not a recognized authority. Score honestly low, and make the summary and gaps about GENERATING foundational pages, FAQ and schema from scratch, plus standing up a reputation system going forward.' : ''
     ].join('\n');
     const user = JSON.stringify({
@@ -555,7 +610,9 @@ async function handleScorecard(req, res) {
   const breakdown = (out && out.breakdown && ['seo', 'aeo', 'schema', 'content', 'reviews'].every((k) => Number.isFinite(out.breakdown[k])))
     ? { seo: clamp(out.breakdown.seo, 0, 100), aeo: clamp(out.breakdown.aeo, 0, 100), schema: clamp(out.breakdown.schema, 0, 100), content: clamp(out.breakdown.content, 0, 100), reviews: clamp(out.breakdown.reviews, 0, 100) }
     : baseBreakdown;
-  const score = (out && Number.isFinite(out.score)) ? clamp(out.score, 0, 100) : overallFromBreakdown(breakdown);
+  let score = (out && Number.isFinite(out.score)) ? clamp(out.score, 0, 100) : overallFromBreakdown(breakdown);
+  // Blocked fetch: anchor to domain authority so a WAF never reads as "invisible".
+  if (blocked) score = clamp(Math.max(score, auth.authority), 0, 100);
   const rawAi = (out && out.aiVisibility && ['chatgpt', 'perplexity', 'google'].every((k) => Number.isFinite(out.aiVisibility[k])))
     ? out.aiVisibility
     : heuristicAiVisibility(breakdown);
@@ -570,10 +627,12 @@ async function handleScorecard(req, res) {
   // FEWER, HARDER: surface only the top 3 hardest gaps. The full count is exposed
   // separately so the prospect sees there is more than they would want to DIY.
   gaps = gaps.slice(0, 3);
-  const summary = (out && out.summary) ? String(out.summary).slice(0, 600)
+  const summary = blocked
+    ? `${u.hostname} turned away our crawler (HTTP ${fetchStatus}) — the same class of bot ChatGPT and Perplexity use to read sites. That itself can cost you citations: check your robots.txt and WAF allowlist for GPTBot, PerplexityBot and ClaudeBot. Your score below is anchored to your domain's real-world authority, not the blocked page.`
+    : (out && out.summary) ? String(out.summary).slice(0, 600)
     : (coldStart
         ? `We could not read much content at ${u.hostname}, so you are close to invisible in AI search today. The fast path is to generate foundational pages, an FAQ and connected schema from scratch, then stand up a reputation system. Your AI-visibility score is ${score}/100.`
-        : `${u.hostname} scores ${score}/100 for AI visibility. The biggest lever right now is ${((gaps[0] && gaps[0].title) || 'building schema architecture and answer-shaped content').charAt(0).toLowerCase() + ((gaps[0] && gaps[0].title) || 'building schema architecture and answer-shaped content').slice(1)}, so engines like ChatGPT and Perplexity cite you more often.`);
+        : `${u.hostname} scores ${score}/100 for AI visibility. The biggest lever right now: ${(gaps[0] && gaps[0].title) || 'building schema architecture and answer-shaped content'}. Close it and engines like ChatGPT and Perplexity start citing you.`);
 
   // AD-SPEND VALUE ANCHOR (optional). Frames $500-750/mo V-Rank vs rented ad traffic.
   let valueAnchor = null;
@@ -588,7 +647,28 @@ async function handleScorecard(req, res) {
   }
 
   // COMPETITOR CITATION GAP — the highest-urgency line: someone else is in the AI answer, you're not.
-  const competitorGap = (out && out.competitorGap && out.competitorGap.competitor)
+  // Fallback names a REAL national brand (deterministic per host) — never an invented local name,
+  // and never the nameless "your top competitors" when a credible brand exists for the vertical.
+  const COMPETITOR_POOLS = {
+    'restoration': ['SERVPRO', 'ServiceMaster Restore', 'PuroClean', 'Paul Davis Restoration'],
+    'roofing': ['Erie Home', 'Baker Roofing', 'Tecta America'],
+    'dental': ['Aspen Dental', 'Western Dental', 'Smile Generation'],
+    'med-spa': ['Ideal Image', 'LaserAway', 'Sono Bello'],
+    'legal': ['Morgan & Morgan'],
+    'home services': ['Roto-Rooter', 'Mr. Rooter', 'One Hour Heating & Air'],
+    'staffing/recruitment': ['Robert Half', 'Aerotek', 'Randstad'],
+  };
+  const VERTICAL_NOUN = {
+    'restoration': 'a water damage restoration company', 'roofing': 'a roofer', 'dental': 'a dentist',
+    'med-spa': 'a med spa', 'legal': 'a lawyer', 'home services': 'a plumber or HVAC company',
+    'staffing/recruitment': 'a staffing agency', 'saas': 'a tool like yours', 'DTC/ecommerce': 'a product like yours',
+  };
+  const noun = VERTICAL_NOUN[vertical] || `a ${vertical} provider`;
+  const pool = (COMPETITOR_POOLS[vertical] || []).filter((b) => !u.hostname.toLowerCase().includes(b.toLowerCase().replace(/[^a-z]/gi, '').slice(0, 6)));
+  let hostHash = 0; for (const ch of u.hostname) hostHash = (hostHash * 31 + ch.charCodeAt(0)) >>> 0;
+  const pooledBrand = pool.length ? pool[hostHash % pool.length] : null;
+  const fallbackTheir = pooledBrand ? 78 + (hostHash % 14) : clamp(score + (score < 50 ? 40 : 22), 0, 100);
+  const competitorGap = (out && out.competitorGap && out.competitorGap.competitor && !/top competitors/i.test(out.competitorGap.competitor))
     ? {
         competitor: String(out.competitorGap.competitor).slice(0, 80),
         theirVisibility: clamp(Number(out.competitorGap.theirVisibility) || Math.min(96, score + 30), 0, 100),
@@ -596,10 +676,12 @@ async function handleScorecard(req, res) {
         line: String(out.competitorGap.line || '').slice(0, 240)
       }
     : {
-        competitor: 'Your top competitors',
-        theirVisibility: clamp(score + (score < 50 ? 40 : 22), 0, 100),
+        competitor: pooledBrand || 'Your top competitors',
+        theirVisibility: clamp(fallbackTheir, 0, 100),
         yourVisibility: score,
-        line: `When someone asks ChatGPT or Google AI who to hire for ${vertical} near them, your competitors get named and you do not. Every one of those answers is a call going somewhere else.`
+        line: pooledBrand
+          ? `When someone asks ChatGPT or Google AI for ${noun} near them, ${pooledBrand} gets named and you do not. Every one of those answers is a call going somewhere else.`
+          : `When someone asks ChatGPT or Google AI for ${noun} near them, your competitors get named and you do not. Every one of those answers is a call going somewhere else.`
       };
   if (!competitorGap.line) competitorGap.line = `Your competitors are showing up in AI answers for ${vertical}, and you are not.`;
 
@@ -717,21 +799,29 @@ function mockContent(type, { topic, vertical, host }) {
 // Nothing risky ever auto-publishes under a client's brand. Regulated verticals
 // (medical/legal/financial) and unverifiable claims are FORCE-flagged for human
 // review even when the QA model is unavailable (fail closed, never fail open).
-const REGULATED_RX = /\b(medical|med ?spa|clinic|dental|dentist|doctor|physician|health|therapy|botox|filler|weight ?loss|glp-?1|hormone|trt|law|lawyer|attorney|legal|injury|financial|insurance)\b/i;
-// Only genuinely-dangerous claims hard-flag in the heuristic (fail-safe when the QA
-// model is down). Soft words ("best", "proven", "licensed") are left to the QA model
-// to judge in context, so we don't flag 100% of normal marketing copy.
-const CLAIM_RX = /\b(guarantee\w*|cure|#1|number one|clinically|fda|100%|risk-free|painless|permanent)\b/i;
+const REGULATED_RX = /\b(medical|med ?spa|clinic|dental|dentist|teeth|tooth|whitening|veneer|implant|orthodont\w*|braces|invisalign|smile makeover|chiropract\w*|dermatolog\w*|surg(?:ery|eon|ical)|laser|semaglutide|ozempic|doctor|physician|health|therapy|botox|filler|weight ?loss|lose \d+ ?(?:pounds|lbs|kg)|glp-?1|hormone|trt|law|lawyer|attorney|legal|injury|financial|insurance)\b/i;
+// Genuinely-dangerous claims hard-flag in the heuristic (fail-safe when the QA
+// model is down) — stemmed so "cures"/"permanently"/"risk free" can't slip by.
+// Soft words ("best", "proven") stay with the QA model to judge in context.
+const CLAIM_RX = /\b(guarantee\w*|cure\w*|#1|number one|clinical\w*|fda|100%|risk[- ]?free|pain[- ]?(?:free|less)\w*|permanent\w*)\b/i;
+const REGULATED_VERTICALS = /\b(dental|med-?spa|medical|legal|health)\b/i;
 
 function heuristicRisk(text, vertical) {
   const t = String(text || '');
+  if (REGULATED_VERTICALS.test(String(vertical))) return 'high';
   if (REGULATED_RX.test(String(vertical)) || REGULATED_RX.test(t)) return 'high';
   if (CLAIM_RX.test(t)) return 'high';
   return 'low';
 }
 
 async function qaContent(content, { type, vertical, host }) {
-  const baseRisk = heuristicRisk(content + ' ' + vertical, vertical);
+  // Two risk tiers: VERTICAL risk (dental/medical/legal) can never be downgraded —
+  // those always get human review. TEXT-triggered risk ("insured", "guarantee" in
+  // ordinary service copy) may be cleared by the QA model judging it in context;
+  // without a QA model it fails closed.
+  const verticalRisk = (REGULATED_VERTICALS.test(String(vertical)) || REGULATED_RX.test(String(vertical))) ? 'high' : 'low';
+  const textRisk = (REGULATED_RX.test(String(content)) || CLAIM_RX.test(String(content))) ? 'high' : 'low';
+  const baseRisk = verticalRisk === 'high' ? 'high' : textRisk;
   const fallback = (msg) => ({ risk: baseRisk, autoApprove: baseRisk === 'low', issues: baseRisk === 'high' ? [msg] : [], content });
   if (!llmAvailable()) return fallback('Regulated/claim content — human review required (no QA model available).');
   const system = [
@@ -744,7 +834,8 @@ async function qaContent(content, { type, vertical, host }) {
   const schema = { type: 'OBJECT', properties: { risk: { type: 'STRING' }, autoApprove: { type: 'BOOLEAN' }, issues: { type: 'ARRAY', items: { type: 'STRING' } }, content: { type: 'STRING' } }, required: ['risk', 'autoApprove', 'issues', 'content'] };
   const rev = await llmJson(system, JSON.stringify({ type, vertical, host, content }), { geminiSchema: schema, maxTokens: 2500 });
   if (!rev) return fallback('Regulated/claim content — human review required (QA pass failed).');
-  const risk = (baseRisk === 'high' || rev.risk === 'high') ? 'high' : 'low'; // QA can never DOWNgrade heuristic risk
+  // Vertical risk is a hard floor; text-triggered risk defers to the QA model's contextual call.
+  const risk = (verticalRisk === 'high' || rev.risk === 'high') ? 'high' : 'low';
   return {
     risk,
     autoApprove: risk === 'low' && rev.autoApprove !== false,
@@ -810,11 +901,16 @@ async function handleGenerate(req, res) {
 
   // Multi-pass QA + risk gate: auto-approve low-risk, flag regulated/claim content for review.
   const qa = await qaContent(content, { type, vertical, host });
+  // Fallback (mock) content is generic filler — it must NEVER ship stamped "approved".
+  const isMock = !out;
+  const approved = !isMock && qa.autoApprove;
+  const issues = [...qa.issues];
+  if (isMock && !issues.length) issues.push('Generated by fallback templates (no LLM) — review before publishing.');
 
   return res.status(200).json({
     title, content: qa.content, schema,
-    qa: { status: qa.autoApprove ? 'approved' : 'needs_review', risk: qa.risk, autoApprove: qa.autoApprove, issues: qa.issues },
-    meta: { type, vertical, coldStart: true, source: asUrl ? host : 'topic', mock: !out }
+    qa: { status: approved ? 'approved' : 'needs_review', risk: qa.risk, autoApprove: approved, issues },
+    meta: { type, vertical, coldStart: true, source: asUrl ? host : 'topic', mock: isMock }
   });
 }
 
@@ -1396,9 +1492,14 @@ async function handleSources(req, res) {
   const body = readBody(req);
   const u = safeUrl(body.url);
   if (!u) return res.status(400).json({ error: 'A valid http(s) url is required.' });
-  const vertical = body.vertical || inferVertical(u.hostname);
-  const targets = sourcesForVertical(vertical);
-  const loc = body.location ? ` in ${body.location}` : ' near me';
+  const vertical = body.vertical || inferVertical(u.hostname.replace(/[.-]/g, ' '));
+  // Template the placeholders — a literal "[city]" on the flagship panel reads as broken.
+  const cityName = String(body.location || '').trim().slice(0, 40) || 'your city';
+  const nounMap = { 'restoration': 'restoration company', 'roofing': 'roofer', 'dental': 'dentist', 'med-spa': 'med spa', 'legal': 'lawyer', 'home services': 'plumber or HVAC company', 'staffing/recruitment': 'staffing agency' };
+  const tradeNoun = nounMap[vertical] || String(vertical);
+  const tpl = (s) => String(s).replace(/\[city\]/g, cityName).replace(/\[(trade|practice|service)\]/g, tradeNoun);
+  const targets = sourcesForVertical(vertical).map((t) => ({ ...t, name: tpl(t.name), why: tpl(t.why), action: tpl(t.action) }));
+  const loc = body.location ? ` in ${cityName}` : ' near me';
   const prompts = [
     `Who are the best ${vertical} companies${loc}? List specific businesses.`,
     `I need a ${vertical} provider${loc} — who do you recommend and why?`,
@@ -1409,7 +1510,7 @@ async function handleSources(req, res) {
   const citedDomains = (live && live.citedSources || []).map((s) => s.domain);
   const enriched = targets.map((t) => ({ ...t, confirmedCited: citedDomains.some((d) => matchSource(d, t)) }));
   return res.status(200).json({
-    host: u.hostname, vertical,
+    host: u.hostname, vertical, city: body.location ? cityName : null,
     live: live ? { engine: live.engine, youArePresent: live.present, citedSources: live.citedSources, prompts: live.prompts } : null,
     liveAvailable: !!live,
     targets: enriched,
