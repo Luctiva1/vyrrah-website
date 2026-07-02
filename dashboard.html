@@ -216,6 +216,19 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     </div>
   </div>
 
+  <!-- REFERRAL: refer another business, get a free month (drives the referral loop) -->
+  <div id="referralCard" style="display:none;background:var(--panel,#141414);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:18px 22px;margin:10px 0 8px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <b style="font-family:'Fraunces',serif;font-size:18px">Refer a business, get a free month</b>
+      <span id="refStat" style="font-size:12.5px;color:var(--muted,#a39c8e)"></span>
+    </div>
+    <p style="font-size:13.5px;color:var(--muted,#a39c8e);line-height:1.55;margin:6px 0 12px">Send this link to another owner. When they start a free trial and scan their site, you get a month of V-Rank free. No cap on how many months you can bank.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input id="refLink" readonly value="" style="flex:1;min-width:220px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:var(--text,#f2ede4);padding:10px 12px;font-size:13px">
+      <button id="refCopy" type="button" style="background:var(--gold,#f0a500);border:none;color:#141414;font-weight:700;padding:10px 18px;border-radius:8px;cursor:pointer">Copy link</button>
+    </div>
+  </div>
+
   <!-- SCORE + TOP METRICS -->
   <div class="head-grid">
     <div class="scorecard">
@@ -427,6 +440,24 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
   var _wpUp = document.getElementById('wpUpgrade');
   if(_wpUp){ _wpUp.addEventListener('click', function(e){ e.preventDefault(); var b=document.getElementById('topUpgradeBtn'); if(b){ b.click(); } else { window.location.href='https://cal.com/godwin-rayen/30min'; } }); }
 
+  // ── REFERRAL card: the customer's share link + how many trials they have sent. ──
+  function renderReferral(d){
+    var card = document.getElementById('referralCard');
+    var r = d && d.referral;
+    if(!r || !r.link){ card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    document.getElementById('refLink').value = r.link;
+    var n = Number(r.count)||0, c = Number(r.credits)||0;
+    document.getElementById('refStat').textContent = n + ' referred' + (c ? ' · ' + c + ' free month' + (c===1?'':'s') + ' banked' : '');
+  }
+  var _refCopy = document.getElementById('refCopy');
+  if(_refCopy){ _refCopy.addEventListener('click', function(){
+    var inp = document.getElementById('refLink'); if(!inp || !inp.value) return;
+    var done = function(){ _refCopy.textContent = 'Copied'; setTimeout(function(){ _refCopy.textContent = 'Copy link'; }, 2000); };
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(inp.value).then(done, function(){ inp.select(); document.execCommand('copy'); done(); }); }
+    else { inp.select(); document.execCommand('copy'); done(); }
+  }); }
+
   function renderMetrics(d){
     document.getElementById('metrics').innerHTML =
       metric(fmt(d.traffic), 'Organic traffic (mo)', d.trafficDelta || '', 'green') +
@@ -587,6 +618,7 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     de.className = 'delta' + (String(delta).trim().charAt(0)==='-' ? ' down' : '');
     _wpCache = d.workPlan || null; _wpClient = clientId;
     renderWorkPlan(d.workPlan, d, clientId);
+    renderReferral(d);
     renderMetrics(d);
     renderCitations(d.citations);
     renderEngines(d.citations, d.aiVisibility);

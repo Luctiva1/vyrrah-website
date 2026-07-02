@@ -1152,9 +1152,23 @@ async function handleDashboard(req, res) {
       totalGaps: Number.isFinite(scan.totalGapsFound) ? scan.totalGapsFound : (Array.isArray(scan.gaps) ? scan.gaps.length : 0),
       website: scan.host || customer.website || null
     } : null;
+    // Referral: the customer's share link + how many trials they have sent.
+    let refCount = 0;
+    try {
+      const supabase = getSupabase();
+      const { count } = await supabase.from('tool_clients').select('id', { count: 'exact', head: true }).eq('referred_by', String(customer.id));
+      if (Number.isFinite(count)) refCount = count;
+    } catch (e) { /* referred_by not migrated yet — show link, count 0 */ }
+    const referral = {
+      code: String(customer.id),
+      link: `${PUBLIC_BASE}/scorecard?ref=${encodeURIComponent(String(customer.id))}`,
+      count: refCount,
+      credits: Number.isFinite(customer.referral_credits) ? customer.referral_credits : 0
+    };
     return res.status(200).json({
       ...data,
       workPlan,
+      referral,
       meta: {
         client_id: customer.id, mode: 'self', source: source || 'representative',
         mock: !!mock, website: customer.website || null, plan: customer.plan || 'recaller',
@@ -1230,6 +1244,8 @@ async function handleSignup(req, res) {
   // table (Recaller requires it). geo.js owns its own validation here, so we set a
   // placeholder rather than touching Recaller's handleClients. plan/website are the
   // additive columns from the migration; insert degrades gracefully if absent.
+  // Referral attribution: ?ref=<referrer client id> carried from the scorecard link.
+  const ref = typeof body.ref === 'string' ? body.ref.trim().slice(0, 64) : '';
   const row = {
     plan: VRANK_PLAN,
     practice_name: practiceName.slice(0, 120),
@@ -1243,30 +1259,27 @@ async function handleSignup(req, res) {
     magic_token: magicToken,
     password_hash: passwordHash
   };
+  if (ref) row.referred_by = ref;
 
-  let client = null;
-  try {
-    const { data, error } = await supabase.from('tool_clients').insert(row).select().single();
-    if (error) throw error;
-    client = data;
-  } catch (e) {
-    // If the additive columns (plan/website) are not migrated yet, retry without them
-    // so signup still works pre-migration (the account is plan-less = recaller default).
-    const msg = String(e.message || e);
-    if (/column .*(plan|website)/i.test(msg) || /plan|website/i.test(msg)) {
-      try {
-        const { plan, website: _w, ...fallback } = row;
-        const { data, error } = await supabase.from('tool_clients').insert(fallback).select().single();
-        if (error) throw error;
-        client = data;
-      } catch (e2) {
-        console.error('signup insert (fallback) failed:', e2.message);
-        return res.status(500).json({ error: 'Could not create account.' });
-      }
-    } else {
-      console.error('signup insert failed:', msg);
-      return res.status(500).json({ error: 'Could not create account.' });
-    }
+  // Progressive insert: try the full row, then drop only the additive columns that
+  // may not be migrated yet, most-optional first. This keeps plan/website when only
+  // referred_by is missing, and never lets an unmigrated column block a signup.
+  let client = null, lastErr = null;
+  const attempts = [
+    row,
+    (() => { const { referred_by, ...r } = row; return r; })(),
+    (() => { const { referred_by, plan, website, ...r } = row; return r; })(),
+  ];
+  for (const attempt of attempts) {
+    try {
+      const { data, error } = await supabase.from('tool_clients').insert(attempt).select().single();
+      if (error) throw error;
+      client = data; break;
+    } catch (e) { lastErr = e; }
+  }
+  if (!client) {
+    console.error('signup insert failed:', String(lastErr && (lastErr.message || lastErr)));
+    return res.status(500).json({ error: 'Could not create account.' });
   }
 
   // Seed the dashboard with the scorecard result so it shows real data + a work

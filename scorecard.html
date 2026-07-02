@@ -330,6 +330,24 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       <div class="gaps-more" id="gapsMore"></div>
     </div>
 
+    <!-- REFERRAL / VIRAL: score a competitor head-to-head + share these results -->
+    <div class="compete" id="compete" style="max-width:560px;margin:26px auto 0;padding:22px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.02)">
+      <div class="sect-lab">See how a competitor scores</div>
+      <p style="color:var(--mid);font-size:15px;line-height:1.6;margin:6px 0 16px">Enter a competitor's site. I score them the same way and show you both, side by side.</p>
+      <form id="compForm" autocomplete="off" style="margin:0">
+        <div class="su-row">
+          <div class="ig su-ig"><input id="compUrl" type="text" placeholder="competitor.com" aria-label="Competitor website"></div>
+          <button class="btnr su-btn" type="submit" id="compBtn"><span id="compBtnTxt">Compare</span><span>→</span></button>
+        </div>
+        <div class="err" id="compErr"></div>
+      </form>
+      <div id="compOut" style="display:none;margin-top:16px"></div>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);font-size:13.5px;color:var(--mid)">
+        Want to send this scorecard to someone? <a href="#" id="shareLink" style="color:var(--gold);font-weight:600">Copy a link to these results →</a>
+        <span id="shareCopied" style="display:none;color:var(--green);margin-left:8px">Copied</span>
+      </div>
+    </div>
+
     <!-- SOFT EMAIL GATE: capture the lead with the full plan emailed, no account -->
     <div class="mailplan" id="mailplan" style="max-width:560px;margin:26px auto 0;padding:22px 22px 24px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.02)">
       <div class="sect-lab">Take the full plan with you</div>
@@ -706,8 +724,14 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
   var suBtnTxt = document.getElementById('suBtnTxt');
   var suErr = document.getElementById('suErr');
   // Prefill + auto-run from ?url= (smooth handoff when arriving from the homepage widget).
+  // Also capture ?ref= (a customer's referral link) so it attributes on signup.
+  var refCode = '';
   try {
-    var _qUrl = new URLSearchParams(location.search).get('url');
+    var _qs = new URLSearchParams(location.search);
+    var _qRef = _qs.get('ref');
+    if (_qRef) { refCode = _qRef; try { localStorage.setItem('vy_ref', _qRef); } catch(_){} }
+    if (!refCode) { try { refCode = localStorage.getItem('vy_ref') || ''; } catch(_){} }
+    var _qUrl = _qs.get('url');
     if (_qUrl && urlInput) {
       urlInput.value = _qUrl.replace(/^https?:\/\//i, '');
       if (form && form.requestSubmit) form.requestSubmit();
@@ -733,7 +757,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
       scan: {
         host: _meta.host, vertical: _meta.vertical, score: _full.score, summary: _full.summary,
         gaps: _full.gaps, competitorGap: _full.competitorGap, totalGapsFound: _full.totalGapsFound
-      }
+      },
+      ref: refCode || undefined
     };
     fetch('/api/geo?path=signup', {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
@@ -798,6 +823,65 @@ nav{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:cen
           mailBtn.disabled = false; mailBtnTxt.textContent = 'Email me the plan';
           mailErr.textContent = 'Could not send just now — try again in a moment.'; mailErr.style.display = 'block';
         });
+    });
+  }
+
+  // ── VIRAL: score a competitor head-to-head. Their scan is captured as a lead too. ──
+  var compForm = document.getElementById('compForm');
+  if(compForm){
+    var compBtn = document.getElementById('compBtn');
+    var compBtnTxt = document.getElementById('compBtnTxt');
+    var compErr = document.getElementById('compErr');
+    var compOut = document.getElementById('compOut');
+    compForm.addEventListener('submit', function(e){
+      e.preventDefault();
+      compErr.style.display = 'none';
+      var raw = (document.getElementById('compUrl').value || '').trim();
+      if(!raw || raw.indexOf('.') < 1){ compErr.textContent = 'Enter a valid site, like competitor.com'; compErr.style.display = 'block'; return; }
+      var curl = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+      compBtn.disabled = true; compBtnTxt.textContent = 'Scoring…';
+      compOut.style.display = 'block';
+      compOut.innerHTML = '<div style="color:var(--gray);font-size:13.5px">Scoring '+esc(raw)+' the same way…</div>';
+      fetch('/api/geo?path=scorecard', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: curl })
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if(!d || d.error || d.score == null) throw new Error((d && d.error) || 'scan failed');
+          compBtn.disabled = false; compBtnTxt.textContent = 'Compare';
+          var you = (lastScan && lastScan.score) != null ? lastScan.score : clr((lastScan&&lastScan.full&&lastScan.full.score));
+          var them = clr(d.score);
+          var theirHost = (d.meta && d.meta.host) || raw;
+          var ahead = you >= them;
+          function bar(label, val){
+            return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>'+esc(label)+'</span><b style="color:'+color(val)+'">'+val+'</b></div>'+
+              '<div style="height:8px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden"><div style="height:100%;width:'+val+'%;background:'+color(val)+'"></div></div></div>';
+          }
+          compOut.innerHTML =
+            bar('You', you) + bar(theirHost, them) +
+            '<div style="margin-top:12px;font-size:13.5px;color:var(--mid);line-height:1.6">'+
+              (ahead
+                ? 'You are ahead of '+esc(theirHost)+' in AI search. The engine widens that lead before they catch up.'
+                : esc(theirHost)+' is ahead of you in AI search right now. That is customers being handed to them. The engine closes that gap.')+
+            '</div>';
+        })
+        .catch(function(){
+          compBtn.disabled = false; compBtnTxt.textContent = 'Compare';
+          compOut.innerHTML = '<div style="color:var(--gray);font-size:13px">Could not score that site right now — try again in a moment.</div>';
+        });
+    });
+  }
+
+  // ── Share these results (a shareable, auto-running scorecard link). ──
+  var shareLink = document.getElementById('shareLink');
+  if(shareLink){
+    shareLink.addEventListener('click', function(e){
+      e.preventDefault();
+      var site = (lastScan && lastScan.url) || (lastScan && lastScan.full && lastScan.full.meta && lastScan.full.meta.url) || '';
+      var link = location.origin + '/scorecard?url=' + encodeURIComponent(String(site).replace(/^https?:\/\//i,''));
+      var done = function(){ var s = document.getElementById('shareCopied'); if(s){ s.style.display='inline'; setTimeout(function(){ s.style.display='none'; }, 2500); } };
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(link).then(done, function(){ window.prompt('Copy this link:', link); }); }
+      else { window.prompt('Copy this link:', link); }
     });
   }
 
