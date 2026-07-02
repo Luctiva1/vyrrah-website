@@ -262,6 +262,7 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
         <div class="sl">AI-Visibility Score</div>
         <b id="scoreVerdict">—</b>
         <div class="delta" id="scoreDelta"></div>
+        <button id="rescanBtn" type="button" style="display:none;margin-top:10px;background:none;border:1px solid rgba(255,255,255,.2);color:var(--muted,#a39c8e);font-size:12px;font-weight:600;padding:7px 13px;border-radius:7px;cursor:pointer">Re-scan my site</button>
       </div>
     </div>
     <div class="metrics" id="metrics"></div>
@@ -480,6 +481,26 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
   }
   var _cc = document.getElementById('closeCard'); if(_cc) _cc.addEventListener('click', function(){ doUpgrade(); });
 
+  // ── ON-DEMAND RE-SCAN: re-runs the real scan, saves a fresh metric row, so the
+  // score can actually MOVE (the delta below is baseline vs latest, honest). ──
+  var _dashWebsite = '';
+  var _rescanBtn = document.getElementById('rescanBtn');
+  if(_rescanBtn){ _rescanBtn.addEventListener('click', function(){
+    if(!_dashWebsite) return;
+    var b = _rescanBtn, o = b.textContent; b.disabled = true; b.textContent = 'Re-scanning…';
+    fetch('/api/geo?path=scorecard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url:_dashWebsite, refresh:true }) })
+      .then(function(r){ return r.json(); })
+      .then(function(sc){
+        if(!sc || sc.error || sc.score == null) throw new Error('scan failed');
+        var jwt = getJwt(), magic = getMagic(), url = '/api/geo?path=save-metrics', headers = { 'Content-Type':'application/json' };
+        if(jwt) headers['Authorization'] = 'Bearer ' + jwt; else if(magic) url += '&token=' + encodeURIComponent(magic);
+        var m = sc.meta || {};
+        return fetch(url, { method:'POST', headers:headers, body: JSON.stringify({ score: sc.score, scan: { host:m.host, vertical:m.vertical, score:sc.score, summary:sc.summary, gaps:sc.gaps, competitorGap:sc.competitorGap, totalGapsFound:sc.totalGapsFound } }) });
+      })
+      .then(function(){ b.textContent = 'Updated ✓'; setTimeout(function(){ load(); }, 700); })
+      .catch(function(){ b.disabled = false; b.textContent = o; });
+  }); }
+
   // ── REFERRAL card: the customer's share link + how many trials they have sent. ──
   function renderReferral(d){
     var card = document.getElementById('referralCard');
@@ -694,6 +715,8 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     de.textContent = delta || '';
     de.className = 'delta' + (String(delta).trim().charAt(0)==='-' ? ' down' : '');
     _wpCache = d.workPlan || null; _wpClient = clientId;
+    _dashWebsite = (d.meta && d.meta.website) || '';
+    var _rb = document.getElementById('rescanBtn'); if(_rb) _rb.style.display = (_dashWebsite && !adminClientId) ? 'inline-block' : 'none';
     renderClose(d);
     renderWorkPlan(d.workPlan, d, clientId);
     renderReferral(d);

@@ -47,7 +47,9 @@ export function assembleOpener(f, channel = 'call') {
     return channel === 'email' ? cap(core) + '.' : `Hi ${f.first}, ${core}. Worth 15 minutes?`;
   }
   const hit = ANGLES.find(a => { try { return a.when(f); } catch { return false; } });
-  if (!hit) return ''; // no real hook, skip, don't fake one
-  const core = hit.line(f, p);
+  // Universal fallback so every lead gets a usable prompt (reach-out-to-all, no tier gating).
+  // Honest + value-led: the core AI-visibility offer, no fabricated numbers.
+  const core = hit ? hit.line(f, p)
+    : `your next customers are increasingly asking ChatGPT and Google AI who to use, and whoever gets named there wins the job. I get you named in those answers, and that turns into ${p}`;
   return channel === 'email' ? cap(core) + '.' : `Hi ${f.first}, ${core}. Worth 15 minutes to see how?`;
 }

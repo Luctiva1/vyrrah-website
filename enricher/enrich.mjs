@@ -207,7 +207,6 @@ async function enrichOne(row) {
     RunsAds: runsAds ? 'Y' : '', Schema: sig.schema ? 'Y' : '', LocalBiz: sig.localbiz ? 'Y' : '',
     LeadCapture: (sig.hasForm || sig.hasChat) ? 'Y' : '', Reviews: sig.reviews ? 'Y' : '',
     LoadMs: (blocked || unreachable) ? '' : ms, PageSpeed: f.pageSpeed ?? '',
-    Tier: blocked ? 'BLOCKED' : unreachable ? 'UNREACHABLE' : (score >= 72 ? 'SKIP' : score < 28 ? 'WEAK' : 'SWEET-SPOT'),
     CallOpener: assembleOpener(f, 'call'), EmailLine: assembleOpener(f, 'email'),
   };
 }
@@ -231,15 +230,17 @@ async function run() {
   const cols = Object.keys(out[0]);
   const sv = x => typeof x.Score === 'number' ? x.Score : -1;
   const bySalience = [...out].sort((a, b) => sv(b) - sv(a));
-  const sweet = out.filter(o => o.Tier === 'SWEET-SPOT');
-  const dial = sweet.filter(o => o.Phone).sort((a, b) => a.Score - b.Score);
-  const email = sweet.filter(o => o.Email).sort((a, b) => a.Score - b.Score);
+  // No tiers, no skipping: reach out to ALL. Dial = everyone with a phone, email =
+  // everyone with an email, each best-score-first (still a useful call order).
+  const dial = out.filter(o => o.Phone).sort((a, b) => sv(b) - sv(a));
+  const email = out.filter(o => o.Email).sort((a, b) => sv(b) - sv(a));
   const stamp = basename(INPUT).replace(/\.csv$/i, '');
   writeFileSync(join(OUTDIR, `${stamp}_ENRICHED.csv`), toCSV(bySalience, cols));
   writeFileSync(join(OUTDIR, `${stamp}_DIAL.csv`), toCSV(dial, cols));
   writeFileSync(join(OUTDIR, `${stamp}_EMAIL.csv`), toCSV(email, cols));
   const scored = out.filter(o => typeof o.Score === 'number');
-  console.log(`\nDONE. reachable ${scored.length}/${out.length} | run ads ${out.filter(o => o.RunsAds).length} | sweet-spot ${sweet.length} | avg ${Math.round(scored.reduce((s, o) => s + o.Score, 0) / (scored.length || 1))}`);
+  const withOpener = out.filter(o => o.CallOpener).length;
+  console.log(`\nDONE. reachable ${scored.length}/${out.length} | run ads ${out.filter(o => o.RunsAds).length} | with opener ${withOpener}/${out.length} | avg score ${Math.round(scored.reduce((s, o) => s + o.Score, 0) / (scored.length || 1))}`);
   console.log(`out/: ${stamp}_ENRICHED.csv (all) · ${stamp}_DIAL.csv (${dial.length}) · ${stamp}_EMAIL.csv (${email.length})`);
   if (PERSIST) {
     const source = opt('source', stamp);

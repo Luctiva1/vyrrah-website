@@ -1197,6 +1197,19 @@ async function handleDashboard(req, res) {
       count: refCount,
       credits: Number.isFinite(customer.referral_credits) ? customer.referral_credits : 0
     };
+    // Real score movement: baseline (first scan) vs latest. Honest — only shows once
+    // there is more than one data point (a re-scan or the metrics cron created one).
+    let scoreChange = null;
+    try {
+      const supabase = getSupabase();
+      const { data: hist } = await supabase.from('geo_metrics').select('score,created_at')
+        .eq('client_id', String(customer.id)).not('score', 'is', null)
+        .order('created_at', { ascending: true }).limit(60);
+      if (hist && hist.length >= 2) {
+        const first = hist[0].score, last = hist[hist.length - 1].score;
+        if (Number.isFinite(first) && Number.isFinite(last)) scoreChange = last - first;
+      }
+    } catch (e) { /* no history yet */ }
     // Trial countdown drives the hybrid close (book a call + add card near day 7).
     let trialDaysLeft = null;
     if (customer.status === 'trial' && customer.trial_started_at) {
@@ -1206,6 +1219,7 @@ async function handleDashboard(req, res) {
     await logEvent('dashboard_return', { client_id: customer.id });
     return res.status(200).json({
       ...data,
+      scoreChange,
       workPlan,
       referral,
       meta: {
@@ -1568,14 +1582,17 @@ async function handleSaveMetrics(req, res) {
   if (Number.isFinite(Number(body.generated_this_month))) metrics.generated_this_month = Math.round(Number(body.generated_this_month));
   if (Array.isArray(body.rankings)) metrics.rankings = body.rankings;
   if (Array.isArray(body.citations)) metrics.citations = body.citations;
+  const scan = (body.scan && typeof body.scan === 'object') ? body.scan : null;
 
   try {
     const supabase = getSupabase();
-    const { error } = await supabase.from('geo_metrics').insert(metrics);
+    const { error } = await supabase.from('geo_metrics').insert(scan ? { ...metrics, scan } : metrics);
     if (error) throw error;
     return res.status(200).json({ ok: true, client_id: clientId });
   } catch (e) {
-    return res.status(200).json({ ok: true, stored: false, note: 'geo_metrics unavailable', client_id: clientId });
+    // scan column may be unmigrated → retry without it so the score row still lands.
+    try { const supabase = getSupabase(); const { error } = await supabase.from('geo_metrics').insert(metrics); if (error) throw error; return res.status(200).json({ ok: true, client_id: clientId }); }
+    catch (e2) { return res.status(200).json({ ok: true, stored: false, note: 'geo_metrics unavailable', client_id: clientId }); }
   }
 }
 
@@ -1732,7 +1749,9 @@ function buildOpener(f, channel) {
   else if (f.loadS != null && f.loadS >= 5) c = `your site takes ${f.loadS}s to load, so you lose over half your visitors before it opens and you're paying for traffic that never sees you. I win those ${p} back`;
   else if (!f.hasForm && !f.hasChat && f.score != null && f.score >= 45) c = `you're sending visitors to a homepage with no way to capture them, so that traffic leaks straight out. I turn the visitors you already get into ${p}`;
   else if (f.score != null && f.score < 62 && f.competitor) c = `you're near-invisible in AI search while ${f.competitor} isn't, and that's where your buyers are starting to look. I get you found there before they lock it up, and it turns into ${p}`;
-  if (!c) return '';
+  // Universal fallback so EVERY lead gets a usable prompt (Godwin reaches out to all,
+  // no tier/skip gating). Honest + value-led: the core AI-visibility offer, no fabricated numbers.
+  if (!c) c = `your next customers are increasingly asking ChatGPT and Google AI who to use, and whoever gets named there wins the job. I get you named in those answers, and that turns into ${p}`;
   return channel === 'email' ? cap(c) + '.' : `Hi ${f.first}, ${c}. Worth 15 minutes to see how?`;
 }
 async function enrichLead(lead) {
