@@ -667,6 +667,7 @@ async function handleScorecard(req, res) {
       'The on-page signals and the heuristic checklist are provided ONLY to inform the GAPS (what to improve), not to lower the headline score of an obviously-visible site. A thin, brand-new, unknown site with little content should score LOW. A small local business with a modest real site should score MID.',
       'You are also given a domainAuthority estimate (0-100) and whether the domain is recognized. Treat a high authority/recognized domain as strong evidence of high real visibility.',
       'Voice: confident, plain, second person ("your site"). Short sentences. No em dashes or en dashes. Never use: unlock, elevate, supercharge, seamless, leverage, transform, journey, delve, empower, revolutionize.',
+      `Personalization: this is "${(u.hostname.replace(/^www\./, '').split('.')[0] || 'the business').replace(/[-_]/g, ' ')}"${sig.city ? ` in ${sig.city}` : ''}. Refer to it by name and its city where it reads naturally in the summary and gaps so the audit feels bespoke to them, not a template. Do NOT force the name into every sentence.`,
       'Return JSON with EXACTLY these keys:',
       'score (int 0-100 overall real AI/search-visibility score, judged as described above),',
       'breakdown {seo,aeo,schema,content,reviews} (each int 0-100),',
@@ -678,6 +679,8 @@ async function handleScorecard(req, res) {
     ].join('\n');
     const user = JSON.stringify({
       host: u.hostname, vertical, coldStart,
+      brand: (u.hostname.replace(/^www\./, '').split('.')[0] || '').replace(/[-_]/g, ' '),
+      city: sig.city || '',
       domainAuthority: auth.authority, recognizedAuthority: auth.recognized,
       signals: sig,
       heuristic_breakdown: baseBreakdown,
@@ -949,6 +952,9 @@ async function handleGenerate(req, res) {
   const type = GEN_TYPES.has(String(body.type)) ? String(body.type) : 'article';
   const rawInput = String(body.url_or_topic || '').trim();
   if (!rawInput) return res.status(400).json({ error: 'url_or_topic is required.' });
+  // Optional: the specific scorecard gap this asset should close (from the "watch
+  // the engine fix this" button). Makes the demo output feel targeted, not generic.
+  const focus = String(body.focus || '').trim().slice(0, 200);
 
   // Input may be a URL (use its host as context) or a free-text topic.
   const asUrl = safeUrl(rawInput);
@@ -968,9 +974,10 @@ async function handleGenerate(req, res) {
       type === 'landing' ? 'Write a conversion landing page in Markdown: H1, value props, a what-we-do list, social-proof placeholder appropriate for a new business, and a clear call to action.' : '',
       type === 'listicle' ? 'Write a numbered listicle in Markdown with 5-8 specific, useful items and bold lead-ins.' : '',
       type === 'schema' ? 'Focus on the schema. Keep content short: one line explaining what the schema is and where to paste it.' : '',
+      focus ? `The reader's single biggest AI-visibility gap is: "${focus}". Make this deliverable directly help close that gap.` : '',
       'Return JSON with EXACTLY these keys: title (string), content (string, Markdown for the deliverable), schema (a valid schema.org JSON-LD OBJECT appropriate to the type: Article for article, LocalBusiness for landing, ItemList for listicle, FAQPage for schema). The schema MUST be a JSON object, not a string.'
     ].filter(Boolean).join('\n');
-    const user = JSON.stringify({ input: rawInput, isUrl: !!asUrl, host, topic, vertical, type });
+    const user = JSON.stringify({ input: rawInput, isUrl: !!asUrl, host, topic, vertical, type, focus });
     const geminiSchema = {
       type: 'OBJECT',
       properties: {
@@ -1628,15 +1635,15 @@ function prizeNoun(v) { if (['restoration', 'roofing', 'home services'].includes
 // Only asserts DETECTED facts; returns '' when no real hook (blank beats generic filler).
 function buildOpener(f, channel) {
   const p = prizeNoun(f.vertical); const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
-  if (f.blocked) { const c = `your site blocks the crawlers ChatGPT, Perplexity and Google AI use to read you — so you're effectively invisible in AI search, and that's ${p} going to whoever they CAN read. I fix that fast`; return channel === 'email' ? cap(c) + '.' : `Hi ${f.first} — ${c}. Worth 15 minutes?`; }
+  if (f.blocked) { const c = `your site blocks the crawlers ChatGPT, Perplexity and Google AI use to read you, so you're effectively invisible in AI search, and that's ${p} going to whoever they CAN read. I fix that fast`; return channel === 'email' ? cap(c) + '.' : `Hi ${f.first}, ${c}. Worth 15 minutes?`; }
   let c = null;
-  if (f.runsAds) c = `you're renting every lead through paid ads — the day you stop, it stops. I get businesses like yours the same ${p} from Google and AI search at a fraction of that ad spend`;
-  else if (f.score != null && f.score < 58 && f.competitor) c = `when your customers ask ChatGPT or Google AI who to use, ${f.competitor} gets named and you don't — that's ${p} handed straight to them. Getting you into that answer is exactly what I do`;
-  else if (f.loadS != null && f.loadS >= 5) c = `your site takes ${f.loadS}s to load, so you lose over half your visitors before it opens — you're paying for traffic that never sees you. I win those ${p} back`;
-  else if (!f.hasForm && !f.hasChat && f.score != null && f.score >= 45) c = `you're sending visitors to a homepage with no way to capture them — that traffic leaks straight out. I turn the visitors you already get into ${p}`;
+  if (f.runsAds) c = `you're renting every lead through paid ads, so the day you stop, it stops. I get businesses like yours the same ${p} from Google and AI search at a fraction of that ad spend`;
+  else if (f.score != null && f.score < 58 && f.competitor) c = `when your customers ask ChatGPT or Google AI who to use, ${f.competitor} gets named and you don't. That's ${p} handed straight to them, and getting you into that answer is exactly what I do`;
+  else if (f.loadS != null && f.loadS >= 5) c = `your site takes ${f.loadS}s to load, so you lose over half your visitors before it opens and you're paying for traffic that never sees you. I win those ${p} back`;
+  else if (!f.hasForm && !f.hasChat && f.score != null && f.score >= 45) c = `you're sending visitors to a homepage with no way to capture them, so that traffic leaks straight out. I turn the visitors you already get into ${p}`;
   else if (f.score != null && f.score < 62 && f.competitor) c = `you're near-invisible in AI search while ${f.competitor} isn't, and that's where your buyers are starting to look. I get you found there before they lock it up, and it turns into ${p}`;
   if (!c) return '';
-  return channel === 'email' ? cap(c) + '.' : `Hi ${f.first} — ${c}. Worth 15 minutes to see how?`;
+  return channel === 'email' ? cap(c) + '.' : `Hi ${f.first}, ${c}. Worth 15 minutes to see how?`;
 }
 async function enrichLead(lead) {
   const u = safeUrl(lead.url || lead.website || '');
@@ -1649,7 +1656,10 @@ async function enrichLead(lead) {
     if (r.ok && ct.includes('html')) html = await r.text();
   } catch (e) { ms = Date.now() - t; }
   const noContent = !html || html.length < 200;
-  const blocked = noContent && (status === 0 || [401, 403, 406, 429, 503].includes(status));
+  // Only a LIVE server that refuses a readable response counts as "blocked" (a real,
+  // assertable fact). status 0 = DNS/connection/TLS failure = dead/unreachable, NOT
+  // crawler-blocking — labelling that "your site blocks crawlers" would be fabricated.
+  const blocked = noContent && [401, 403, 406, 429, 503].includes(status);
   const sig = inspectHtml(html);
   const vertical = String(lead.vertical || '').trim() || inferVertical([company, lead.industry, lead.keywords, sig.title, sig.metaDesc, u.hostname].join(' '));
   const auth = domainAuthority(u.hostname);
