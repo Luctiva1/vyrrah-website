@@ -31,6 +31,8 @@ const { getSupabase } = require('./_lib/supabase');
 // working for V-Rank accounts with zero changes to tool.js.
 const VRANK_PLAN = 'vrank';
 const PUBLIC_BASE = process.env.PUBLIC_BASE || 'https://vyrrahlabs.com';
+const TRIAL_DAYS = 7;
+const BOOKING_URL = process.env.BOOKING_URL || 'https://cal.com/godwin-rayen/30min';
 
 // Mirror of tool.js issueClientToken() — DO NOT import from tool.js (keep files
 // independent). Same JWT shape so the existing applyBearerSession()/auth accepts it.
@@ -1040,6 +1042,7 @@ async function handleGenerate(req, res) {
     } catch (e) { /* geo_assets not migrated — asset stays null, generation still returns */ }
   }
 
+  await logEvent('gen', { client_id: genCustomer && genCustomer.id, meta: { type, approved } });
   return res.status(200).json({
     title, content: qa.content, schema, asset,
     qa: { status: approved ? 'approved' : 'needs_review', risk: qa.risk, autoApprove: approved, issues },
@@ -1194,6 +1197,13 @@ async function handleDashboard(req, res) {
       count: refCount,
       credits: Number.isFinite(customer.referral_credits) ? customer.referral_credits : 0
     };
+    // Trial countdown drives the hybrid close (book a call + add card near day 7).
+    let trialDaysLeft = null;
+    if (customer.status === 'trial' && customer.trial_started_at) {
+      const elapsed = (Date.now() - new Date(customer.trial_started_at).getTime()) / 86400000;
+      trialDaysLeft = Math.max(0, Math.ceil(TRIAL_DAYS - elapsed));
+    }
+    await logEvent('dashboard_return', { client_id: customer.id });
     return res.status(200).json({
       ...data,
       workPlan,
@@ -1201,7 +1211,8 @@ async function handleDashboard(req, res) {
       meta: {
         client_id: customer.id, mode: 'self', source: source || 'representative',
         mock: !!mock, website: customer.website || null, plan: customer.plan || 'recaller',
-        practice_name: customer.practice_name || null, status: customer.status || null
+        practice_name: customer.practice_name || null, status: customer.status || null,
+        trialDaysLeft, bookingUrl: BOOKING_URL
       }
     });
   }
@@ -1338,9 +1349,12 @@ async function handleSignup(req, res) {
       if (referrer) {
         const next = (Number.isFinite(referrer.referral_credits) ? referrer.referral_credits : 0) + 1;
         await supabase.from('tool_clients').update({ referral_credits: next }).eq('id', ref);
+        await logEvent('referral_sent', { client_id: ref, meta: { referred: String(client.id) } });
       }
     } catch (e) { /* referral_credits not migrated — attribution (referred_by) still recorded */ }
   }
+
+  await logEvent('signup', { client_id: client.id, meta: { ref: ref || null } });
 
   return res.status(200).json({
     ok: true,
@@ -1402,6 +1416,7 @@ async function handleCheckout(req, res) {
     if (!r.ok) return res.status(200).json({ mode: 'trial', error: `Dodo API ${r.status}` });
     const checkout_url = out.payment_link || out.link || out.url || null;
     if (!checkout_url) return res.status(200).json({ mode: 'trial', error: 'No checkout URL returned' });
+    await logEvent('checkout_started', { client_id: client.id });
     return res.status(200).json({ mode: 'paid', checkout_url });
   } catch (apiErr) {
     console.error('geo/checkout Dodo API error:', apiErr);
@@ -1891,6 +1906,7 @@ async function handleLeadEmail(req, res) {
     });
     emailed = true;
   } catch (e) { console.error('lead-email send failed:', e.message); }
+  await logEvent('email_capture', { meta: { host, emailed } });
   return res.status(200).json({ ok: true, emailed });
 }
 
@@ -1999,6 +2015,84 @@ async function handleAssetPage(req, res) {
   return res.status(200).end(page);
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// TRACK — POST /api/geo?path=track  {type, client_id?, meta?}
+//   Client-side funnel events (dashboard_return handled server-side; this is for
+//   in-page events like gen_clicked). Allow-list types to keep the table clean.
+// ════════════════════════════════════════════════════════════════════════════
+const TRACK_TYPES = new Set(['gen_clicked', 'share_clicked', 'competitor_scanned', 'upgrade_clicked', 'close_shown']);
+async function handleTrack(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (rateLimited(req)) return res.status(429).json({ error: 'slow down' });
+  const body = readBody(req);
+  const type = String(body.type || '');
+  if (!TRACK_TYPES.has(type)) return res.status(400).json({ error: 'unknown event' });
+  await logEvent(type, { client_id: body.client_id ? String(body.client_id).slice(0, 64) : null, meta: (body.meta && typeof body.meta === 'object') ? body.meta : null });
+  return res.status(200).json({ ok: true });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ADMIN-FUNNEL — GET /api/geo?path=admin-funnel  → counts by event type (last 30d)
+// ════════════════════════════════════════════════════════════════════════════
+async function handleAdminFunnel(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (!requireAuth(req, res)) return;
+  try {
+    const supabase = getSupabase();
+    const since = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { data, error } = await supabase.from('geo_events').select('type').gte('created_at', since).limit(5000);
+    if (error) throw error;
+    const counts = {};
+    for (const r of (data || [])) counts[r.type] = (counts[r.type] || 0) + 1;
+    return res.status(200).json({ ok: true, since, counts });
+  } catch (e) {
+    return res.status(200).json({ ok: true, counts: {}, note: 'geo_events unavailable — run migrations/2026-07-geo-events.sql' });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CRON-NURTURE — GET /api/geo?path=cron-nurture  (Vercel cron or admin)
+//   The 3-touch trial sequence (day 1 / 4 / 6, capped at 3 per the cold-email rule),
+//   deduped via geo_events. Day 6 is the hybrid close (book a call or keep it running).
+//   Emails only — no LLM — so it is cheap and cannot time out.
+// ════════════════════════════════════════════════════════════════════════════
+function nurtureEmail(touch, client) {
+  const name = (client.owner_name || client.practice_name || '').split(' ')[0] || 'there';
+  const dash = `${PUBLIC_BASE}/dashboard`;
+  if (touch === 'touch_day1') return { subject: 'Your V-Rank work plan is ready', body: `Hi ${name},\n\nYou started your V-Rank trial. Your work plan is waiting in your dashboard: your AI-visibility score, the exact gaps holding you back, and the engine ready to close them.\n\nOpen it and hit "have the engine do this" on your top gap. It writes and publishes a real page for your site in seconds.\n\n${dash}\n\nGodwin\nVyrrah Labs` };
+  if (touch === 'touch_day4') return { subject: 'Halfway through your trial', body: `Hi ${name},\n\nYou are a few days into your trial. If you have not yet, open your dashboard and let the engine close your top gap. Every page it publishes is a real, live page working for you.\n\nIf there is a gap you want me to take off your plate, just reply to this email.\n\n${dash}\n\nGodwin\nVyrrah Labs` };
+  return { subject: 'Your trial ends soon, let us review your results', body: `Hi ${name},\n\nYour free week is almost up. Two ways to keep going:\n\n1. Book a short results review with me: ${BOOKING_URL}\n2. Keep the engine running from your dashboard: ${dash}\n\nThe pages the engine published during your trial are yours. Let us decide the next step together.\n\nGodwin\nVyrrah Labs` };
+}
+async function handleCronNurture(req, res) {
+  const isCron = !!req.headers['x-vercel-cron'];
+  if (!isCron && !requireAuth(req, res)) return;
+  let processed = 0, sent = 0;
+  try {
+    const supabase = getSupabase();
+    const { data: clients } = await supabase.from('tool_clients').select('id,owner_email,owner_name,practice_name,trial_started_at,status,plan').eq('plan', VRANK_PLAN).eq('status', 'trial').limit(500);
+    for (const c of (clients || [])) {
+      if (!c.owner_email || !c.trial_started_at) continue;
+      processed++;
+      const days = (Date.now() - new Date(c.trial_started_at).getTime()) / 86400000;
+      const touch = days >= 6 ? 'touch_day6' : days >= 4 ? 'touch_day4' : days >= 1 ? 'touch_day1' : null;
+      if (!touch) continue;
+      // Dedup: skip if this touch already went out to this client.
+      const { data: already } = await supabase.from('geo_events').select('id').eq('client_id', String(c.id)).eq('type', touch).limit(1);
+      if (already && already[0]) continue;
+      const { subject, body } = nurtureEmail(touch, c);
+      try {
+        await sendEmail({ to: c.owner_email, toName: c.owner_name || '', subject, body });
+        await logEvent(touch, { client_id: c.id });
+        sent++;
+      } catch (e) { /* one bad address should not stop the batch */ }
+      if (sent >= 100) break; // safety cap per run
+    }
+    return res.status(200).json({ ok: true, processed, sent });
+  } catch (e) {
+    return res.status(200).json({ ok: true, processed, sent, note: 'nurture skipped: ' + String(e.message || e) });
+  }
+}
+
 module.exports = async (req, res) => {
   cors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -2022,11 +2116,14 @@ module.exports = async (req, res) => {
     if (path === 'lead-email') return await handleLeadEmail(req, res);
     if (path === 'checkout') return await handleCheckout(req, res);
     if (path === 'save-metrics') return await handleSaveMetrics(req, res);
+    if (path === 'track') return await handleTrack(req, res);
+    if (path === 'cron-nurture') return await handleCronNurture(req, res);
     if (path === 'admin-clients') return await handleAdminClients(req, res);
     if (path === 'admin-client') return await handleAdminClient(req, res);
     if (path === 'admin-leads') return await handleAdminLeads(req, res);
+    if (path === 'admin-funnel') return await handleAdminFunnel(req, res);
     if (path === 'admin-action') return await handleAdminActionGeo(req, res);
-    return res.status(404).json({ error: 'Route not found. Use ?path=scorecard|generate|dashboard|signup|checkout|lead-email|save-metrics|admin-clients|admin-client|admin-leads|admin-action' });
+    return res.status(404).json({ error: 'Route not found. Use ?path=scorecard|generate|dashboard|signup|checkout|lead-email|track|save-metrics|assets|admin-clients|admin-client|admin-leads|admin-funnel|admin-action' });
   } catch (err) {
     console.error('geo router error:', err);
     if (!res.headersSent) return res.status(500).json({ error: 'Internal server error' });

@@ -202,6 +202,16 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
 
   <div class="err" id="err"></div>
 
+  <!-- HYBRID CLOSE (fires near trial end: book a call OR add card to keep running) -->
+  <div id="closeModule" style="display:none;background:linear-gradient(135deg,rgba(240,165,0,.14),rgba(240,165,0,.04));border:1px solid var(--gold,#f0a500);border-radius:14px;padding:20px 22px;margin:14px 0 8px">
+    <b id="closeHead" style="font-family:'Fraunces',serif;font-size:19px;display:block;margin-bottom:6px"></b>
+    <p style="font-size:13.5px;color:var(--muted,#a39c8e);line-height:1.55;margin:0 0 14px">Two ways to keep the engine running: a quick results review with me, or add your card and keep going. The pages the engine published stay live either way.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a id="closeBook" href="#" target="_blank" rel="noopener" style="background:var(--gold,#f0a500);color:#141414;font-weight:700;padding:11px 18px;border-radius:8px;text-decoration:none">Book my results review</a>
+      <button id="closeCard" type="button" style="background:none;border:1px solid var(--gold,#f0a500);color:var(--gold,#f0a500);font-weight:700;padding:11px 18px;border-radius:8px;cursor:pointer">Keep it running — add card</button>
+    </div>
+  </div>
+
   <!-- WORK PLAN (trial day-1 hero: the scan turned into a prioritized to-do list) -->
   <div id="workPlanCard" style="display:none;background:var(--panel,#141414);border:1px solid rgba(240,165,0,.3);border-radius:14px;padding:20px 22px;margin:14px 0 8px">
     <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px">
@@ -457,6 +467,19 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
   var _wpUp = document.getElementById('wpUpgrade');
   if(_wpUp){ _wpUp.addEventListener('click', function(e){ e.preventDefault(); var b=document.getElementById('topUpgradeBtn'); if(b){ b.click(); } else { window.location.href='https://cal.com/godwin-rayen/30min'; } }); }
 
+  // ── HYBRID CLOSE: near trial end, offer a results call OR one-click card-on-file. ──
+  function renderClose(d){
+    var el = document.getElementById('closeModule');
+    var m = d.meta || {};
+    var left = m.trialDaysLeft;
+    if(m.status !== 'trial' || left == null || left > 2){ el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    document.getElementById('closeHead').textContent = left <= 0 ? 'Your trial ends today' : ('Your trial ends in ' + left + ' day' + (left===1?'':'s'));
+    var book = document.getElementById('closeBook'); if(book && m.bookingUrl) book.href = m.bookingUrl;
+    try { if(!el._shown){ el._shown = true; fetch('/api/geo?path=track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'close_shown', client_id: m.client_id }) }); } } catch(_){}
+  }
+  var _cc = document.getElementById('closeCard'); if(_cc) _cc.addEventListener('click', function(){ doUpgrade(); });
+
   // ── REFERRAL card: the customer's share link + how many trials they have sent. ──
   function renderReferral(d){
     var card = document.getElementById('referralCard');
@@ -671,6 +694,7 @@ h1{font-family:'Fraunces',serif;font-weight:900;font-size:28px;margin:14px 0 2px
     de.textContent = delta || '';
     de.className = 'delta' + (String(delta).trim().charAt(0)==='-' ? ' down' : '');
     _wpCache = d.workPlan || null; _wpClient = clientId;
+    renderClose(d);
     renderWorkPlan(d.workPlan, d, clientId);
     renderReferral(d);
     loadAssets();
