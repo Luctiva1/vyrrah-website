@@ -124,6 +124,13 @@ footer .flinks a:hover{color:var(--gold)}
 </header>
 
 <section class="slots">
+  <div class="rec-total" data-reveal id="rec-total">
+    <div>
+      <div class="live">Updated as clients report</div>
+      <div class="big" id="rec-num">$0</div>
+    </div>
+    <div class="lab" id="rec-lab"><b>Recovered for clients so far.</b> The number starts where it should: honest. It moves the day a founding client's first month closes, and not before.</div>
+  </div>
   <div class="slot-grid">
     <div class="slot" data-reveal>
       <div class="co-label">Founding client · Slot 01</div>
@@ -197,6 +204,29 @@ footer .flinks a:hover{color:var(--gold)}
 (function(){
 "use strict";
 var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- RECOVERED TOTAL (edit this number as clients report) ---------- */
+var RECOVERED_TOTAL = 0; // set to e.g. 18400 once a founding client's month closes
+(function(){
+  var numEl = document.getElementById('rec-num'), labEl = document.getElementById('rec-lab');
+  if(!numEl) return;
+  if(!RECOVERED_TOTAL || RECOVERED_TOTAL <= 0){
+    numEl.textContent = 'Soon';
+    numEl.style.fontSize = 'clamp(34px,4.5vw,56px)';
+    return;
+  }
+  if(labEl) labEl.querySelector('b') && (labEl.querySelector('b').textContent = 'Recovered for clients so far.');
+  var target = RECOVERED_TOTAL;
+  if(reduceMotion){ numEl.textContent = '$' + target.toLocaleString('en-US'); return; }
+  var t0 = null;
+  (function tick(ts){
+    if(t0 === null) t0 = ts;
+    var p = Math.min((ts - t0) / 1400, 1), e = 1 - Math.pow(1 - p, 3);
+    numEl.textContent = '$' + Math.round(target * e).toLocaleString('en-US');
+    if(p < 1) requestAnimationFrame(tick);
+  })();
+})();
+
 var hasMotion = typeof Motion !== 'undefined' && !reduceMotion;
 if(!hasMotion){
   document.documentElement.classList.add('no-motion');
