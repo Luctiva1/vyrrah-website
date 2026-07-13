@@ -425,16 +425,31 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 
 /* FAQ */
 .faq{padding:130px 52px;background:var(--bg2);border-top:1px solid var(--border)}
-.faq-list{max-width:820px;margin-top:50px}
-.fitem{border-bottom:1px solid var(--border)}
-.fq{width:100%;background:none;border:none;color:var(--white);font-family:'Fraunces',serif;font-size:19px;font-weight:700;text-align:left;padding:26px 44px 26px 0;position:relative;transition:color .2s}
-.fq:hover{color:var(--gold)}
-.fq::after{content:'+';position:absolute;right:6px;top:50%;transform:translateY(-50%);font-family:'DM Sans',sans-serif;font-size:26px;font-weight:300;color:var(--gold);transition:transform .3s}
+/* FAQ as a text thread */
+.faq-thread{max-width:680px;margin:46px auto 0;border:1px solid var(--border2);background:var(--bg3);border-radius:20px;overflow:hidden;box-shadow:0 40px 90px rgba(0,0,0,.45)}
+.thread-head{display:flex;align-items:center;gap:13px;padding:16px 20px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.015)}
+.thread-head .av{width:40px;height:40px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--red),var(--gold));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;color:var(--bg);font-size:16px}
+.thread-head b{display:block;font-size:14px;color:var(--white);font-weight:600}
+.thread-head span{font-size:11.5px;color:var(--gray);display:flex;align-items:center;gap:6px}
+.thread-head span::before{content:'';width:7px;height:7px;border-radius:50%;background:#3ad07a}
+.faq-list{padding:24px 22px 26px;display:flex;flex-direction:column;gap:4px}
+.fitem{display:flex;flex-direction:column}
+.fq{align-self:flex-start;max-width:90%;background:var(--bg2);border:1px solid var(--border);color:var(--white);font-family:'DM Sans',sans-serif;font-size:14.5px;font-weight:500;line-height:1.5;text-align:left;padding:13px 40px 13px 17px;border-radius:18px;border-bottom-left-radius:5px;margin-top:14px;position:relative;transition:border-color .2s,background .2s}
+.fitem:first-child .fq{margin-top:0}
+.fq:hover{border-color:var(--gold)}
+.fq::after{content:'+';position:absolute;right:15px;top:50%;transform:translateY(-50%);font-size:18px;font-weight:300;color:var(--gold);transition:transform .3s}
 .fitem.open .fq::after{transform:translateY(-50%) rotate(45deg)}
-.fa{max-height:0;overflow:hidden;transition:max-height .4s ease}
-.fa p{font-size:15px;color:var(--mid);line-height:1.8;padding:0 0 28px;max-width:720px}
-.fa p b{color:var(--white);font-weight:500}
-@media(max-width:720px){.faq{padding:90px 20px}}
+.fa{max-height:0;overflow:hidden;transition:max-height .45s ease;display:flex;flex-direction:column;align-items:flex-end}
+.fa p{font-size:14.5px;color:#1a1305;line-height:1.6;margin-top:9px;max-width:90%;background:linear-gradient(135deg,#b8901c,var(--gold));padding:13px 17px;border-radius:18px;border-bottom-right-radius:5px}
+.fa p b{color:#000;font-weight:600}
+.fdots{display:none;margin-top:9px;background:rgba(240,165,0,.2);border-radius:18px;border-bottom-right-radius:5px;padding:13px 17px;align-self:flex-end}
+.fa.typing .fdots{display:inline-flex;gap:5px}
+.fa.typing p{visibility:hidden;position:absolute;pointer-events:none}
+.fdots i{width:6px;height:6px;border-radius:50%;background:#d9b24a;animation:typ 1s infinite}
+.fdots i:nth-child(2){animation-delay:.15s}.fdots i:nth-child(3){animation-delay:.3s}
+.faq-foot{text-align:center;font-size:13px;color:var(--mid);margin:30px auto 0;max-width:680px}
+.faq-foot a{color:var(--gold);text-decoration:underline;text-underline-offset:3px}
+@media(max-width:720px){.faq{padding:90px 20px}.fq,.fa p{max-width:94%}}
 
 /* FINAL CTA */
 .final{background:var(--red);padding:96px 0 0;position:relative;overflow:hidden}
@@ -527,6 +542,9 @@ footer .flinks a:hover{color:var(--gold)}
 .flow-node.book.lit .ic{background:rgba(245,192,48,.2);color:var(--gold2);box-shadow:0 0 0 7px rgba(245,192,48,.08)}
 .flow-cap{margin-top:44px;display:flex;align-items:center;justify-content:center;gap:14px;font-size:14px;color:var(--mid);position:relative;z-index:2;text-align:center;flex-wrap:wrap}
 .flow-cap b{color:var(--gold);font-weight:600}
+.flow-hint{text-align:center;margin-top:26px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gray);position:relative;z-index:2;transition:opacity .35s}
+.flow-hint span{display:inline-block;color:var(--gold);animation:hintbob 1.4s ease-in-out infinite;margin-left:4px}
+@keyframes hintbob{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
 @media(max-width:860px){
   .flowsec{padding:84px 20px}
   .flow-nodes{flex-direction:column;gap:12px}
@@ -772,7 +790,7 @@ footer .flinks a:hover{color:var(--gold)}
 <section class="flowsec" id="how-flow">
   <div class="glow a"></div>
   <div class="glow b"></div>
-  <div class="wrap">
+  <div class="wrap" id="flow-stage">
     <div class="flow-head">
       <div class="ey g" data-reveal>The fix · sixty seconds, start to finish</div>
       <h2 class="sh" data-reveal>Watch a missed call <span class="lmask"><span>turn into a <em>booking.</em></span></span></h2>
@@ -1135,38 +1153,45 @@ footer .flinks a:hover{color:var(--gold)}
 <!-- FAQ -->
 <section class="faq" id="faq">
   <div class="wrap">
-    <div class="ey g" data-reveal>Questions I get on every call</div>
+    <div class="ey g" data-reveal>The texts I get before every call</div>
     <h2 class="sh" data-reveal>Asked and <em>answered.</em></h2>
-    <div class="faq-list">
-      <div class="fitem" data-reveal>
-        <button class="fq" type="button">How does the free week actually work?</button>
+    <div class="faq-thread" data-reveal>
+      <div class="thread-head">
+        <span class="av">G</span>
+        <div><b>Godwin Rayen</b><span>Online · replies same day</span></div>
+      </div>
+      <div class="faq-list">
+      <div class="fitem">
+        <button class="fq" type="button" aria-expanded="false">How does the free week actually work?</button>
         <div class="fa"><p>We get on a 30 minute call and connect the tool to your existing phone line. Takes about 15 minutes, nothing about your setup changes. It runs for 7 days. Then I show you three numbers: calls you missed, callers we recovered, and what those bookings were worth. <b>No card required.</b> If the numbers are boring, we shake hands and part ways.</p></div>
       </div>
-      <div class="fitem" data-reveal>
+      <div class="fitem">
         <button class="fq" type="button">Why only 3 new businesses a month?</button>
         <div class="fa"><p>Because I do the setup, the conversation design, and the Monday reports myself. At 4, quality drops. So, 3. It also means when your week starts, <b>you have my full attention</b>, not a junior account manager's.</p></div>
       </div>
-      <div class="fitem" data-reveal>
+      <div class="fitem">
         <button class="fq" type="button">Will the texts come from some weird number?</button>
         <div class="fa"><p>No. They come from <b>your business number</b>, the one the customer just dialed. To them it reads like your front desk texted back. Because functionally, it did.</p></div>
       </div>
-      <div class="fitem" data-reveal>
+      <div class="fitem">
         <button class="fq" type="button">What if the AI says something wrong?</button>
         <div class="fa"><p>It's scoped tight: greet, answer the basics, offer times, book. Anything outside that lane gets flagged to a human immediately. You can read <b>every single conversation</b> it has. You'll know what it said before your customer mentions it.</p></div>
       </div>
-      <div class="fitem" data-reveal>
+      <div class="fitem">
         <button class="fq" type="button">What's in the $5,000 retainer?</button>
         <div class="fa"><p>I work as your head of growth, fractionally. Ads, outreach, creative, CRO, follow up systems, the missed call tool, all of it, run by me directly. One weekly call where I show you the numbers. <b>Month to month.</b> A full time head of growth costs $150K plus. You're renting the same seat with no severance risk.</p></div>
       </div>
-      <div class="fitem" data-reveal>
+      <div class="fitem">
         <button class="fq" type="button">Why no contracts?</button>
         <div class="fa"><p>Because the Monday report should do the retaining, not a PDF you signed in month one. If I stop making you money, fire me that month. <b>That pressure is the product.</b></p></div>
       </div>
-      <div class="fitem" data-reveal>
+      <div class="fitem">
         <button class="fq" type="button">What kind of businesses is this for?</button>
         <div class="fa"><p>Local service businesses that live on inbound calls. Dental, medspa, law, home services, auto, vet, anything where a missed call is a missed job. If your phone rings and money is on the other end, <b>this works.</b></p></div>
       </div>
+      </div>
     </div>
+    <p class="faq-foot" data-reveal>Still have one? <a href="https://cal.com/godwin-rayen/30min" target="_blank" rel="noopener">Ask me on the call →</a></p>
   </div>
 </section>
 
@@ -1827,26 +1852,49 @@ if(flow){
     fglow.style.strokeDasharray = seg + ' ' + (fTotal + seg);
   }
   buildFlow();
-  var flowVis = false, fRaf = null, fT0 = null;
-  var DURF = 4400, PAUSEF = 1000;
+  // shared: render the pipeline at a given 0..1 progress
+  function setFlowProgress(p){
+    if(fTotal === 0){ buildFlow(); if(fTotal === 0) return; }
+    p = Math.max(0, Math.min(1, p));
+    var dist = p * fTotal;
+    var pt = ftrack.getPointAtLength(dist);
+    fsignal.setAttribute('cx', pt.x); fsignal.setAttribute('cy', pt.y);
+    var live = p > 0.01 && p < 0.985;
+    fsignal.style.opacity = live ? '1' : '0';
+    fglow.style.opacity = live ? '.9' : '0';
+    fglow.style.strokeDashoffset = (fglow._seg - dist).toFixed(1);
+    fnodes.forEach(function(n, i){ n.classList.toggle('lit', dist >= fNodeDist[i] - 8); });
+  }
+  var pinScene = GS && !reduceMotion && window.matchMedia('(min-width: 981px)').matches;
+
   if(reduceMotion){
     fnodes.forEach(function(n){ n.classList.add('lit'); });
     fsignal.style.opacity = '0'; fglow.style.opacity = '0';
-  }else{
+  } else if(pinScene){
+    /* PINNED SCROLL-SCRUB SCENE (desktop) */
+    var hint = document.createElement('div');
+    hint.className = 'flow-hint'; hint.innerHTML = 'Scroll <span>↓</span>';
+    flow.parentNode.insertBefore(hint, flow.nextSibling);
+    setFlowProgress(0);
+    var prog = { v: 0 };
+    GS.timeline({
+      scrollTrigger: {
+        trigger: '#how-flow', start: 'top top', end: '+=1500',
+        pin: '#flow-stage', scrub: 0.4, anticipatePin: 1, invalidateOnRefresh: true,
+        onRefresh: buildFlow,
+        onUpdate: function(self){ hint.style.opacity = self.progress > 0.06 ? '0' : '1'; }
+      }
+    }).to(prog, { v: 1, ease: 'none', onUpdate: function(){ setFlowProgress(prog.v); } });
+    window.addEventListener('resize', function(){ buildFlow(); if(window.ScrollTrigger) window.ScrollTrigger.refresh(); }, {passive:true});
+  } else {
+    /* AUTOPLAY LOOP (mobile / no GSAP) */
+    var flowVis = false, fRaf = null, fT0 = null, DURF = 4400, PAUSEF = 1000;
     var fFrame = function(ts){
       if(!flowVis) return;
       if(fTotal === 0){ buildFlow(); }
       if(fT0 === null) fT0 = ts;
       var t = (ts - fT0) % (DURF + PAUSEF);
-      var running = t < DURF;
-      var p = running ? t / DURF : 1;
-      var dist = p * fTotal;
-      var pt = ftrack.getPointAtLength(dist);
-      fsignal.setAttribute('cx', pt.x); fsignal.setAttribute('cy', pt.y);
-      fsignal.style.opacity = running ? '1' : '0';
-      fglow.style.opacity = running ? '.9' : '0';
-      fglow.style.strokeDashoffset = (fglow._seg - dist).toFixed(1);
-      fnodes.forEach(function(n, i){ n.classList.toggle('lit', dist >= fNodeDist[i] - 8); });
+      setFlowProgress(t < DURF ? t / DURF : 1);
       fRaf = requestAnimationFrame(fFrame);
     };
     var flowIO = new IntersectionObserver(function(es){
@@ -1980,12 +2028,34 @@ if(ladder){
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape') close(); });
 })();
 
-/* ---------- FAQ ---------- */
+/* ---------- FAQ (text thread) ---------- */
 document.querySelectorAll('.fitem').forEach(function(item){
   var btn = item.querySelector('.fq'), ans = item.querySelector('.fa');
+  btn.setAttribute('aria-expanded', 'false');
+  var dots = document.createElement('span');
+  dots.className = 'fdots'; dots.setAttribute('aria-hidden', 'true');
+  dots.innerHTML = '<i></i><i></i><i></i>';
+  ans.insertBefore(dots, ans.firstChild);
+  var tmr = null;
   btn.addEventListener('click', function(){
     var open = item.classList.toggle('open');
-    ans.style.maxHeight = open ? ans.scrollHeight + 'px' : '0';
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if(tmr) clearTimeout(tmr);
+    if(open){
+      if(!reduceMotion){
+        ans.classList.add('typing');
+        ans.style.maxHeight = '90px';
+        tmr = setTimeout(function(){
+          ans.classList.remove('typing');
+          ans.style.maxHeight = ans.scrollHeight + 'px';
+        }, 650);
+      } else {
+        ans.style.maxHeight = ans.scrollHeight + 'px';
+      }
+    } else {
+      ans.classList.remove('typing');
+      ans.style.maxHeight = '0';
+    }
   });
 });
 
